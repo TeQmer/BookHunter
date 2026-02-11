@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Hero Section - Привлекательный главный блок -->
+    <div class="hero-section text-center mb-5">
+        <div class="container">
+            <h1 class="display-4 mb-3">
+                <i class="fas fa-book-open"></i> BookHunter
+            </h1>
+            <p class="lead mb-4">Ваш персональный помощник в поиске лучших книг по лучшим ценам</p>
+            <p class="mb-4">Отслеживайте скидки на книги, получайте уведомления о выгодных предложениях и экономьте на покупках</p>
+            
+            <div class="row justify-content-center mt-4">
+                <div class="col-md-8">
+                    <div class="d-grid gap-3 d-md-flex justify-content-md-center">
+                        <a href="/web/books" class="btn btn-light btn-lg px-5">
+                            <i class="fas fa-search"></i> Найти книги
+                        </a>
+                        <a href="/web/alerts" class="btn btn-outline-light btn-lg px-5">
+                            <i class="fas fa-bell"></i> Мои подписки
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Section - Динамическая загрузка статистики -->
+    <div class="row mb-5" id="statsSection">
+        <div class="col-12 text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+            <p class="mt-2 text-muted">Загружаем статистику...</p>
+        </div>
+    </div>
+
+    <!-- Hidden template for stats (will be populated by JavaScript) -->
+    <div id="statsTemplate" style="display: none;">
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="stats-card h-100">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-book-open fa-2x" style="color: var(--accent-primary);"></i>
+                    </div>
+                    <h6 class="card-title text-uppercase">Книги в каталоге</h6>
+                    <h2 class="display-4 mb-2" id="totalBooks">0</h2>
+                    <p class="text-muted mb-0">книг отслеживается</p>
+                    <div class="book-spine mt-2"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="stats-card h-100">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-bell fa-2x" style="color: var(--success);"></i>
+                    </div>
+                    <h6 class="card-title text-uppercase">Активные подписки</h6>
+                    <h2 class="display-4 mb-2" id="totalAlerts">0</h2>
+                    <p class="text-muted mb-0">подписок пользователей</p>
+                    <div class="book-spine mt-2"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="stats-card h-100">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-percentage fa-2x" style="color: var(--warning);"></i>
+                    </div>
+                    <h6 class="card-title text-uppercase">Средняя скидка</h6>
+                    <h2 class="display-4 mb-2" id="avgDiscount">0%</h2>
+                    <p class="text-muted mb-0">средний размер скидки</p>
+                    <div class="book-spine mt-2"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="stats-card h-100">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-store fa-2x" style="color: var(--info);"></i>
+                    </div>
+                    <h6 class="card-title text-uppercase">Магазинов</h6>
+                    <h2 class="display-4 mb-2" id="totalSources">0</h2>
+                    <p class="text-muted mb-0">подключенных магазинов</p>
+                    <div class="book-spine mt-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions and Recent Books -->
+    <div class="row">
+        <!-- Quick Actions -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-book h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt"></i> Быстрые действия
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-3">
+                        <a href="/web/books" class="btn btn-primary">
+                            <i class="fas fa-search"></i> Найти книги
+                        </a>
+                        <a href="/web/alerts" class="btn btn-success">
+                            <i class="fas fa-bell"></i> Мои подписки
+                        </a>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h6 class="text-muted mb-3">Быстрый поиск:</h6>
+                        <form action="/web/books" method="get">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="q" 
+                                       placeholder="Название книги или автора">
+                                <button class="btn btn-outline-primary" type="submit">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h6 class="text-muted mb-3">Популярные запросы:</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a href="/web/books?q=программирование" class="badge bg-secondary text-decoration-none">программирование</a>
+                            <a href="/web/books?q=психология" class="badge bg-secondary text-decoration-none">психология</a>
+                            <a href="/web/books?q=бизнес" class="badge bg-secondary text-decoration-none">бизнес</a>
+                            <a href="/web/books?q=история" class="badge bg-secondary text-decoration-none">история</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Books - Компактный список без фото -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-book h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock"></i> Последние добавленные книги
+                    </h5>
+                    <a href="/web/books" class="btn btn-outline-primary btn-sm">
+                        Все книги <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="card-body p-0" id="recentBooksContainer">
+                    <div class="text-center py-4" id="booksLoading">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Загружаем книги...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Info -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-book">
+                <div class="card-body text-center py-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-star" style="color: var(--accent-primary);"></i>
+                        Почему выбирают BookHunter?
+                    </h5>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <i class="fas fa-search fa-2x mb-2" style="color: var(--accent-primary);"></i>
+                            <h6>Умный поиск</h6>
+                            <p class="text-muted small mb-0">Автоматический поиск новых книг по вашим запросам</p>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <i class="fas fa-bell fa-2x mb-2" style="color: var(--accent-primary);"></i>
+                            <h6>Мгновенные уведомления</h6>
+                            <p class="text-muted small mb-0">Получайте уведомления о скидках сразу на телефон</p>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <i class="fas fa-chart-line fa-2x mb-2" style="color: var(--accent-primary);"></i>
+                            <h6>Отслеживание цен</h6>
+                            <p class="text-muted small mb-0">Мониторинг цен и истории изменения стоимости</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Анимации при загрузке -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM загружен, запускаем загрузку данных...');
+    
+    // Загружаем статистику и последние книги
+    loadMainPageData();
+    
+    // Анимация появления элементов
+    setTimeout(() => {
+        animateStatsCards();
+    }, 100);
+});
+
+async function loadMainPageData() {
+    console.log('Начинаем загрузку данных для главной страницы...');
+    
+    try {
+        console.log('Отправляем запрос к /api/stats/main...');
+        
+        // Загружаем статистику
+        const statsResponse = await fetch('/api/stats/main');
+        console.log('Получен ответ от сервера:', statsResponse.status, statsResponse.statusText);
+        
+        if (statsResponse.ok) {
+            const statsData = await statsResponse.json();
+            console.log('Данные статистики получены:', statsData);
+            
+            // Проверяем структуру данных
+            if (statsData && typeof statsData === 'object') {
+                console.log('Структура данных корректна');
+                updateStats(statsData);
+                
+                // Загружаем последние книги (они уже включены в статистику)
+                if (statsData.recent_books && Array.isArray(statsData.recent_books)) {
+                    console.log('Загружаем последние книги:', statsData.recent_books.length);
+                    renderRecentBooks(statsData.recent_books);
+                } else {
+                    console.log('Последние книги отсутствуют или неправильный формат');
+                }
+            } else {
+                console.error('Некорректная структура данных:', statsData);
+                showStatsError('Некорректная структура данных от сервера');
+            }
+        } else {
+            console.error('Ошибка HTTP при загрузке статистики:', statsResponse.status, statsResponse.statusText);
+            showStatsError(`Ошибка загрузки: HTTP ${statsResponse.status}`);
+        }
+        
+    } catch (error) {
+        console.error('Ошибка загрузки данных:', error);
+        showStatsError(`Ошибка сети: ${error.message}`);
+        showBooksError();
+    }
+}
+
+function updateStats(data) {
+    console.log('Начинаем обновление статистики с данными:', data);
+    
+    // Проверяем, что данные корректные
+    if (!data) {
+        console.error('Получены некорректные данные (null/undefined)');
+        showStatsError('Получены некорректные данные');
+        return;
+    }
+    
+    // Проверяем, что это объект
+    if (typeof data !== 'object') {
+        console.error('Данные не являются объектом:', typeof data, data);
+        showStatsError('Некорректный формат данных');
+        return;
+    }
+    
+    try {
+        // Получаем значения с дефолтными значениями
+        const totalBooks = data.total_books || 0;
+        const totalAlerts = data.total_alerts || 0;
+        const totalSources = data.total_sources || 0;
+        const avgDiscount = data.avg_discount || 0;
+        
+        console.log('Значения для обновления:', { totalBooks, totalAlerts, totalSources, avgDiscount });
+        
+        // Сначала показываем карточки статистики
+        showStatsCards();
+        
+        // Анимированное обновление чисел
+        console.log('Запускаем анимацию чисел...');
+        animateNumber('totalBooks', totalBooks);
+        animateNumber('totalAlerts', totalAlerts);
+        animateNumber('totalSources', totalSources);
+        
+        // Средняя скидка с символом процента
+        const avgDiscountElement = document.getElementById('avgDiscount');
+        if (avgDiscountElement) {
+            console.log('Обновляем элемент avgDiscount с значением:', avgDiscount);
+            animateNumber('avgDiscount', avgDiscount, true);
+        } else {
+            console.warn('Элемент avgDiscount не найден');
+        }
+        
+        console.log('Статистика успешно обновлена');
+        
+    } catch (error) {
+        console.error('Ошибка при обновлении статистики:', error);
+        showStatsError(`Ошибка обновления: ${error.message}`);
+    }
+}
+
+function animateNumber(elementId, targetValue, isPercentage = false) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    const startValue = 0;
+    const duration = 1000; // 1 секунда
+    const startTime = performance.now();
+    
+    function updateNumber(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function для плавности
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const currentValue = Math.round(startValue + (targetValue - startValue) * easeOut);
+        
+        element.textContent = isPercentage ? `${currentValue}%` : currentValue.toLocaleString('ru-RU');
+        
+        if (progress < 1) {
+            requestAnimationFrame(updateNumber);
+        }
+    }
+    
+    requestAnimationFrame(updateNumber);
+}
+
+function renderRecentBooks(books) {
+    const container = document.getElementById('recentBooksContainer');
+    const loadingElement = document.getElementById('booksLoading');
+    
+    if (!container || !loadingElement) return;
+    
+    if (books && books.length > 0) {
+        // Скрываем загрузку
+        loadingElement.style.display = 'none';
+        
+        // Создаем HTML для компактного списка книг
+        const booksHTML = `
+            <div id="recentBooksList">
+                ${books.map(book => createBookCard(book)).join('')}
+            </div>
+        `;
+        
+        container.innerHTML = booksHTML;
+        
+        // Анимация появления элементов
+        setTimeout(() => {
+            animateRecentBooks();
+        }, 100);
+        
+    } else {
+        // Показываем сообщение об отсутствии книг
+        loadingElement.style.display = 'none';
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-book-open fa-4x text-muted mb-3"></i>
+                <h5 class="text-muted">Книги пока не добавлены</h5>
+                <p class="text-muted mb-4">Начните с поиска интересных книг</p>
+                <a href="/web/books" class="btn btn-primary">
+                    <i class="fas fa-search"></i> Найти книги
+                </a>
+            </div>
+        `;
+    }
+}
+
+function createBookCard(book) {
+    // Исправляем проверку скидки - скидки хранятся как отрицательные числа
+    const hasDiscount = book.discount_percent < 0;
+    const discountPercent = hasDiscount ? Math.abs(book.discount_percent) : 0;
+    const discountBadge = hasDiscount ? 
+        `<span class="discount-badge badge badge-success badge-sm">-${discountPercent}%</span>` : '';
+    
+    const formattedPrice = new Intl.NumberFormat('ru-RU').format(book.current_price) + ' ₽';
+    const formattedDate = book.parsed_at ? new Date(book.parsed_at).toLocaleDateString('ru-RU') : '';
+    
+    return `
+        <div class="recent-book-item border-bottom p-3 book-hover-effect" onclick="window.location.href='/web/books?book_id=${book.id}&action=show_details'">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <h6 class="book-title mb-1">${escapeHtml(book.title)}</h6>
+                    <p class="book-author mb-1 text-muted small">${escapeHtml(book.author)}</p>
+                    
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        <span class="current-price fw-bold text-primary">${formattedPrice}</span>
+                        ${discountBadge}
+                        <small class="text-muted ms-auto">${formattedDate}</small>
+                    </div>
+                </div>
+                
+                <div class="book-icon ms-3">
+                    <i class="fas fa-book fa-2x text-muted"></i>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function showStatsCards() {
+    console.log('Пытаемся отобразить статистические карточки...');
+    
+    const statsSection = document.getElementById('statsSection');
+    const template = document.getElementById('statsTemplate');
+    
+    console.log('Найденные элементы:', { 
+        statsSection: !!statsSection, 
+        template: !!template 
+    });
+    
+    if (statsSection && template) {
+        statsSection.innerHTML = template.innerHTML;
+        template.style.display = 'none';
+        console.log('Статистические карточки успешно отображены');
+        return true;
+    } else {
+        console.error('Не найдены необходимые элементы для отображения статистики');
+        if (!statsSection) console.error('Элемент statsSection не найден');
+        if (!template) console.error('Элемент statsTemplate не найден');
+        return false;
+    }
+}
+
+function showStatsError(message = 'Не удалось загрузить статистику') {
+    console.log('Показываем ошибку статистики:', message);
+    
+    const statsSection = document.getElementById('statsSection');
+    if (statsSection) {
+        statsSection.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-warning text-center">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>${message}</strong><br>
+                    <small>Попробуйте обновить страницу позже</small>
+                    <br>
+                    <button class="btn btn-outline-primary btn-sm mt-2" onclick="loadMainPageData()">
+                        <i class="fas fa-redo"></i> Попробовать снова
+                    </button>
+                </div>
+            </div>
+        `;
+        console.log('Сообщение об ошибке отображено');
+    } else {
+        console.error('Не удалось найти элемент для отображения ошибки');
+    }
+}
+
+function showBooksError() {
+    const container = document.getElementById('recentBooksContainer');
+    const loadingElement = document.getElementById('booksLoading');
+    
+    if (container && loadingElement) {
+        loadingElement.style.display = 'none';
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-exclamation-triangle fa-4x text-warning mb-3"></i>
+                <h5 class="text-warning">Ошибка загрузки книг</h5>
+                <p class="text-muted mb-4">Не удалось загрузить последние книги</p>
+                <button class="btn btn-primary" onclick="loadMainPageData()">
+                    <i class="fas fa-redo"></i> Попробовать снова
+                </button>
+            </div>
+        `;
+    }
+}
+
+function animateStatsCards() {
+    const statsCards = document.querySelectorAll('.stats-card');
+    statsCards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(30px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 200);
+    });
+}
+
+function animateRecentBooks() {
+    const bookItems = document.querySelectorAll('.recent-book-item');
+    bookItems.forEach((item, index) => {
+        item.style.opacity = '0';
+        item.style.transform = 'translateX(-20px)';
+        setTimeout(() => {
+            item.style.transition = 'all 0.4s ease';
+            item.style.opacity = '1';
+            item.style.transform = 'translateX(0)';
+        }, 200 + (index * 80));
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Делаем функции глобально доступными
+window.loadMainPageData = loadMainPageData;
+</script>
+{% endblock %}

@@ -1,0 +1,741 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-search"></i> Результаты поиска
+        </h1>
+        
+        {% if query %}
+        <div class="mb-3">
+            <button class="btn btn-outline-primary" onclick="refreshSearchResults()">
+                <i class="fas fa-sync-alt"></i> Обновить результаты
+            </button>
+            <a href="/web/books/search?q={{ query }}" class="btn btn-outline-secondary">
+                <i class="fas fa-external-link-alt"></i> Открыть в новой вкладке
+            </a>
+        </div>
+        {% endif %}
+        
+        <!-- Единый контейнер для всех книг -->
+        <div id="booksContainer">
+            {% if books and books|length > 0 %}
+                <div class="mb-3">
+                    <p class="text-muted">По запросу: "<strong>{{ query }}</strong>" найдено {{ total }} книг в каталоге</p>
+                </div>
+                <div class="row" id="booksGrid">
+                    {% for book in books %}
+                    <div class="col-md-4 mb-4">
+                        <div class="card book-card h-100">
+                            {% if book.image_url %}
+                            <img src="{{ book.image_url }}" class="card-img-top" alt="{{ book.title }}" style="height: 200px; object-fit: cover;">
+                            {% else %}
+                            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                                <i class="fas fa-book fa-3x text-muted"></i>
+                            </div>
+                            {% endif %}
+                            
+                            {% if book.discount_percent %}
+                            <div class="discount-badge badge bg-danger">
+                                -{{ book.discount_percent }}%
+                            </div>
+                            {% endif %}
+                            
+                            <div class="card-body d-flex flex-column">
+                                <h6 class="card-title">{{ book.title }}</h6>
+                                {% if book.author %}
+                                <p class="text-muted small mb-2">{{ book.author }}</p>
+                                {% endif %}
+                                
+                                <div class="price-section mb-3">
+                                    <span class="current-price">{{ book.display_price }}</span>
+                                    {% if book.display_original_price %}
+                                    <span class="original-price">{{ book.display_original_price }}</span>
+                                    {% endif %}
+                                    {% if book.display_discount %}
+                                    <span class="badge bg-danger ms-2">{{ book.display_discount }}</span>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="mt-auto">
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-store"></i> {{ book.source }}
+                                    </small>
+                                    <small class="text-muted d-block">
+                                        <i class="fas fa-calendar"></i> {{ book.parsed_at.strftime('%d.%m.%Y') if book.parsed_at else 'Недавно' }}
+                                    </small>
+                                    <div class="mt-2">
+                                        <a href="{{ book.url }}" target="_blank" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-external-link-alt"></i> Посмотреть
+                                        </a>
+                                        <a href="/web/books/{{ book.id }}" class="btn btn-outline-secondary btn-sm">
+                                            <i class="fas fa-info"></i> Подробнее
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <!-- Пустое состояние для нового поиска -->
+                <div id="emptyState" class="text-center py-5">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <h3 class="empty-state-title">🔍 Поиск книг</h3>
+                        <p class="empty-state-text">
+                            Введите название книги или автора для поиска.
+                        </p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Статус парсинга -->
+        <div id="parsingStatus" class="mb-4" style="display: none;">
+            <div class="card">
+                <div class="card-body">
+                    <div id="statusContent">
+                        <!-- Статус будет обновляться динамически -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5>Новый поиск</h5>
+                <form method="GET" class="row g-3">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" name="q" 
+                               value="{{ query }}" placeholder="Введите название книги">
+                    </div>
+                    <div class="col-md-3">
+                        <select name="source" class="form-select">
+                            <option value="chitai-gorod">Читай-город</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i> Найти книги
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentQuery = "{{ query }}";
+let parsingInProgress = false;
+
+console.log('=== SMART SEARCH INITIALIZED ===');
+console.log('Current query:', currentQuery);
+
+/**
+ * Очищает поисковый запрос от знаков пунктуации
+ * "Котлован, Андрей Платонов" -> "Котлован Андрей Платонов"
+ */
+function cleanSearchQuery(text) {
+    // Заменяем запятые, точки и другие разделители на пробелы
+    const cleaned = text.replace(/[,\.\!\?\:\;\-\—\(\)\[\]\{\}<>]/g, ' ');
+    // Разбиваем на слова и очищаем каждый
+    const words = cleaned.toLowerCase().split(/\s+/);
+    // Убираем пустые строки
+    return words.filter(word => word.trim()).join(' ');
+}
+
+// Автоматический запуск поиска при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, checking if auto search needed...');
+    
+    const hasBooks = document.querySelector('.book-card');
+    const query = currentQuery;
+    
+    console.log('Page state:', { hasBooks: !!hasBooks, query });
+    
+    // Если есть поисковый запрос но нет книг - запускаем автоматический поиск
+    if (query && !hasBooks && query.trim() !== '') {
+        console.log('No books found, starting automatic search...');
+        startAutomaticSearch(query);
+    }
+});
+
+async function startAutomaticSearch(query) {
+    if (parsingInProgress) {
+        console.log('Parsing already in progress, skipping...');
+        return;
+    }
+    
+    parsingInProgress = true;
+    console.log('Starting automatic search for:', query);
+    
+    // Показываем статус поиска
+    showParsingStatus('info', '🔍 Ищем книги в каталоге...', `Проверяем базу данных по запросу: "${query}"`);
+    
+    // Проверяем базу данных
+    try {
+        console.log('Checking database...');
+        const dbResult = await checkDatabaseForBooks(query);
+        
+        if (dbResult.booksFound > 0) {
+            console.log('Books found in database:', dbResult.booksFound);
+            showDatabaseResults(dbResult.books, query, dbResult.booksFound);
+            parsingInProgress = false;
+            return;
+        }
+        
+        console.log('No books in database, starting parsing...');
+        
+        // Запускаем парсинг
+        await startParsing(query);
+        
+    } catch (error) {
+        console.error('Error in automatic search:', error);
+        showError('Ошибка при поиске книг: ' + error.message);
+        parsingInProgress = false;
+    }
+}
+
+async function checkDatabaseForBooks(query) {
+    // Очищаем запрос от знаков пунктуации
+    const cleanedQuery = cleanSearchQuery(query);
+    console.log('Checking database for query:', { original: query, cleaned: cleanedQuery });
+    
+    // Используем очищенный запрос
+    const response = await fetch(`/web/books/api/search?q=${encodeURIComponent(cleanedQuery)}`);
+    
+    if (!response.ok) {
+        throw new Error('Ошибка проверки базы данных');
+    }
+    
+    const result = await response.json();
+    console.log('Database check result:', result);
+    
+    // Преобразуем формат ответа в нужный для функции showDatabaseResults
+    return {
+        booksFound: result.books ? result.books.length : 0,
+        books: result.books || [],
+        total: result.total || 0
+    };
+}
+
+async function startParsing(query) {
+    console.log('Starting parsing for query:', query);
+    
+    // Обновляем статус
+    showParsingStatus('info', '🔍 Ищем новые книги...', `Проверяем каталог магазина по запросу: "${query}"`);
+    
+    try {
+        // Запускаем парсинг
+        const response = await fetch(`/api/parser/parse?query=${encodeURIComponent(query)}&source=chitai-gorod`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Ошибка запуска парсинга');
+        }
+        
+        const result = await response.json();
+        const taskId = result.task_id;
+        
+        if (!taskId) {
+            throw new Error('Не получен ID задачи');
+        }
+        
+        console.log('Parsing started with task ID:', taskId);
+        
+        // Отслеживаем прогресс
+        await trackParsingProgress(taskId, query);
+        
+    } catch (error) {
+        console.error('Parsing error:', error);
+        showError('Ошибка запуска парсинга: ' + error.message);
+    }
+}
+
+async function trackParsingProgress(taskId, query) {
+    console.log('Tracking parsing progress for task:', taskId);
+    
+    // Обновляем статус
+    showParsingStatus('info', '⏳ Обрабатываем результаты...', 'Ищем книги в каталоге магазина');
+    
+    let attempts = 0;
+    const maxAttempts = 30; // 5 минут максимум
+    
+    const checkStatus = async () => {
+        attempts++;
+        console.log(`Checking status (attempt ${attempts}/${maxAttempts})...`);
+        
+        try {
+            const response = await fetch(`/api/parser/parse/${taskId}`);
+            
+            if (!response.ok) {
+                throw new Error('Ошибка получения статуса');
+            }
+            
+            const status = await response.json();
+            console.log('Status check result:', status);
+            
+            if (status.status === 'completed') {
+                console.log('Parsing completed successfully');
+                
+                // Проверяем результаты в базе данных
+                const dbResult = await checkDatabaseForBooks(query);
+                
+                if (dbResult.booksFound > 0) {
+                    showParsingResults(dbResult.books, query, dbResult.booksFound, status);
+                } else {
+                    showNoResults(query, status);
+                }
+                
+                parsingInProgress = false;
+                
+            } else if (status.status === 'failed') {
+                console.log('Parsing failed:', status.message);
+                showError('Ошибка парсинга: ' + (status.message || 'Неизвестная ошибка'));
+                parsingInProgress = false;
+                
+            } else {
+                // Продолжаем ожидание
+                if (attempts < maxAttempts) {
+                    setTimeout(checkStatus, 10000); // Проверяем каждые 10 секунд
+                } else {
+                    showTimeout(query);
+                    parsingInProgress = false;
+                }
+            }
+            
+        } catch (error) {
+            console.error('Status check error:', error);
+            
+            if (attempts < maxAttempts) {
+                setTimeout(checkStatus, 10000);
+            } else {
+                showTimeout(query);
+                parsingInProgress = false;
+            }
+        }
+    };
+    
+    // Начинаем проверку через 5 секунд
+    setTimeout(checkStatus, 5000);
+}
+
+function showParsingStatus(type, title, message) {
+    const statusContainer = document.getElementById('parsingStatus');
+    const statusContent = document.getElementById('statusContent');
+    
+    if (statusContainer && statusContent) {
+        const alertClass = type === 'error' ? 'alert-danger' : 
+                          type === 'warning' ? 'alert-warning' : 'alert-info';
+        
+        statusContent.innerHTML = `
+            <div class="alert ${alertClass}">
+                <h5><i class="fas fa-${type === 'error' ? 'exclamation-circle' : 
+                                    type === 'warning' ? 'exclamation-triangle' : 
+                                    'info-circle'}"></i> ${title}</h5>
+                <p class="mb-0">${message}</p>
+            </div>
+        `;
+        statusContainer.style.display = 'block';
+    }
+}
+
+function showDatabaseResults(books, query, count) {
+    console.log('Showing database results:', { books, query, count });
+    
+    // Скрываем статус поиска
+    hideParsingStatus();
+    
+    // Полностью очищаем контейнер перед добавлением новых книг
+    const booksContainer = document.getElementById('booksContainer');
+    booksContainer.innerHTML = ''; // Очищаем все содержимое
+    
+    // Создаем контейнер для книг
+    const booksGrid = createBooksGrid();
+    booksGrid.id = 'booksGrid';
+    
+    // Добавляем книги с анимацией
+    books.forEach((book, index) => {
+        setTimeout(() => {
+            const bookElement = createBookElement(book);
+            booksGrid.appendChild(bookElement);
+            
+            // Анимация появления
+            bookElement.style.opacity = '0';
+            bookElement.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                bookElement.style.transition = 'all 0.5s ease';
+                bookElement.style.opacity = '1';
+                bookElement.style.transform = 'translateY(0)';
+            }, 50);
+        }, index * 100);
+    });
+    
+    // Обновляем контейнер
+    booksContainer.innerHTML = `
+        <div class="mb-3">
+            <p class="text-muted">По запросу: "<strong>${query}</strong>" найдено ${count} книг в каталоге</p>
+        </div>
+    `;
+    booksContainer.appendChild(booksGrid);
+    
+    // Показываем уведомление
+    showToast(`Найдено ${count} книг по запросу "${query}"`, 'success');
+}
+
+function showParsingResults(books, query, count, status) {
+    console.log('Showing parsing results:', { books, query, count, status });
+    
+    // Скрываем статус поиска
+    hideParsingStatus();
+    
+    // Полностью очищаем контейнер перед добавлением новых книг
+    const booksContainer = document.getElementById('booksContainer');
+    booksContainer.innerHTML = ''; // Очищаем все содержимое
+    
+    // Создаем контейнер для книг
+    const booksGrid = createBooksGrid();
+    booksGrid.id = 'booksGrid';
+    
+    // Добавляем книги с анимацией
+    books.forEach((book, index) => {
+        setTimeout(() => {
+            const bookElement = createBookElement(book);
+            booksGrid.appendChild(bookElement);
+            
+            // Анимация появления
+            bookElement.style.opacity = '0';
+            bookElement.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                bookElement.style.transition = 'all 0.5s ease';
+                bookElement.style.opacity = '1';
+                bookElement.style.transform = 'translateY(0)';
+            }, 50);
+        }, index * 100);
+    });
+    
+    // Обновляем контейнер
+    const booksFound = status.books_found || 0;
+    const booksAdded = status.books_added || 0;
+    const successRate = booksFound > 0 ? Math.round((booksAdded / booksFound) * 100) : 0;
+    
+    booksContainer.innerHTML = `
+        <div class="mb-3">
+            <div class="alert alert-success">
+                <h5><i class="fas fa-check-circle"></i> Поиск завершен!</h5>
+                <p class="mb-2">Найдено <strong>${count} книг</strong> по запросу "${query}"</p>
+                <ul class="text-muted small mb-0">
+                    <li>🔍 <strong>Найдено на сайте:</strong> ${booksFound} книг со скидкой</li>
+                    <li>📈 <strong>Успешность:</strong> ${successRate}%</li>
+                </ul>
+            </div>
+        </div>
+    `;
+    booksContainer.appendChild(booksGrid);
+    
+    // Показываем уведомление
+    showToast(`Найдено ${count} книг по запросу "${query}"`, 'success');
+}
+
+function showNoResults(query, status) {
+    console.log('Showing no results for query:', query);
+    
+    // Скрываем статус поиска
+    hideParsingStatus();
+    
+    // Показываем сообщение об отсутствии результатов
+    const booksContainer = document.getElementById('booksContainer');
+    const emptyState = document.getElementById('emptyState');
+    
+    if (emptyState) {
+        emptyState.style.display = 'block';
+        emptyState.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="fas fa-search"></i>
+                </div>
+                <h3 class="empty-state-title">📚 Книги не найдены</h3>
+                <p class="empty-state-text">
+                    По запросу <strong>"${query}"</strong> книги не найдены.
+                </p>
+                <p class="text-muted">Попробуйте изменить поисковый запрос или поискать другие книги.</p>
+            </div>
+        `;
+    } else {
+        booksContainer.innerHTML = `
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <h3 class="empty-state-title">📚 Книги не найдены</h3>
+                    <p class="empty-state-text">
+                        По запросу <strong>"${query}"</strong> книги не найдены.
+                    </p>
+                    <p class="text-muted">Попробуйте изменить поисковый запрос или поискать другие книги.</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Показываем статус
+    const booksFound = status.books_found || 0;
+    const booksAdded = status.books_added || 0;
+    
+    showParsingStatus('warning', '📚 Книги не найдены', `
+        По запросу <strong>"${query}"</strong> книги не найдены.
+        <br><small class="text-muted">🔍 Найдено на сайте: ${booksFound} книг со скидкой</small>
+    `);
+}
+
+function showTimeout(query) {
+    console.log('Showing timeout for query:', query);
+    
+    // Скрываем статус поиска
+    hideParsingStatus();
+    
+    // Показываем сообщение о таймауте
+    const booksContainer = document.getElementById('booksContainer');
+    const emptyState = document.getElementById('emptyState');
+    
+    if (emptyState) {
+        emptyState.style.display = 'block';
+        emptyState.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <h3 class="empty-state-title">⏰ Превышено время ожидания</h3>
+                <p class="empty-state-text">
+                    Поиск по запросу <strong>"${query}"</strong> занимает больше времени чем ожидалось.
+                </p>
+                <p class="text-muted">Задача может еще выполняться в фоне. Попробуйте обновить страницу через несколько минут.</p>
+            </div>
+        `;
+    } else {
+        booksContainer.innerHTML = `
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <h3 class="empty-state-title">⏰ Превышено время ожидания</h3>
+                    <p class="empty-state-text">
+                        Поиск по запросу <strong>"${query}"</strong> занимает больше времени чем ожидалось.
+                    </p>
+                    <p class="text-muted">Задача может еще выполняться в фоне. Попробьте обновить страницу через несколько минут.</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    showParsingStatus('warning', '⏰ Превышено время ожидания', `
+        Поиск по запросу <strong>"${query}"</strong> занимает больше времени чем ожидалось.
+        <br><small class="text-muted">Задача может еще выполняться в фоне.</small>
+    `);
+}
+
+function showError(message) {
+    console.error('Showing error:', message);
+    
+    // Скрываем статус поиска
+    hideParsingStatus();
+    
+    // Показываем ошибку
+    const booksContainer = document.getElementById('booksContainer');
+    const emptyState = document.getElementById('emptyState');
+    
+    if (emptyState) {
+        emptyState.style.display = 'block';
+        emptyState.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="fas fa-exclamation-circle"></i>
+                </div>
+                <h3 class="empty-state-title">❌ Ошибка</h3>
+                <p class="empty-state-text">
+                    ${message}
+                </p>
+            </div>
+        `;
+    } else {
+        booksContainer.innerHTML = `
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <h3 class="empty-state-title">❌ Ошибка</h3>
+                    <p class="empty-state-text">
+                        ${message}
+                    </p>
+                </div>
+            </div>
+        `;
+    }
+    
+    showParsingStatus('error', '❌ Ошибка', message);
+}
+
+function hideParsingStatus() {
+    const statusContainer = document.getElementById('parsingStatus');
+    if (statusContainer) {
+        statusContainer.style.display = 'none';
+    }
+}
+
+function createBooksGrid() {
+    const grid = document.createElement('div');
+    grid.className = 'row';
+    return grid;
+}
+
+function createBookElement(book) {
+    const col = document.createElement('div');
+    col.className = 'col-md-4 mb-4';
+    
+    const hasImage = book.image_url && book.image_url.trim() !== '';
+    const hasDiscount = book.discount_percent && book.discount_percent > 0;
+    
+    col.innerHTML = `
+        <div class="card book-card h-100 shadow-sm">
+            ${hasImage ? `
+                <img src="${book.image_url}" class="card-img-top" alt="${book.title}" 
+                     style="height: 200px; object-fit: cover;" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04NyA5NUw5MyA4OUw5OSA5NUwxMDUgOTVMMTExIDg5TDExNyA5NUwxMjMgOTVMMTI5IDg5TDEzNSA5NUgxNzBIMTcyVjEyNUg4N1Y5NVoiIGZpbGw9IiM5Q0E0QUYiLz4KPHN2Zz4K'">
+            ` : `
+                <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                    <i class="fas fa-book fa-3x text-muted"></i>
+                </div>
+            `}
+            
+            ${hasDiscount ? `
+                <div class="discount-badge badge bg-danger position-absolute top-0 end-0 m-2">
+                    -${book.discount_percent}%
+                </div>
+            ` : ''}
+            
+            <div class="card-body d-flex flex-column">
+                <h6 class="card-title">${book.title}</h6>
+                ${book.author ? `<p class="text-muted small mb-2">${book.author}</p>` : ''}
+                
+                <div class="price-section mb-3">
+                    <span class="current-price fw-bold text-success">${formatPrice(book.current_price)}</span>
+                    ${book.original_price && book.original_price > book.current_price ? `
+                        <span class="original-price text-muted text-decoration-line-through ms-2">${formatPrice(book.original_price)}</span>
+                    ` : ''}
+                    ${hasDiscount ? `
+                        <span class="badge bg-danger ms-2">-${book.discount_percent}%</span>
+                    ` : ''}
+                </div>
+                
+                <div class="mt-auto">
+                    <small class="text-muted d-block">
+                        <i class="fas fa-store"></i> ${book.source || 'Неизвестно'}
+                    </small>
+                    <small class="text-muted d-block">
+                        <i class="fas fa-calendar"></i> ${formatDate(book.parsed_at)}
+                    </small>
+                    <div class="mt-2">
+                        <a href="${book.url}" target="_blank" class="btn btn-primary btn-sm">
+                            <i class="fas fa-external-link-alt"></i> Посмотреть
+                        </a>
+                        <a href="/web/books/${book.id}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-info"></i> Подробнее
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return col;
+}
+
+function formatPrice(price) {
+    if (!price) return 'Цена не указана';
+    return new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB'
+    }).format(price);
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'Недавно';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru-RU');
+}
+
+async function refreshSearchResults() {
+    console.log('Refreshing search results...');
+    window.location.reload();
+}
+
+function showToast(message, type = 'info') {
+    // Удаляем существующие уведомления
+    const existingToasts = document.querySelectorAll('.position-fixed.alert');
+    existingToasts.forEach(toast => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    });
+    
+    // Создаем уведомление без крестика
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} position-fixed`;
+    toast.style.cssText = `
+        top: 20px; 
+        right: 20px; 
+        z-index: 9999; 
+        min-width: 300px; 
+        max-width: 400px; 
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        opacity: 0;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+        border: none;
+        border-radius: 8px;
+    `;
+    toast.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">${message}</div>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Анимация появления
+    setTimeout(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(0)';
+    }, 50);
+    
+    // Автоматически скрываем через 4 секунды
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, 4000);
+}
+</script>
+{% endblock %}

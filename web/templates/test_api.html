@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест API статистики</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f8f9fa; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-result { margin: 10px 0; padding: 15px; border-radius: 8px; border-left: 4px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #28a745; color: #155724; }
+        .error { background-color: #f8d7da; border-color: #dc3545; color: #721c24; }
+        .loading { background-color: #fff3cd; border-color: #ffc107; color: #856404; }
+        .info { background-color: #d1ecf1; border-color: #17a2b8; color: #0c5460; }
+        .btn { padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .log { background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Тест API статистики</h1>
+        
+        <div class="test-result info">
+            <h3>Диагностика системы</h3>
+            <p>Эта страница поможет диагностировать проблемы с API статистики для главной страницы.</p>
+            <button class="btn btn-primary" onclick="testStatsAPI()">Запустить тест</button>
+            <button class="btn btn-secondary" onclick="clearResults()">Очистить результаты</button>
+        </div>
+        
+        <div id="results">
+            <div class="test-result loading" id="loading" style="display: none;">
+                <h4>⏳ Выполняется тест...</h4>
+                <div id="loadingText">Загружаем данные...</div>
+            </div>
+        </div>
+        
+        <div class="test-result info">
+            <h4>Логи тестирования</h4>
+            <div class="log" id="testLog"></div>
+            <button class="btn btn-secondary" onclick="clearLog()">Очистить логи</button>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        function clearLog() {
+            document.getElementById('testLog').innerHTML = '';
+        }
+        
+        function clearResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            clearLog();
+        }
+        
+        function showLoading(message = 'Загружаем данные...') {
+            const loadingDiv = document.getElementById('loading');
+            const loadingText = document.getElementById('loadingText');
+            loadingText.textContent = message;
+            loadingDiv.style.display = 'block';
+        }
+            
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        function showResult(content, type = 'success') {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.innerHTML = content;
+            resultsDiv.appendChild(resultDiv);
+        }
+        
+        async function testStatsAPI() {
+            log('=== НАЧАЛО ТЕСТИРОВАНИЯ API ===');
+            clearResults();
+            showLoading();
+            
+            try {
+                log('1. Проверяем доступность сервера...');
+                
+                // Сначала проверим основную страницу
+                const mainResponse = await fetch('/');
+                log(`   Основная страница: ${mainResponse.status} ${mainResponse.statusText}`);
+                
+                if (!mainResponse.ok) {
+                    throw new Error(`Основная страница недоступна: ${mainResponse.status}`);
+                }
+                
+                log('2. Отправляем запрос к API статистики...');
+                showLoading('Отправляем запрос к API...');
+                
+                const response = await fetch('/api/stats/main');
+                log(`   Ответ API: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    throw new Error(`API недоступен: ${response.status} ${response.statusText}`);
+                }
+                
+                log('3. Парсим JSON ответ...');
+                showLoading('Парсим JSON ответ...');
+                
+                const data = await response.json();
+                log('   JSON успешно распарсен');
+                
+                log('4. Проверяем структуру данных...');
+                
+                // Проверяем обязательные поля
+                const requiredFields = ['total_books', 'total_alerts', 'avg_discount', 'total_sources'];
+                const missingFields = [];
+                
+                for (const field of requiredFields) {
+                    if (!(field in data)) {
+                        missingFields.push(field);
+                    } else {
+                        log(`   ✓ ${field}: ${data[field]}`);
+                    }
+                }
+                
+                if (missingFields.length > 0) {
+                    throw new Error(`Отсутствуют обязательные поля: ${missingFields.join(', ')}`);
+                }
+                
+                // Проверяем последние книги
+                if (data.recent_books) {
+                    log(`   ✓ recent_books: ${data.recent_books.length} книг`);
+                } else {
+                    log('   ⚠ recent_books: отсутствует');
+                }
+                
+                log('=== ТЕСТ УСПЕШНО ЗАВЕРШЕН ===');
+                
+                hideLoading();
+                
+                // Показываем успешный результат
+                const successContent = `
+                    <h3>✅ API работает корректно!</h3>
+                    <p><strong>Статус:</strong> ${response.status} ${response.statusText}</p>
+                    <p><strong>Книг в каталоге:</strong> ${data.total_books}</p>
+                    <p><strong>Активных подписок:</strong> ${data.total_alerts}</p>
+                    <p><strong>Средняя скидка:</strong> ${data.avg_discount}%</p>
+                    <p><strong>Подключенных магазинов:</strong> ${data.total_sources}</p>
+                    <p><strong>Последних книг:</strong> ${data.recent_books ? data.recent_books.length : 0}</p>
+                    <details>
+                        <summary>Показать полные данные (JSON)</summary>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </details>
+                `;
+                showResult(successContent, 'success');
+                
+            } catch (error) {
+                log(`ОШИБКА: ${error.message}`, 'error');
+                log(`Стек: ${error.stack}`, 'error');
+                
+                hideLoading();
+                
+                const errorContent = `
+                    <h3>❌ Обнаружена ошибка</h3>
+                    <p><strong>Сообщение:</strong> ${error.message}</p>
+                    <p><strong>Возможные причины:</strong></p>
+                    <ul>
+                        <li>Сервер не запущен или недоступен</li>
+                        <li>Проблемы с базой данных</li>
+                        <li>Ошибки в коде API</li>
+                        <li>Проблемы с CORS</li>
+                    </ul>
+                    <p><strong>Рекомендации:</strong></p>
+                    <ul>
+                        <li>Проверьте, что контейнеры запущены: <code>docker ps</code></li>
+                        <li>Проверьте логи: <code>docker logs bookhunter-app-1</code></li>
+                        <li>Перезапустите контейнер: <code>docker-compose restart app</code></li>
+                    </ul>
+                `;
+                showResult(errorContent, 'error');
+            }
+        }
+        
+        // Запускаем тест при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Страница загружена, готов к тестированию');
+            // Автоматически запускаем тест через 1 секунду
+            setTimeout(testStatsAPI, 1000);
+        });
+    </script>
+</body>
+</html>

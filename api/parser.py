@@ -1,0 +1,340 @@
+from fastapi import APIRouter, HTTPException, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional, List
+from celery.result import AsyncResult
+import uuid
+import string
+import re
+
+from database.config import get_db
+from services.celery_tasks import parse_books
+from services.logger import logger
+
+router = APIRouter()
+
+__all__ = ["router"]
+
+def clean_search_words(text: str) -> List[str]:
+    """
+    Очищает текст от знаков пунктуации и разбивает на слова.
+    """
+    # Заменяем запятые, точки и другие разделители на пробелы
+    text = re.sub(r'[,\.\!\?\:\;\-\—\(\)\[\]\{\}<>]', ' ', text)
+    # Разбиваем на слова и очищаем каждый
+    words = text.lower().split()
+    # Удаляем оставшиеся знаки пунктуации из слов
+    cleaned_words = [word.strip(string.punctuation) for word in words]
+    # Убираем пустые строки
+    return [word for word in cleaned_words if word.strip()]
+
+@router.post("/parse")
+async def parse_books_on_demand(
+    query: str = Query(..., description="Поисковый запрос"),
+    source: str = Query("chitai-gorod", description="Источник парсинга"),
+    db: AsyncSession = Depends(get_db)
+):
+    """Запуск парсинга книг по запросу в реальном времени"""
+    
+    try:
+        # Запускаем фоновую задачу парсинга
+        task = parse_books.delay(query, source)
+        
+        logger.info(f"Запущен парсинг для запроса: '{query}' (task_id: {task.id})")
+        
+        return {
+            "task_id": task.id,
+            "status": "started",
+            "message": f"Парсинг запущен для запроса: '{query}'",
+            "query": query,
+            "source": source
+        }
+        
+    except Exception as e:
+        logger.error(f"Ошибка запуска парсинга: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка запуска парсинга: {str(e)}")
+
+@router.post("/parse-body")
+async def parse_books_from_body(
+    data: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    """Запуск парсинга книг по запросу в реальном времени (через тело запроса)
+
+    Параметры запроса:
+    - query: Поисковый запрос (обязательно)
+    - source: Источник парсинга (по умолчанию chitai-gorod)
+    - fetch_details: Загружать ли детальную страницу для извлечения характеристик (издательство, переплёт, жанры) - по умолчанию False
+    """
+
+    try:
+        query = data.get("query")
+        source = data.get("source", "chitai-gorod")
+        fetch_details = data.get("fetch_details", False)
+        
+        if not query:
+            raise HTTPException(status_code=400, detail="Поле 'query' обязательно")
+        
+        # Запускаем фоновую задачу парсинга с использованием ключевых слов
+        task = parse_books.delay(query=query, source=source, fetch_details=fetch_details)
+
+        logger.info(f"Запущен парсинг для запроса: '{query}' (task_id: {task.id}, fetch_details={fetch_details})")
+
+        return {
+            "task_id": task.id,
+            "status": "started",
+            "message": f"Парсинг запущен для запроса: '{query}'" + (" с извлечением характеристик" if fetch_details else ""),
+            "query": query,
+            "source": source,
+            "fetch_details": fetch_details
+        }
+
+    except Exception as e:
+        logger.error(f"Ошибка запуска парсинга: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка запуска парсинга: {str(e)}")
+
+@router.get("/parse/{task_id}")
+async def get_parse_status(
+    task_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Проверка статуса задачи парсинга"""
+    
+    try:
+        task = AsyncResult(task_id)
+        
+        if task.state == 'PENDING':
+            return {
+                "task_id": task_id,
+                "status": "pending",
+                "message": "🔄 Задача поставлена в очередь на выполнение..."
+            }
+        elif task.state == 'STARTED':
+            return {
+                "task_id": task_id,
+                "status": "running",
+                "message": "🔍 Ищем книги на сайте, проверяем цены и скидки..."
+            }
+        elif task.state == 'SUCCESS':
+            result = task.result
+            if isinstance(result, dict):
+                books_found = result.get('books_found', 0)
+                books_added = result.get('books_added', 0)
+                message = result.get('message', f'Парсинг завершен. Найдено книг: {books_found}')
+                return {
+                    "task_id": task_id,
+                    "status": "completed",
+                    "message": f"✅ Парсинг завершен! Найдено {books_found} книг, сохранено {books_added}",
+                    "books_found": books_found,
+                    "books_added": books_added,
+                    "result": result
+                }
+            else:
+                # Старый формат ответа
+                return {
+                    "task_id": task_id,
+                    "status": "completed",
+                    "message": f"✅ Парсинг завершен! Найдено книг: {result}",
+                    "books_found": result
+                }
+        else:
+            return {
+                "task_id": task_id,
+                "status": task.state,
+                "message": f"❌ Ошибка выполнения задачи: {task.info}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Ошибка проверки статуса задачи: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка проверки статуса: {str(e)}")
+
+@router.post("/search")
+async def search_books_with_parsing(
+    query: str = Query(..., description="Поисковый запрос"),
+    source: str = Query("chitai-gorod", description="Источник парсинга"),
+    max_wait: int = Query(10, description="Максимальное время ожидания (секунды)"),
+    db: AsyncSession = Depends(get_db)
+):
+    """Поиск книг с автоматическим парсингом новых результатов"""
+    
+    try:
+        # Сначала ищем в базе данных
+        from sqlalchemy import select, func, and_, or_
+        from models import Book
+        
+        # Улучшенный поиск: разбиваем запрос на слова и очищаем от пунктуации
+        search_words = clean_search_words(query)
+        
+        # Фильтруем предлоги и союзы
+        stop_words = {"и", "в", "на", "с", "от", "до", "по", "о", "об", "а", "но", "или"}
+        search_words = [word for word in search_words if word.strip() and word not in stop_words]
+        
+        if search_words:
+            # Создаем условия для каждого слова
+            word_conditions = []
+            for word in search_words:
+                word_conditions.append(
+                    or_(
+                        func.lower(Book.title).like(f"%{word}%"),
+                        func.lower(Book.author).like(f"%{word}%")
+                    )
+                )
+            
+            # Применяем логику ИЛИ - слово найдено в любом поле
+            db_query = select(Book).where(or_(*word_conditions))
+        else:
+            db_query = select(Book)
+            
+        db_query = db_query.order_by(Book.parsed_at.desc()).limit(20)
+        
+        db_result = await db.execute(db_query)
+        db_books = db_result.scalars().all()
+        
+        # Запускаем парсинг в фоне с использованием ключевых слов
+        parse_task = parse_books.delay(query=query, source=source)
+        
+        logger.info(f"Запущен поиск с парсингом для: '{query}' (task_id: {parse_task.id})")
+        
+        # Возвращаем результат с информацией о фоновом парсинге
+        return {
+            "query": query,
+            "source": source,
+            "db_books": [
+                {
+                    "id": book.id,
+                    "title": book.title,
+                    "author": book.author,
+                    "current_price": book.current_price,
+                    "original_price": book.original_price,
+                    "discount_percent": book.discount_percent,
+                    "url": book.url,
+                    "image_url": book.image_url,
+                    "source": book.source,
+                    "parsed_at": book.parsed_at.isoformat() if book.parsed_at else None
+                }
+                for book in db_books
+            ],
+            "parse_task_id": parse_task.id,
+            "parse_status": "started",
+            "message": f"Найдено {len(db_books)} книг в базе. Запущен поиск новых книг...",
+            "total_db_books": len(db_books)
+        }
+        
+    except Exception as e:
+        logger.error(f"Ошибка поиска с парсингом: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка поиска: {str(e)}")
+
+@router.get("/books/{query}")
+async def get_books_by_query(
+    query: str,
+    source: str = Query("chitai-gorod", description="Источник парсинга"),
+    db: AsyncSession = Depends(get_db)
+):
+    """Получение книг по конкретному поисковому запросу для динамического добавления"""
+    
+    try:
+        from sqlalchemy import select, func, or_
+        from models.book import Book
+        
+        # Декодируем URL-кодированный запрос
+        import urllib.parse
+        decoded_query = urllib.parse.unquote(query)
+        
+        logger.info(f"Searching for books with query: '{decoded_query}' (original: '{query}')")
+        
+        # Улучшенный поиск: ищем по всем словам из запроса и очищаем от пунктуации
+        search_terms = clean_search_words(decoded_query)
+        
+        # Создаем условия поиска для каждого слова
+        search_conditions = []
+        for term in search_terms:
+            if term.strip():  # Игнорируем пустые слова
+                search_conditions.extend([
+                    func.lower(Book.title).like(f"%{term.strip()}%"),
+                    func.lower(Book.author).like(f"%{term.strip()}%")
+                ])
+        
+        # Если есть условия поиска, применяем их
+        if search_conditions:
+            search_query = select(Book).where(
+                or_(*search_conditions)
+            ).order_by(Book.parsed_at.desc()).limit(50)
+        else:
+            # Если запрос пустой, возвращаем последние книги
+            search_query = select(Book).order_by(Book.parsed_at.desc()).limit(50)
+        
+        result = await db.execute(search_query)
+        books = result.scalars().all()
+        
+        # Преобразуем в словари используя метод to_dict()
+        books_list = []
+        for book in books:
+            books_dict = book.to_dict()
+            # Декодируем строки для правильного отображения
+            if books_dict.get('title'):
+                books_dict['title'] = urllib.parse.unquote(str(books_dict['title']))
+            if books_dict.get('author'):
+                books_dict['author'] = urllib.parse.unquote(str(books_dict['author']))
+            books_list.append(books_dict)
+        
+        logger.info(f"Found {len(books_list)} books for query: '{decoded_query}'")
+        
+        return {
+            "success": True,
+            "query": decoded_query,
+            "source": source,
+            "books": books_list,
+            "total": len(books_list),
+            "message": f"Найдено {len(books_list)} книг по запросу '{decoded_query}'"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting books for query '{query}': {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Ошибка получения книг: {str(e)}")
+
+@router.get("/sources")
+async def get_available_sources():
+    """Получение списка доступных источников для парсинга"""
+    
+    try:
+        # Простой список источников
+        sources = {
+            "chitai-gorod": "Читай-город"
+        }
+        
+        return {
+            "sources": sources,
+            "default_source": "chitai-gorod"
+        }
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения источников: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка получения источников")
+
+@router.get("/book/{book_id}")
+async def get_book_by_id(
+    book_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Получение книги по ID для детального просмотра"""
+    
+    try:
+        from models.book import Book
+        
+        result = await db.execute(select(Book).where(Book.id == book_id))
+        book = result.scalar_one_or_none()
+        
+        if not book:
+            raise HTTPException(status_code=404, detail="Книга не найдена")
+        
+        return {
+            "success": True,
+            "book": book.to_dict()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка получения книги {book_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка получения книги: {str(e)}")

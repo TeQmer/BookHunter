@@ -1,0 +1,77 @@
+name: Deploy BookHunter to Server
+
+on:
+  push:
+    branches:
+      - main
+      - production
+  workflow_dispatch:  # Ручной запуск
+
+env:
+  DOCKER_IMAGE: bookhunter-app
+  DOCKER_TAG: ${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            cd /home/${{ secrets.SERVER_USER }}/BookHunter
+
+            # Получаем обновления из репозитория
+            git pull origin main
+
+            # Останавливаем контейнеры
+            docker compose down
+
+            # Пересобираем и запускаем
+            docker compose up -d --build
+
+            # Очищаем старые образы
+            docker image prune -f
+
+            # Проверяем статус
+            docker compose ps
+
+            echo "✅ Деплой завершен успешно!"
+          ENDSSH
+
+      - name: Health check
+        run: |
+          sleep 30  # Ждем запуска приложения
+
+          # Проверяем API
+          curl -f https://${{ secrets.DOMAIN }}/api/health || exit 1
+
+          echo "✅ Health check пройден!"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ Деплой BookHunter выполнен успешно!"
+          # Можно добавить уведомление в Telegram
+          # curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          #   -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+          #   -d "text=✅ Деплой BookHunter выполнен успешно!"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Деплой BookHunter не удался!"
+          # Можно добавить уведомление в Telegram
+          # curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          #   -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+          #   -d "text=❌ Деплой BookHunter не удался!"

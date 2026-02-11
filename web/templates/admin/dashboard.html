@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-cogs"></i> Админ-панель
+        </h1>
+    </div>
+</div>
+
+<!-- Основная статистика -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                <h5>Пользователи</h5>
+                <p class="display-4 text-primary">{{ stats.total_users }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-book fa-3x text-success mb-3"></i>
+                <h5>Книги</h5>
+                <p class="display-4 text-success">{{ stats.total_books }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-bell fa-3x text-warning mb-3"></i>
+                <h5>Подписки</h5>
+                <p class="display-4 text-warning">{{ stats.active_alerts }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-envelope fa-3x text-info mb-3"></i>
+                <h5>Уведомления</h5>
+                <p class="display-4 text-info">{{ stats.total_notifications }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Статистика по источникам -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar"></i> Статистика по источникам
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if source_stats and source_stats|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Источник</th>
+                                <th>Книг</th>
+                                <th>Средняя скидка</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for source, count, avg_discount in source_stats %}
+                            <tr>
+                                <td>{{ source }}</td>
+                                <td>{{ count }}</td>
+                                <td>{{ "%.1f"|format(avg_discount or 0) }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Нет данных</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Последние логи -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list"></i> Последняя активность
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_logs and recent_logs|length > 0 %}
+                <div class="list-group list-group-flush">
+                    {% for log in recent_logs %}
+                    <div class="list-group-item px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ log.source }} - {{ log.operation }}</h6>
+                                <small class="text-muted">{{ log.message or 'Без сообщения' }}</small>
+                            </div>
+                            <span class="badge {% if log.status == 'success' %}bg-success{% elif log.status == 'error' %}bg-danger{% else %}bg-warning{% endif %}">
+                                {{ log.status }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="text-center mt-3">
+                    <a href="/admin/logs" class="btn btn-outline-primary btn-sm">
+                        Все логи <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+                {% else %}
+                <p class="text-muted">Нет данных</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Быстрые действия -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt"></i> Быстрые действия
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <a href="/admin/users" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-users"></i> Управление пользователями
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/admin/alerts" class="btn btn-outline-success w-100">
+                            <i class="fas fa-bell"></i> Управление подписками
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/admin/logs" class="btn btn-outline-warning w-100">
+                            <i class="fas fa-list"></i> Логи системы
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/admin/system" class="btn btn-outline-info w-100">
+                            <i class="fas fa-server"></i> Информация о системе
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/admin/analytics" class="btn btn-outline-dark w-100">
+                            <i class="fas fa-chart-line"></i> Аналитика и метрики
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

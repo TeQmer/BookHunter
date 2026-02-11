@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Поиск - BookHunter</title>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/mini-app.css">
+
+    <!-- Telegram Web App Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container" style="display: flex; align-items: center; gap: 12px;">
+            <button class="header__back" onclick="window.history.back()">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h1 class="header__title" style="font-size: 1.2rem;">
+                <i class="fas fa-search"></i> Поиск книг
+            </h1>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="container">
+            <div class="nav__item" data-route="home">
+                <i class="fas fa-home"></i> Главная
+            </div>
+            <div class="nav__item" data-route="books">
+                <i class="fas fa-book"></i> Книги
+            </div>
+            <div class="nav__item" data-route="alerts">
+                <i class="fas fa-bell"></i> Подписки
+            </div>
+            <div class="nav__item" data-route="profile">
+                <i class="fas fa-user"></i> Профиль
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container" id="main-content">
+        <!-- Search Input -->
+        <div class="search">
+            <div class="search__input">
+                <input type="text" id="search-input" placeholder="Введите название книги или автора..." autofocus>
+                <button onclick="app.performSearch()">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Quick Filters -->
+        <div class="card">
+            <h4 class="card__header"><i class="fas fa-bolt"></i> Быстрые фильтры</h4>
+
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <button class="btn btn--small btn--secondary" onclick="app.quickFilter('discount')">
+                    <i class="fas fa-percent"></i> Со скидкой
+                </button>
+                <button class="btn btn--small btn--secondary" onclick="app.quickFilter('price-low')">
+                    <i class="fas fa-ruble-sign"></i> До 300 ₽
+                </button>
+                <button class="btn btn--small btn--secondary" onclick="app.quickFilter('price-mid')">
+                    <i class="fas fa-ruble-sign"></i> До 1000 ₽
+                </button>
+                <button class="btn btn--small btn--secondary" onclick="app.quickFilter('bestsellers')">
+                    <i class="fas fa-star"></i> Бестселлеры
+                </button>
+            </div>
+        </div>
+
+        <!-- Recent Searches -->
+        <h3 style="font-family: 'Georgia', serif; color: var(--accent-primary); margin: 24px 0 16px; font-size: 1.2rem;">
+            <i class="fas fa-history"></i> Недавние поиски
+        </h3>
+
+        <div id="recent-searches-container">
+            <div class="empty">
+                <div class="empty__icon"><i class="fas fa-search"></i></div>
+                <h3 class="empty__title">Нет недавних поисков</h3>
+                <p class="empty__text">Начните искать книги</p>
+            </div>
+        </div>
+
+        <!-- Search Results -->
+        <div id="search-results-container" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-family: 'Georgia', serif; color: var(--accent-primary); font-size: 1.2rem; margin: 0;">
+                    <i class="fas fa-list"></i> Результаты
+                </h3>
+                <span style="color: var(--text-secondary); font-size: 0.9rem;" id="results-count">0 книг</span>
+            </div>
+
+            <div id="books-container">
+                <!-- Книги будут загружены здесь -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer Space -->
+    <div class="footer-space"></div>
+
+    <!-- Scripts -->
+    <script src="js/telegram.js"></script>
+    <script src="js/mini-app.js"></script>
+
+    <script>
+        // Расширение приложения для страницы поиска
+        BookHunterApp.prototype.performSearch = async function() {
+            const query = document.getElementById('search-input').value.trim();
+
+            if (!query) {
+                this.showError('Введите поисковый запрос');
+                return;
+            }
+
+            this.showLoading('Поиск книг...');
+
+            // Сохраняем поиск в историю
+            this.saveRecentSearch(query);
+
+            try {
+                await this.loadBooks({ query });
+
+                // Показываем результаты
+                document.getElementById('search-results-container').style.display = 'block';
+                document.getElementById('recent-searches-container').style.display = 'none';
+
+                window.tg.hapticSuccess();
+            } catch (error) {
+                console.error('Ошибка поиска:', error);
+                this.showError('Не удалось выполнить поиск');
+            }
+        };
+
+        BookHunterApp.prototype.quickFilter = async function(filterType) {
+            this.showLoading('Применение фильтра...');
+
+            let params = {};
+
+            switch (filterType) {
+                case 'discount':
+                    params.discount = 10;
+                    break;
+                case 'price-low':
+                    params.price = 300;
+                    break;
+                case 'price-mid':
+                    params.price = 1000;
+                    break;
+                case 'bestsellers':
+                    // TODO: Реализовать фильтр бестселлеров
+                    this.showToast('Фильтр в разработке', 'info');
+                    return;
+            }
+
+            try {
+                await this.loadBooks(params);
+
+                // Показываем результаты
+                document.getElementById('search-results-container').style.display = 'block';
+                document.getElementById('recent-searches-container').style.display = 'none';
+
+                window.tg.hapticClick();
+            } catch (error) {
+                console.error('Ошибка применения фильтра:', error);
+                this.showError('Не удалось применить фильтр');
+            }
+        };
+
+        BookHunterApp.prototype.saveRecentSearch = function(query) {
+            let recentSearches = JSON.parse(localStorage.getItem('recent_searches') || '[]');
+
+            // Удаляем дубликаты
+            recentSearches = recentSearches.filter(s => s.toLowerCase() !== query.toLowerCase());
+
+            // Добавляем новый поиск в начало
+            recentSearches.unshift(query);
+
+            // Оставляем только последние 10
+            recentSearches = recentSearches.slice(0, 10);
+
+            localStorage.setItem('recent_searches', JSON.stringify(recentSearches));
+
+            this.renderRecentSearches();
+        };
+
+        BookHunterApp.prototype.renderRecentSearches = function() {
+            const container = document.getElementById('recent-searches-container');
+            const recentSearches = JSON.parse(localStorage.getItem('recent_searches') || '[]');
+
+            if (recentSearches.length === 0) {
+                container.innerHTML = `
+                    <div class="empty">
+                        <div class="empty__icon"><i class="fas fa-search"></i></div>
+                        <h3 class="empty__title">Нет недавних поисков</h3>
+                        <p class="empty__text">Начните искать книги</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = recentSearches.map(search => `
+                <div class="card" style="margin: 8px 0; padding: 12px; cursor: pointer; display: flex; align-items: center; gap: 12px;"
+                     onclick="document.getElementById('search-input').value = '${this.escapeHtml(search)}'; app.performSearch();">
+                    <i class="fas fa-history" style="color: var(--text-muted);"></i>
+                    <span style="flex: 1;">${this.escapeHtml(search)}</span>
+                    <i class="fas fa-arrow-right" style="color: var(--accent-primary);"></i>
+                </div>
+            `).join('');
+        };
+
+        // Обработка Enter в поиске
+        document.getElementById('search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                app.performSearch();
+            }
+        });
+
+        // Загрузка недавних поисков при инициализации
+        document.addEventListener('DOMContentLoaded', () => {
+            app.renderRecentSearches();
+        });
+    </script>
+</body>
+</html>

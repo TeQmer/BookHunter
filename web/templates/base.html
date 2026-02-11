@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title or "Система мониторинга скидок" }}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/web">
+                <i class="fas fa-book-open"></i> BookHunter
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/web">
+                            <i class="fas fa-home"></i> Главная
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/web/books">
+                            <i class="fas fa-book"></i> Каталог
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/web/alerts">
+                            <i class="fas fa-bell"></i> Подписки
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin" title="Админ-панель">
+                            <i class="fas fa-cog"></i>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mt-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-5 py-4">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h5 class="mb-2">
+                        <i class="fas fa-book-open" style="color: var(--accent-primary);"></i> BookHunter
+                    </h5>
+                    <p class="text-muted mb-0">Ваш помощник в поиске лучших книг по лучшим ценам</p>
+                </div>
+                
+                <div class="col-md-6 text-md-end">
+                    <p class="text-muted mb-1">
+                        <i class="fas fa-heart"></i> Создано с любовью к книгам
+                    </p>
+                    <p class="text-muted mb-0">
+                        <small>Все права защищены © 2026</small>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS полностью перенесен в inline скрипт ниже -->
+    
+    <!-- Отладочные сообщения и исправленные функции -->
+    <script>
+        console.log('=== DEBUG: Base.html загружен с исправленными функциями ===');
+        
+        // Принудительное удаление старых функций
+        if (typeof window.parseLatest !== 'undefined') {
+            console.log('DEBUG: Удаляем старую функцию parseLatest');
+            delete window.parseLatest;
+        }
+        
+        // Принудительное переопределение parseBooks
+        console.log('DEBUG: Определяем новую функцию parseBooks');
+        
+        // Исправленная функция parseBooks
+        window.parseBooks = async function() {
+            console.log('DEBUG: parseBooks вызвана');
+            
+            const parseBtn = document.getElementById('parseBtn');
+            const parseStatus = document.getElementById('parseStatus');
+            
+            if (!parseBtn || !parseStatus) {
+                console.error('DEBUG: Элементы parseBtn или parseStatus не найдены');
+                alert('Ошибка: элементы интерфейса не найдены');
+                return;
+            }
+            
+            // Получаем текущий поисковый запрос
+            const query = "{{ query or '' }}";
+            console.log('DEBUG: Запрос:', query);
+            
+            parseBtn.disabled = true;
+            parseBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Запускаем парсинг...';
+            
+            // Создаем прогресс-бар и статус
+            parseStatus.innerHTML = `
+                <div class="progress mb-2" style="height: 25px;">
+                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                         role="progressbar" style="width: 25%">Подготовка...</div>
+                </div>
+                <span class="text-info">🚀 Запущен поиск новых книг по запросу: "${query}"</span>
+            `;
+            
+            try {
+                // Запускаем парсинг - отправляем параметры в URL
+                const url = `/api/parser/parse?query=${encodeURIComponent(query)}&source=chitai-gorod`;
+                console.log('DEBUG: URL запроса:', url);
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('DEBUG: Ответ сервера:', response.status, response.statusText);
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('DEBUG: Результат:', result);
+                    
+                    const taskId = result.task_id;
+                    
+                    if (taskId) {
+                        // Обновляем прогресс
+                        updateProgress(50, 'Поиск книг на сайте...');
+                        parseStatus.innerHTML = `
+                            <div class="progress mb-2" style="height: 25px;">
+                                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+                                     role="progressbar" style="width: 50%">Поиск книг на сайте...</div>
+                            </div>
+                            <span class="text-info">✅ Задача создана: ${result.message}</span>
+                        `;
+                        
+                        // Начинаем отслеживание прогресса
+                        trackParsingProgress(taskId, query);
+                    } else {
+                        throw new Error('Не получен ID задачи');
+                    }
+                } else {
+                    // Получаем детальную информацию об ошибке
+                    const errorData = await response.json();
+                    const errorMessage = errorData.detail || errorData.message || `HTTP ${response.status}`;
+                    console.error('DEBUG: Ошибка API:', errorMessage);
+                    throw new Error(errorMessage);
+                }
+            } catch (error) {
+                console.error('DEBUG: Ошибка парсинга:', error);
+                parseStatus.innerHTML = `<div class="alert alert-danger"><strong>❌ Ошибка запуска парсинга:</strong> ${error.message}</div>`;
+                parseBtn.disabled = false;
+                parseBtn.innerHTML = '<i class="fas fa-download"></i> Найти новые книги';
+            }
+        };
+        
+        // Функция для обновления прогресс-бара
+        window.updateProgress = function(percent, text) {
+            console.log('DEBUG: Прогресс:', percent, '% -', text);
+            const progressBar = document.getElementById('progressBar');
+            if (progressBar) {
+                progressBar.style.width = percent + '%';
+                progressBar.textContent = text;
+            }
+        };
+        
+        // Функция для отслеживания прогресса парсинга
+        window.trackParsingProgress = async function(taskId, query) {
+            console.log('DEBUG: Отслеживание прогресса для задачи:', taskId);
+            
+            const parseBtn = document.getElementById('parseBtn');
+            const parseStatus = document.getElementById('parseStatus');
+            
+            let checkCount = 0;
+            const maxChecks = 60; // Максимум 10 минут (60 * 10 секунд)
+            
+            const checkStatus = async () => {
+                try {
+                    checkCount++;
+                    console.log('DEBUG: Проверка статуса #', checkCount);
+                    
+                    // Обновляем прогресс в зависимости от времени
+                    if (checkCount < 5) {
+                        updateProgress(60, 'Ищем книги на сайте...');
+                    } else if (checkCount < 15) {
+                        updateProgress(75, 'Обрабатываем результаты...');
+                    } else if (checkCount < 25) {
+                        updateProgress(85, 'Сохраняем в базу данных...');
+                    } else {
+                        updateProgress(95, 'Финализация...');
+                    }
+                    
+                    // Проверяем статус задачи
+                    const response = await fetch(`/api/parser/parse/${taskId}`);
+                    console.log('DEBUG: Статус задачи:', response.status);
+                    
+                    if (response.ok) {
+                        const status = await response.json();
+                        console.log('DEBUG: Статус задачи:', status);
+                        
+                        if (status.status === 'completed') {
+                            // Завершено успешно
+                            updateProgress(100, 'Готово!');
+                            parseStatus.innerHTML = `
+                                <div class="alert alert-success">
+                                    <h5>🎉 Парсинг завершен успешно!</h5>
+                                    <p><strong>${status.result?.found_count || 0}</strong> новых книг найдено и сохранено.</p>
+                                    <p class="mb-2">Обновляем результаты...</p>
+                                </div>
+                            `;
+                            
+                            // Обновляем кнопку
+                            parseBtn.disabled = false;
+                            parseBtn.innerHTML = '<i class="fas fa-check"></i> Парсинг завершен';
+                            
+                            // Обновляем результаты через 2 секунды
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 2000);
+                            
+                            return;
+                            
+                        } else if (status.status === 'failed') {
+                            // Ошибка
+                            parseStatus.innerHTML = `<div class="alert alert-danger"><strong>❌ Ошибка парсинга:</strong> ${status.message || 'Неизвестная ошибка'}</div>`;
+                            parseBtn.disabled = false;
+                            parseBtn.innerHTML = '<i class="fas fa-download"></i> Найти новые книги';
+                            return;
+                            
+                        } else {
+                            // Продолжаем ожидание
+                            if (checkCount < maxChecks) {
+                                setTimeout(checkStatus, 10000); // Проверяем каждые 10 секунд
+                            } else {
+                                // Превышено время ожидания
+                                parseStatus.innerHTML = `<div class="alert alert-warning"><strong>⏰ Превышено время ожидания:</strong> Задача может еще выполняться в фоне. Обновите страницу позже.</div>`;
+                                parseBtn.disabled = false;
+                                parseBtn.innerHTML = '<i class="fas fa-download"></i> Найти новые книги';
+                            }
+                        }
+                    } else {
+                        throw new Error('Ошибка получения статуса');
+                    }
+                    
+                } catch (error) {
+                    console.error('DEBUG: Ошибка отслеживания прогресса:', error);
+                    
+                    if (checkCount < maxChecks) {
+                        setTimeout(checkStatus, 10000); // Продолжаем попытки
+                    } else {
+                        parseStatus.innerHTML = `<div class="alert alert-warning"><strong>⚠️ Ошибка связи:</strong> Не удалось получить статус задачи. Попробуйте обновить страницу позже.</div>`;
+                        parseBtn.disabled = false;
+                        parseBtn.innerHTML = '<i class="fas fa-download"></i> Найти новые книги';
+                    }
+                }
+            };
+            
+            // Начинаем отслеживание через 3 секунды
+            setTimeout(checkStatus, 3000);
+        };
+        
+        // Отключение кэширования для всех ресурсов
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+        
+        // Исправленная функция searchWithParsing
+        window.searchWithParsing = async function() {
+            console.log('DEBUG: searchWithParsing вызвана');
+            
+            const query = document.querySelector('input[name="q"]').value;
+            const source = document.querySelector('select[name="source"]').value;
+            
+            console.log('DEBUG: Параметры поиска:', {query, source});
+            
+            if (!query.trim()) {
+                alert('Пожалуйста, введите поисковый запрос');
+                return;
+            }
+            
+            // Показываем модальное окно с результатами поиска
+            const searchBtn = document.querySelector('button[onclick="searchWithParsing()"]');
+            const originalText = searchBtn.innerHTML;
+            
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Поиск...';
+            
+            try {
+                // Запускаем поиск с парсингом - отправляем параметры в URL
+                const url = `/api/parser/search?query=${encodeURIComponent(query)}&source=${encodeURIComponent(source)}`;
+                console.log('DEBUG: URL запроса search:', url);
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('DEBUG: Ответ search API:', response.status);
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('DEBUG: Результат search:', result);
+                    
+                    // Показываем детальные результаты в красивом алерте
+                    const message = `
+Результаты поиска:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Найдено в базе: ${result.total_db_books} книг
+${result.message}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Сейчас запустим поиск новых книг...`;
+                    
+                    alert(message);
+                    
+                    // Перезагружаем страницу для обновления результатов
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    // Получаем детальную информацию об ошибке
+                    const errorData = await response.json();
+                    const errorMessage = errorData.detail || errorData.message || `HTTP ${response.status}`;
+                    console.error('DEBUG: Ошибка search API:', errorMessage);
+                    throw new Error(errorMessage);
+                }
+            } catch (error) {
+                console.error('DEBUG: Ошибка поиска с парсингом:', error);
+                alert(`Ошибка: ${error.message}`);
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = originalText;
+            }
+        };
+        
+        // Принудительное обновление страницы при загрузке
+        window.addEventListener('load', function() {
+            console.log('DEBUG: Страница загружена с исправленными функциями');
+            
+            // Добавляем метку времени для отслеживания версии
+            document.body.setAttribute('data-version', '20260203');
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

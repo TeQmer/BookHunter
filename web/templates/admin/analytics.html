@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-chart-line"></i> Аналитика и метрики</h1>
+            <a href="/admin" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Назад в админ-панель
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Ключевые метрики -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-book fa-3x text-primary mb-3"></i>
+                <h5>Всего книг</h5>
+                <p class="display-4 text-primary">{{ analytics_data.discount_stats.total_books }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-tags fa-3x text-success mb-3"></i>
+                <h5>Книг со скидкой</h5>
+                <p class="display-4 text-success">{{ analytics_data.discount_stats.discounted_books }}</p>
+                <small class="text-muted">{{ analytics_data.discount_stats.discount_percentage }}% от общего количества</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-percentage fa-3x text-info mb-3"></i>
+                <h5>Средняя скидка</h5>
+                <p class="display-4 text-info">{{ analytics_data.discount_stats.avg_discount }}%</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-user-plus fa-3x text-warning mb-3"></i>
+                <h5>Новые пользователи</h5>
+                <p class="display-4 text-warning">{{ analytics_data.user_stats.new_users_30d }}</p>
+                <small class="text-muted">за последние 30 дней</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Топ магазинов -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-store"></i> Топ магазинов по количеству книг
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if analytics_data.stores_stats and analytics_data.stores_stats|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Магазин</th>
+                                <th>Количество книг</th>
+                                <th>Процент</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for store_info in analytics_data.stores_stats %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-primary">{{ store_info.store }}</span>
+                                </td>
+                                <td>{{ store_info.count }}</td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: {{ (store_info.count / analytics_data.discount_stats.total_books * 100)|round(1) }}%">
+                                            {{ (store_info.count / analytics_data.discount_stats.total_books * 100)|round(1) }}%
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Нет данных о магазинах</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Топ авторов -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-edit"></i> Топ авторов
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if analytics_data.authors_stats and analytics_data.authors_stats|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Автор</th>
+                                <th>Количество книг</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for author_info in analytics_data.authors_stats %}
+                            <tr>
+                                <td>{{ author_info.author }}</td>
+                                <td>
+                                    <span class="badge bg-info">{{ author_info.count }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Нет данных об авторах</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ценовые диапазоны -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-dollar-sign"></i> Распределение книг по ценовым диапазонам
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <h6 class="text-primary">До 500 ₽</h6>
+                            <p class="display-6 text-primary">{{ analytics_data.price_stats.under_500 }}</p>
+                            <small class="text-muted">книг</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <h6 class="text-success">500 - 1000 ₽</h6>
+                            <p class="display-6 text-success">{{ analytics_data.price_stats['500_1000'] }}</p>
+                            <small class="text-muted">книг</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <h6 class="text-warning">1000 - 2000 ₽</h6>
+                            <p class="display-6 text-warning">{{ analytics_data.price_stats['1000_2000'] }}</p>
+                            <small class="text-muted">книг</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <h6 class="text-danger">Свыше 2000 ₽</h6>
+                            <p class="display-6 text-danger">{{ analytics_data.price_stats.over_2000 }}</p>
+                            <small class="text-muted">книг</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Визуальное представление распределения -->
+                <div class="mt-4">
+                    <h6>Распределение в процентах:</h6>
+                    {% set total = analytics_data.price_stats.under_500 + analytics_data.price_stats['500_1000'] + analytics_data.price_stats['1000_2000'] + analytics_data.price_stats.over_2000 %}
+                    {% if total > 0 %}
+                    <div class="progress" style="height: 30px;">
+                        <div class="progress-bar bg-primary" role="progressbar" 
+                             style="width: {{ (analytics_data.price_stats.under_500 / total * 100)|round(1) }}%">
+                            {{ (analytics_data.price_stats.under_500 / total * 100)|round(1) }}%
+                        </div>
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {{ (analytics_data.price_stats['500_1000'] / total * 100)|round(1) }}%">
+                            {{ (analytics_data.price_stats['500_1000'] / total * 100)|round(1) }}%
+                        </div>
+                        <div class="progress-bar bg-warning" role="progressbar" 
+                             style="width: {{ (analytics_data.price_stats['1000_2000'] / total * 100)|round(1) }}%">
+                            {{ (analytics_data.price_stats['1000_2000'] / total * 100)|round(1) }}%
+                        </div>
+                        <div class="progress-bar bg-danger" role="progressbar" 
+                             style="width: {{ (analytics_data.price_stats.over_2000 / total * 100)|round(1) }}%">
+                            {{ (analytics_data.price_stats.over_2000 / total * 100)|round(1) }}%
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Статистика парсинга и подписок -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-sync"></i> Активность парсинга (7 дней)
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if analytics_data.parsing_stats and analytics_data.parsing_stats|length > 0 %}
+                <div class="row">
+                    {% for stat in analytics_data.parsing_stats %}
+                    <div class="col-6 text-center mb-3">
+                        {% if stat.status == 'completed' %}
+                            <div class="border rounded p-3 border-success">
+                                <h6 class="text-success">Успешные</h6>
+                                <p class="display-6 text-success">{{ stat.count }}</p>
+                            </div>
+                        {% elif stat.status == 'failed' %}
+                            <div class="border rounded p-3 border-danger">
+                                <h6 class="text-danger">Ошибки</h6>
+                                <p class="display-6 text-danger">{{ stat.count }}</p>
+                            </div>
+                        {% else %}
+                            <div class="border rounded p-3 border-warning">
+                                <h6 class="text-warning">В процессе</h6>
+                                <p class="display-6 text-warning">{{ stat.count }}</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">Нет данных о парсинге</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bell"></i> Статистика подписок
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if analytics_data.alerts_stats and analytics_data.alerts_stats|length > 0 %}
+                <div class="row">
+                    {% for stat in analytics_data.alerts_stats %}
+                    <div class="col-6 text-center mb-3">
+                        {% if stat.is_active %}
+                            <div class="border rounded p-3 border-success">
+                                <h6 class="text-success">Активные</h6>
+                                <p class="display-6 text-success">{{ stat.count }}</p>
+                            </div>
+                        {% else %}
+                            <div class="border rounded p-3 border-secondary">
+                                <h6 class="text-muted">Неактивные</h6>
+                                <p class="display-6 text-muted">{{ stat.count }}</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">Нет данных о подписках</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Кнопки экспорта -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-download"></i> Экспорт данных
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <div class="btn-group w-100" role="group">
+                            <a href="/admin/api/export/users?format=json" class="btn btn-outline-primary">
+                                <i class="fas fa-file-export"></i> Пользователи (JSON)
+                            </a>
+                            <a href="/admin/api/export/users?format=csv" class="btn btn-outline-primary">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <div class="btn-group w-100" role="group">
+                            <a href="/admin/api/export/books?format=json" class="btn btn-outline-success">
+                                <i class="fas fa-file-export"></i> Книги (JSON)
+                            </a>
+                            <a href="/admin/api/export/books?format=csv" class="btn btn-outline-success">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <div class="btn-group w-100" role="group">
+                            <a href="/admin/api/export/logs?format=json" class="btn btn-outline-info">
+                                <i class="fas fa-file-export"></i> Логи (JSON)
+                            </a>
+                            <a href="/admin/api/export/logs?format=csv" class="btn btn-outline-info">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <button class="btn btn-outline-secondary w-100" onclick="refreshAnalytics()">
+                            <i class="fas fa-sync"></i> Обновить данные
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>Совет:</strong> Данные автоматически обновляются при перезагрузке страницы. 
+                        Используйте экспорт для создания резервных копий или анализа в внешних инструментах.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshAnalytics() {
+    location.reload();
+}
+
+// Автоматическое обновление каждые 5 минут
+setTimeout(() => {
+    location.reload();
+}, 300000);
+</script>
+{% endblock %}

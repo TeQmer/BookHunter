@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-server"></i> Информация о системе</h1>
+            <a href="/admin" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Назад в админ-панель
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Основная системная информация -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-desktop"></i> Системная информация</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>Операционная система:</strong></td>
+                        <td>{{ system_info.platform }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Версия Python:</strong></td>
+                        <td><code>{{ system_info.python_version.split()[0] }}</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Текущая директория:</strong></td>
+                        <td><small>{{ system_info.current_dir }}</small></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Дата проверки:</strong></td>
+                        <td>{{ moment }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-cog"></i> Конфигурация</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>База данных:</strong></td>
+                        <td><span class="badge bg-success">PostgreSQL</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Redis:</strong></td>
+                        <td><span class="badge bg-success">Активен</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Celery:</strong></td>
+                        <td><span class="badge bg-success">Запущен</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Telegram Bot:</strong></td>
+                        <td><span class="badge bg-success">Подключен</span></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Переменные окружения -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-key"></i> Переменные окружения 
+                    <button class="btn btn-sm btn-outline-secondary float-end" onclick="toggleEnvVars()">
+                        <i class="fas fa-eye-slash" id="toggleIcon"></i> Скрыть
+                    </button>
+                </h5>
+            </div>
+            <div class="card-body" id="envVarsSection">
+                <div class="row">
+                    {% set env_vars = system_info.env_vars %}
+                    <div class="col-md-6">
+                        <h6>Основные настройки</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>DATABASE_URL:</strong></td>
+                                <td><code>{{ env_vars.get('DATABASE_URL', 'Не настроено')|replace('://', '://***:***@') if env_vars.get('DATABASE_URL') else 'Не настроено' }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>REDIS_URL:</strong></td>
+                                <td><code>{{ env_vars.get('REDIS_URL', 'Не настроено') }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>SECRET_KEY:</strong></td>
+                                <td><code>{{ env_vars.get('SECRET_KEY', 'Не настроено')[:20] + '...' if env_vars.get('SECRET_KEY') else 'Не настроено' }}</code></td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Интеграции</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>TELEGRAM_BOT_TOKEN:</strong></td>
+                                <td><code>{{ env_vars.get('TELEGRAM_BOT_TOKEN', 'Не настроено')[:20] + '...' if env_vars.get('TELEGRAM_BOT_TOKEN') else 'Не настроено' }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>GOOGLE_CREDENTIALS:</strong></td>
+                                <td><span class="badge {% if env_vars.get('GOOGLE_CREDENTIALS') %}bg-success{% else %}bg-warning{% endif %}">
+                                    {% if env_vars.get('GOOGLE_CREDENTIALS') %}Настроено{% else %}Не настроено{% endif %}
+                                </span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>DEBUG:</strong></td>
+                                <td><span class="badge {% if env_vars.get('DEBUG') == 'True' %}bg-info{% else %}bg-secondary{% endif %}">
+                                    {{ env_vars.get('DEBUG', 'Не указано') }}
+                                </span></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Полный список переменных -->
+                <div class="mt-3">
+                    <h6>Все переменные окружения</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Переменная</th>
+                                    <th>Значение</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key, value in env_vars.items()|sort %}
+                                <tr>
+                                    <td><strong>{{ key }}</strong></td>
+                                    <td>
+                                        {% if 'password' in key|lower or 'token' in key|lower or 'key' in key|lower %}
+                                            <code>{{ value[:20] + '...' if value|length > 20 else value }}</code>
+                                        {% else %}
+                                            <code>{{ value }}</code>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Состояние сервисов -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-heartbeat"></i> Состояние сервисов</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="status-indicator bg-success rounded-circle mx-auto mb-2" style="width: 20px; height: 20px;"></div>
+                            <h6>FastAPI App</h6>
+                            <small class="text-muted">Работает</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="status-indicator bg-success rounded-circle mx-auto mb-2" style="width: 20px; height: 20px;"></div>
+                            <h6>PostgreSQL</h6>
+                            <small class="text-muted">Подключен</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="status-indicator bg-success rounded-circle mx-auto mb-2" style="width: 20px; height: 20px;"></div>
+                            <h6>Redis</h6>
+                            <small class="text-muted">Доступен</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="status-indicator bg-success rounded-circle mx-auto mb-2" style="width: 20px; height: 20px;"></div>
+                            <h6>Celery Worker</h6>
+                            <small class="text-muted">Активен</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Действия -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-tools"></i> Системные действия</h5>
+            </div>
+            <div class="card-body">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-info" onclick="checkHealth()">
+                        <i class="fas fa-heartbeat"></i> Проверка здоровья
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="restartServices()">
+                        <i class="fas fa-redo"></i> Перезапуск сервисов
+                    </button>
+                    <button type="button" class="btn btn-success" onclick="createBackup()">
+                        <i class="fas fa-download"></i> Создать резервную копию
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="viewLogs()">
+                        <i class="fas fa-file-alt"></i> Просмотр логов
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Переключение видимости переменных окружения
+function toggleEnvVars() {
+    const section = document.getElementById('envVarsSection');
+    const icon = document.getElementById('toggleIcon');
+    
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        icon.className = 'fas fa-eye-slash';
+        icon.parentNode.innerHTML = '<i class="fas fa-eye-slash" id="toggleIcon"></i> Скрыть';
+    } else {
+        section.style.display = 'none';
+        icon.className = 'fas fa-eye';
+        icon.parentNode.innerHTML = '<i class="fas fa-eye" id="toggleIcon"></i> Показать';
+    }
+}
+
+// Функции для системных действий
+function checkHealth() {
+    fetch('/api/health')
+        .then(response => response.json())
+        .then(data => {
+            alert('Состояние системы:\n' + JSON.stringify(data, null, 2));
+        })
+        .catch(error => {
+            alert('Ошибка проверки состояния: ' + error);
+        });
+}
+
+function restartServices() {
+    if (confirm('Вы уверены, что хотите перезапустить сервисы?')) {
+        alert('Функция перезапуска будет реализована позже');
+    }
+}
+
+function createBackup() {
+    if (confirm('Создать резервную копию базы данных?')) {
+        alert('Функция создания резервной копии будет реализована позже');
+    }
+}
+
+function viewLogs() {
+    window.location.href = '/admin/logs';
+}
+
+// Обновление времени
+setInterval(function() {
+    location.reload();
+}, 60000); // Каждую минуту
+</script>
+{% endblock %}

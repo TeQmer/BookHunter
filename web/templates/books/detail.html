@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            {% if book.image_url %}
+            <img src="{{ book.image_url }}" class="card-img-top" alt="{{ book.title }}">
+            {% else %}
+            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 300px;">
+                <i class="fas fa-book fa-5x text-muted"></i>
+            </div>
+            {% endif %}
+            
+            {% if book.discount_percent %}
+            <div class="position-absolute top-0 end-0 m-3">
+                <span class="badge bg-danger fs-6">-{{ book.discount_percent }}%</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h1 class="card-title">{{ book.title }}</h1>
+                {% if book.author %}
+                <p class="lead text-muted">{{ book.author }}</p>
+                {% endif %}
+                
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h4 class="text-success">{{ book.current_price }} ₽</h4>
+                        {% if book.original_price and book.original_price > book.current_price %}
+                        <small class="text-muted text-decoration-line-through">{{ book.original_price }} ₽</small>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Магазин:</strong> {{ book.source }}</p>
+                        {% if book.isbn %}
+                        <p class="mb-1"><strong>ISBN:</strong> {{ book.isbn }}</p>
+                        {% endif %}
+                        {% if book.genres %}
+                        <p class="mb-1"><strong>Жанры:</strong> {{ book.genres }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                    <a href="{{ book.url }}" target="_blank" class="btn btn-primary btn-lg">
+                        <i class="fas fa-external-link-alt"></i> Перейти в магазин
+                    </a>
+                    <a href="/web/alerts/new?title={{ book.title|urlencode }}" class="btn btn-outline-success">
+                        <i class="fas fa-bell"></i> Создать уведомление
+                    </a>
+                </div>
+                
+                {% if book.parsed_at %}
+                <p class="text-muted mt-3">
+                    <small>Найдено: {{ book.parsed_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <a href="/web/books" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Назад к каталогу
+        </a>
+    </div>
+</div>
+{% endblock %}

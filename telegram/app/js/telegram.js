@@ -1,0 +1,377 @@
+/**
+ * Telegram Web App API Wrapper
+ * Обёртка для работы с Telegram Web App API
+ */
+
+class TelegramWebApp {
+    constructor() {
+        this.webApp = window.Telegram?.WebApp;
+        this.init();
+    }
+
+    /**
+     * Инициализация Telegram Web App
+     */
+    init() {
+        if (!this.webApp) {
+            console.warn('Telegram Web App API не доступен');
+            return false;
+        }
+
+        // Расширяем для заполнения всего экрана
+        this.webApp.ready();
+
+        // Применяем тему Telegram
+        this.applyTheme();
+
+        // Настраиваем кнопку назад
+        this.setupBackButton();
+
+        // Настраиваем главную кнопку
+        this.setupMainButton();
+
+        // Настраиваем Haptic Feedback
+        this.setupHaptic();
+
+        console.log('Telegram Web App инициализирован');
+        return true;
+    }
+
+    /**
+     * Применение темы Telegram
+     */
+    applyTheme() {
+        const themeParams = this.webApp.themeParams;
+
+        if (themeParams) {
+            const root = document.documentElement;
+
+            // Применяем цвета темы Telegram
+            if (themeParams.bg_color) {
+                root.style.setProperty('--tg-theme-bg-color', themeParams.bg_color);
+            }
+            if (themeParams.text_color) {
+                root.style.setProperty('--tg-theme-text-color', themeParams.text_color);
+            }
+            if (themeParams.hint_color) {
+                root.style.setProperty('--tg-theme-hint-color', themeParams.hint_color);
+            }
+            if (themeParams.link_color) {
+                root.style.setProperty('--tg-theme-link-color', themeParams.link_color);
+            }
+            if (themeParams.button_color) {
+                root.style.setProperty('--tg-theme-button-color', themeParams.button_color);
+            }
+            if (themeParams.button_text_color) {
+                root.style.setProperty('--tg-theme-button-text-color', themeParams.button_text_color);
+            }
+            if (themeParams.secondary_bg_color) {
+                root.style.setProperty('--tg-theme-secondary-bg-color', themeParams.secondary_bg_color);
+            }
+
+            // Обновляем цвет фона
+            document.body.style.backgroundColor = themeParams.bg_color;
+            document.body.style.color = themeParams.text_color;
+        }
+    }
+
+    /**
+     * Настройка кнопки назад
+     */
+    setupBackButton() {
+        if (!this.webApp.BackButton) return;
+
+        this.webApp.BackButton.onClick(() => {
+            window.history.back();
+        });
+    }
+
+    /**
+     * Показать кнопку назад
+     */
+    showBackButton() {
+        if (this.webApp?.BackButton) {
+            this.webApp.BackButton.show();
+        }
+    }
+
+    /**
+     * Скрыть кнопку назад
+     */
+    hideBackButton() {
+        if (this.webApp?.BackButton) {
+            this.webApp.BackButton.hide();
+        }
+    }
+
+    /**
+     * Настройка главной кнопки
+     */
+    setupMainButton() {
+        if (!this.webApp.MainButton) return;
+
+        this.webApp.MainButton.onClick(() => {
+            // По умолчанию ничего не делаем, переопределяется в приложении
+            console.log('Main button clicked');
+        });
+    }
+
+    /**
+     * Показать главную кнопку
+     */
+    showMainButton(text, onClick) {
+        if (!this.webApp?.MainButton) return;
+
+        this.webApp.MainButton.setText(text);
+
+        if (onClick) {
+            // Удаляем предыдущие обработчики
+            this.webApp.MainButton.offClick(() => {});
+            // Добавляем новый
+            this.webApp.MainButton.onClick(onClick);
+        }
+
+        this.webApp.MainButton.show();
+    }
+
+    /**
+     * Скрыть главную кнопку
+     */
+    hideMainButton() {
+        if (this.webApp?.MainButton) {
+            this.webApp.MainButton.hide();
+        }
+    }
+
+    /**
+     * Настройка Haptic Feedback
+     */
+    setupHaptic() {
+        if (!this.webApp?.HapticFeedback) return;
+
+        this.haptic = {
+            impact: (style = 'medium') => {
+                this.webApp.HapticFeedback.impactOccurred(style);
+            },
+            notification: (type = 'success') => {
+                this.webApp.HapticFeedback.notificationOccurred(type);
+            },
+            selection: () => {
+                this.webApp.HapticFeedback.selectionChanged();
+            }
+        };
+    }
+
+    /**
+     * Вибрация при клике
+     */
+    hapticClick() {
+        this.haptic?.selection();
+    }
+
+    /**
+     * Вибрация при успешном действии
+     */
+    hapticSuccess() {
+        this.haptic?.notification('success');
+    }
+
+    /**
+     * Вибрация при ошибке
+     */
+    hapticError() {
+        this.haptic?.notification('error');
+    }
+
+    /**
+     * Вибрация при предупреждении
+     */
+    hapticWarning() {
+        this.haptic?.notification('warning');
+    }
+
+    /**
+     * Получить данные пользователя
+     */
+    getUser() {
+        return this.webApp?.initDataUnsafe?.user || null;
+    }
+
+    /**
+     * Получить ID чата
+     */
+    getChatId() {
+        const user = this.getUser();
+        return user?.id || null;
+    }
+
+    /**
+     * Получить имя пользователя
+     */
+    getUserName() {
+        const user = this.getUser();
+        return user?.first_name || user?.username || 'Пользователь';
+    }
+
+    /**
+     * Получить username
+     */
+    getUsername() {
+        const user = this.getUser();
+        return user?.username || null;
+    }
+
+    /**
+     * Получить язык пользователя
+     */
+    getLanguageCode() {
+        const user = this.getUser();
+        return user?.language_code || 'ru';
+    }
+
+    /**
+     * Получить initData для авторизации
+     */
+    getInitData() {
+        return this.webApp?.initData || '';
+    }
+
+    /**
+     * Открыть ссылку в браузере
+     */
+    openLink(url) {
+        if (this.webApp) {
+            this.webApp.openLink(url);
+        } else {
+            window.open(url, '_blank');
+        }
+    }
+
+    /**
+     * Открыть ссылку внутри Telegram
+     */
+    openLinkInside(url) {
+        if (this.webApp) {
+            this.webApp.openTelegramLink(url);
+        } else {
+            window.open(url, '_blank');
+        }
+    }
+
+    /**
+     * Закрыть Web App
+     */
+    close() {
+        if (this.webApp) {
+            this.webApp.close();
+        }
+    }
+
+    /**
+     * Показать всплывающее окно (Popup)
+     */
+    showPopup(options) {
+        if (!this.webApp?.showPopup) {
+            alert(options.message);
+            return Promise.resolve();
+        }
+
+        return this.webApp.showPopup({
+            title: options.title || '',
+            message: options.message || '',
+            buttons: options.buttons || [{type: 'ok'}]
+        });
+    }
+
+    /**
+     * Показать подтверждение (Alert)
+     */
+    showAlert(message) {
+        if (!this.webApp?.showAlert) {
+            alert(message);
+            return Promise.resolve();
+        }
+
+        return this.webApp.showAlert(message);
+    }
+
+    /**
+     * Показать подтверждение с кнопкой (Confirm)
+     */
+    showConfirm(message) {
+        if (!this.webApp?.showConfirm) {
+            return Promise.resolve(confirm(message));
+        }
+
+        return this.webApp.showConfirm(message);
+    }
+
+    /**
+     * Показать сканер QR кода
+     */
+    scanQR(text) {
+        if (!this.webApp?.showScanQrPopup) {
+            return Promise.reject('QR scanner не поддерживается');
+        }
+
+        return this.webApp.showScanQrPopup({
+            text: text || 'Сканируйте QR код'
+        });
+    }
+
+    /**
+     * Проверить доступность API
+     */
+    isAvailable() {
+        return !!this.webApp;
+    }
+
+    /**
+     * Получить информацию о версии Telegram
+     */
+    getVersion() {
+        return this.webApp?.version || 'unknown';
+    }
+
+    /**
+     * Проверить, открыто ли приложение в полноэкранном режиме
+     */
+    isFullscreen() {
+        return this.webApp?.isFullscreen || false;
+    }
+
+    /**
+     * Расширить приложение на весь экран
+     */
+    expand() {
+        if (this.webApp) {
+            this.webApp.expand();
+        }
+    }
+
+    /**
+     * Настроить цвет заголовка
+     */
+    setHeaderColor(color) {
+        if (this.webApp?.setHeaderColor) {
+            this.webApp.setHeaderColor(color);
+        }
+    }
+
+    /**
+     * Настроить цвет фона
+     */
+    setBackgroundColor(color) {
+        if (this.webApp?.setBackgroundColor) {
+            this.webApp.setBackgroundColor(color);
+        }
+    }
+}
+
+// Создаем глобальный экземпляр
+window.tg = new TelegramWebApp();
+
+// Экспортируем для использования в модулях
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = TelegramWebApp;
+}

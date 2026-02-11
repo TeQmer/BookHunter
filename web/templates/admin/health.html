@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-heartbeat"></i> Системное здоровье
+        </h1>
+    </div>
+</div>
+
+<!-- Общий статус системы -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    {% if health_data.status == "healthy" %}
+                        <i class="fas fa-check-circle text-success fa-3x mr-3"></i>
+                        <div>
+                            <h3 class="text-success mb-0">Система работает нормально</h3>
+                            <small class="text-muted">Последняя проверка: {{ health_data.timestamp }}</small>
+                        </div>
+                    {% elif health_data.status == "degraded" %}
+                        <i class="fas fa-exclamation-triangle text-warning fa-3x mr-3"></i>
+                        <div>
+                            <h3 class="text-warning mb-0">Система работает с ограничениями</h3>
+                            <small class="text-muted">Последняя проверка: {{ health_data.timestamp }}</small>
+                        </div>
+                    {% else %}
+                        <i class="fas fa-times-circle text-danger fa-3x mr-3"></i>
+                        <div>
+                            <h3 class="text-danger mb-0">Система неисправна</h3>
+                            <small class="text-muted">Последняя проверка: {{ health_data.timestamp }}</small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Детальная информация по компонентам -->
+<div class="row">
+    {% for component_name, component_data in health_data.components.items() %}
+        {% if component_name != "external_services" %}
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        {% if component_data.status == "healthy" %}
+                            <i class="fas fa-check-circle text-success"></i>
+                        {% elif component_data.status == "warning" %}
+                            <i class="fas fa-exclamation-triangle text-warning"></i>
+                        {% else %}
+                            <i class="fas fa-times-circle text-danger"></i>
+                        {% endif %}
+                        {{ component_name|title|replace("_", " ") }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-1"><strong>Статус:</strong> 
+                        {% if component_data.status == "healthy" %}
+                            <span class="badge badge-success">Здоров</span>
+                        {% elif component_data.status == "warning" %}
+                            <span class="badge badge-warning">Предупреждение</span>
+                        {% else %}
+                            <span class="badge badge-danger">Неисправен</span>
+                        {% endif %}
+                    </p>
+                    <p class="mb-1"><strong>Сообщение:</strong> {{ component_data.message }}</p>
+                    {% if component_data.details %}
+                        <p class="mb-0"><strong>Детали:</strong> {{ component_data.details }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
+</div>
+
+<!-- Внешние сервисы -->
+{% if health_data.components.external_services %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-globe"></i> Внешние сервисы
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for service_name, service_data in health_data.components.external_services.items() %}
+                    <div class="col-md-4 mb-3">
+                        <div class="border rounded p-3">
+                            <div class="d-flex align-items-center mb-2">
+                                {% if service_data.status == "healthy" %}
+                                    <i class="fas fa-check-circle text-success mr-2"></i>
+                                {% elif service_data.status == "warning" %}
+                                    <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
+                                {% else %}
+                                    <i class="fas fa-times-circle text-danger mr-2"></i>
+                                {% endif %}
+                                <strong>{{ service_name|title|replace("_", " ") }}</strong>
+                            </div>
+                            <small class="text-muted">{{ service_data.message }}</small>
+                            {% if service_data.details %}
+                                <br><small class="text-muted">{{ service_data.details }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Проблемные компоненты -->
+{% if failed_components and failed_components|length > 0 %}
+<div class="row">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0 text-dark">
+                    <i class="fas fa-exclamation-triangle"></i> Требует внимания
+                </h5>
+            </div>
+            <div class="card-body">
+                <p>Следующие компоненты требуют внимания:</p>
+                <ul class="mb-0">
+                    {% for component in failed_components %}
+                        <li>{{ component|title|replace("_", " ") }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Кнопки действий -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="text-center">
+            <a href="/admin" class="btn btn-primary mr-2">
+                <i class="fas fa-arrow-left"></i> Назад в админ-панель
+            </a>
+            <button onclick="location.reload()" class="btn btn-outline-secondary">
+                <i class="fas fa-sync"></i> Обновить
+            </button>
+        </div>
+    </div>
+</div>
+
+{% if error %}
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="alert alert-danger">
+            <strong>Ошибка:</strong> {{ error }}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-tachometer-alt"></i> Панель управления
+        </h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-book fa-3x text-primary mb-3"></i>
+                <h5>Книги</h5>
+                <p class="display-6 text-primary">1,234</p>
+                <a href="/web/books" class="btn btn-outline-primary btn-sm">Посмотреть</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-bell fa-3x text-success mb-3"></i>
+                <h5>Подписки</h5>
+                <p class="display-6 text-success">56</p>
+                <a href="/web/alerts" class="btn btn-outline-success btn-sm">Управлять</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-3x text-info mb-3"></i>
+                <h5>Пользователи</h5>
+                <p class="display-6 text-info">123</p>
+                <a href="/admin/users" class="btn btn-outline-info btn-sm">Админ</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Последняя активность</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Здесь будет отображаться последняя активность системы...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

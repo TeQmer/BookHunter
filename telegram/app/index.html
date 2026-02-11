@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BookHunter</title>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/mini-app.css">
+
+    <!-- Telegram Web App Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <h1 class="header__title">
+                <i class="fas fa-book-open"></i>
+                BookHunter
+            </h1>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="container">
+            <div class="nav__item active" data-route="home">
+                <i class="fas fa-home"></i> Главная
+            </div>
+            <div class="nav__item" data-route="books">
+                <i class="fas fa-book"></i> Книги
+            </div>
+            <div class="nav__item" data-route="alerts">
+                <i class="fas fa-bell"></i> Подписки
+            </div>
+            <div class="nav__item" data-route="profile">
+                <i class="fas fa-user"></i> Профиль
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container" id="main-content">
+        <!-- Hero Section -->
+        <div class="card" style="background: var(--gradient-primary); color: var(--text-light); border: none;">
+            <div style="text-align: center; padding: 24px 16px;">
+                <h2 style="font-family: 'Georgia', serif; font-size: 1.5rem; margin-bottom: 8px;">
+                    📚 BookHunter — Охота на лучшие скидки на книги
+                </h2>
+                <p style="opacity: 0.9; margin-bottom: 16px;">
+                    Получайте уведомления о лучших предложениях в магазинах
+                </p>
+                <button class="btn" style="background: var(--text-light); color: var(--accent-primary);" onclick="app.navigate('books')">
+                    <i class="fas fa-search"></i> Найти книги
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <h3 style="font-family: 'Georgia', serif; color: var(--accent-primary); margin: 24px 0 16px; font-size: 1.2rem;">
+            <i class="fas fa-chart-line"></i> Статистика
+        </h3>
+
+        <div class="stats">
+            <div class="stats__card">
+                <div class="stats__icon"><i class="fas fa-book"></i></div>
+                <div class="stats__value" id="stat-total-books">0</div>
+                <div class="stats__label">Книг</div>
+            </div>
+            <div class="stats__card">
+                <div class="stats__icon"><i class="fas fa-bell"></i></div>
+                <div class="stats__value" id="stat-active-alerts">0</div>
+                <div class="stats__label">Подписок</div>
+            </div>
+            <div class="stats__card">
+                <div class="stats__icon"><i class="fas fa-percent"></i></div>
+                <div class="stats__value" id="stat-avg-discount">0%</div>
+                <div class="stats__label">Скидка</div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <h3 style="font-family: 'Georgia', serif; color: var(--accent-primary); margin: 24px 0 16px; font-size: 1.2rem;">
+            <i class="fas fa-bolt"></i> Быстрые действия
+        </h3>
+
+        <div class="card">
+            <button class="btn btn--primary" onclick="app.navigate('books')" style="margin-bottom: 12px;">
+                <i class="fas fa-search"></i> Поиск книг
+            </button>
+            <button class="btn btn--secondary" onclick="app.navigate('alerts')" style="margin-bottom: 12px;">
+                <i class="fas fa-bell"></i> Мои подписки
+            </button>
+            <button class="btn btn--secondary" onclick="app.navigate('profile')">
+                <i class="fas fa-user"></i> Профиль
+            </button>
+        </div>
+
+        <!-- Recent Books -->
+        <h3 style="font-family: 'Georgia', serif; color: var(--accent-primary); margin: 24px 0 16px; font-size: 1.2rem;">
+            <i class="fas fa-clock"></i> Недавние книги
+        </h3>
+
+        <div id="recent-books-container">
+            <div class="empty">
+                <div class="empty__icon"><i class="fas fa-book"></i></div>
+                <h3 class="empty__title">Книги загружаются...</h3>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer Space -->
+    <div class="footer-space"></div>
+
+    <!-- Scripts -->
+    <script src="js/telegram.js"></script>
+    <script src="js/mini-app.js"></script>
+
+    <script>
+        // Загрузка недавних книг на главной странице
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('/api/books?limit=5');
+                if (response.ok) {
+                    const data = await response.json();
+                    const books = data.books || [];
+
+                    const container = document.getElementById('recent-books-container');
+
+                    if (books.length === 0) {
+                        container.innerHTML = `
+                            <div class="empty">
+                                <div class="empty__icon"><i class="fas fa-inbox"></i></div>
+                                <h3 class="empty__title">Нет книг</h3>
+                                <p class="empty__text">Начните поиск книг в каталоге</p>
+                            </div>
+                        `;
+                    } else {
+                        container.innerHTML = books.map(book => `
+                            <div class="book-card" data-book-id="${book.id}" style="cursor: pointer;">
+                                <div class="book-card__cover" style="width: 60px; height: 80px;">
+                                    ${book.image_url
+                                        ? `<img src="${book.image_url}" alt="${book.title}">`
+                                        : `<div class="book-card__cover-placeholder"><i class="fas fa-book"></i></div>`
+                                    }
+                                </div>
+                                <div class="book-card__info">
+                                    <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">
+                                        ${book.title}
+                                    </h4>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
+                                        ${book.author || 'Неизвестный автор'}
+                                    </div>
+                                    <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent-primary);">
+                                        ${book.current_price || 0} ₽
+                                        ${(book.discount_percent || 0) > 0
+                                            ? `<span style="font-size: 0.75rem; background: var(--danger); color: white; padding: 2px 6px; border-radius: 8px; margin-left: 8px;">-${book.discount_percent}%</span>`
+                                            : ''
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+
+                        // Добавляем обработчики кликов
+                        container.querySelectorAll('.book-card').forEach(card => {
+                            card.addEventListener('click', () => {
+                                const bookId = card.dataset.bookId;
+                                app.navigate('books');
+                                window.tg.hapticClick();
+                            });
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки недавних книг:', error);
+            }
+        });
+    </script>
+</body>
+</html>

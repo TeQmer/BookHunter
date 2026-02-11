@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Книги - BookHunter</title>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/mini-app.css">
+
+    <!-- Telegram Web App Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container" style="display: flex; align-items: center; gap: 12px;">
+            <button class="header__back" onclick="window.history.back()">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h1 class="header__title" style="font-size: 1.2rem;">
+                <i class="fas fa-book"></i> Каталог книг
+            </h1>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="container">
+            <div class="nav__item" data-route="home">
+                <i class="fas fa-home"></i> Главная
+            </div>
+            <div class="nav__item active" data-route="books">
+                <i class="fas fa-book"></i> Книги
+            </div>
+            <div class="nav__item" data-route="alerts">
+                <i class="fas fa-bell"></i> Подписки
+            </div>
+            <div class="nav__item" data-route="profile">
+                <i class="fas fa-user"></i> Профиль
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container" id="main-content">
+        <!-- Search -->
+        <div class="search">
+            <div class="search__input">
+                <input type="text" id="search-input" placeholder="Поиск книг по названию или автору...">
+                <button onclick="app.searchBooks(document.getElementById('search-input').value)">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card">
+            <h4 class="card__header"><i class="fas fa-filter"></i> Фильтры</h4>
+
+            <div class="form-group">
+                <label class="form-label">Источник</label>
+                <select class="form-select" id="filter-source">
+                    <option value="">Все источники</option>
+                    <option value="chitai-gorod">Читай-город</option>
+                    <option value="labirint">Лабиринт</option>
+                    <option value="ozon">Ozon</option>
+                    <option value="wildberries">Wildberries</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Минимальная скидка</label>
+                <select class="form-select" id="filter-discount">
+                    <option value="">Все скидки</option>
+                    <option value="10">От 10%</option>
+                    <option value="20">От 20%</option>
+                    <option value="30">От 30%</option>
+                    <option value="50">От 50%</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Максимальная цена</label>
+                <select class="form-select" id="filter-price">
+                    <option value="">Любая цена</option>
+                    <option value="300">До 300 ₽</option>
+                    <option value="500">До 500 ₽</option>
+                    <option value="1000">До 1000 ₽</option>
+                    <option value="2000">До 2000 ₽</option>
+                </select>
+            </div>
+
+            <button class="btn btn--primary" onclick="app.applyFilters()">
+                <i class="fas fa-check"></i> Применить фильтры
+            </button>
+        </div>
+
+        <!-- Results Info -->
+        <div id="results-info" style="display: none; padding: 12px; background: var(--bg-secondary); border-radius: 12px; margin-bottom: 12px;">
+            <span style="color: var(--text-secondary); font-size: 0.9rem;">
+                Найдено: <strong id="results-count">0</strong> книг
+            </span>
+        </div>
+
+        <!-- Books List -->
+        <div id="books-container">
+            <div class="loading">
+                <div class="loading__spinner"></div>
+                <div class="loading__text">Загрузка книг...</div>
+            </div>
+        </div>
+
+        <!-- Load More -->
+        <div id="load-more-container" style="display: none; margin-top: 16px;">
+            <button class="btn btn--secondary" onclick="app.loadMoreBooks()">
+                <i class="fas fa-plus"></i> Загрузить еще
+            </button>
+        </div>
+    </main>
+
+    <!-- Footer Space -->
+    <div class="footer-space"></div>
+
+    <!-- Scripts -->
+    <script src="js/telegram.js"></script>
+    <script src="js/mini-app.js"></script>
+
+    <script>
+        // Расширение приложения для страницы книг
+        BookHunterApp.prototype.applyFilters = function() {
+            const source = document.getElementById('filter-source').value;
+            const discount = document.getElementById('filter-discount').value;
+            const price = document.getElementById('filter-price').value;
+            const query = document.getElementById('search-input').value;
+
+            this.showLoading('Применение фильтров...');
+
+            // TODO: Добавить логику фильтрации на сервере
+            setTimeout(() => {
+                this.loadBooks({ query, source, discount, price });
+            }, 500);
+        };
+
+        BookHunterApp.prototype.loadMoreBooks = function() {
+            // TODO: Реализовать подгрузку следующих страниц
+            this.showToast('Функция в разработке', 'info');
+        };
+
+        // Обработка Enter в поиске
+        document.getElementById('search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                app.searchBooks(e.target.value);
+            }
+        });
+    </script>
+</body>
+</html>

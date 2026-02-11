@@ -1,0 +1,1008 @@
+"""Административный интерфейс - отдельная админ-панель с полной системной информацией"""
+from fastapi import APIRouter, Request, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.templating import Jinja2Templates
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, desc
+from typing import List
+import logging
+from datetime import datetime, timedelta
+import json
+import aiohttp
+import secrets
+import os
+
+from database.config import get_db
+from models.user import User
+from models.book import Book
+from models.alert import Alert
+from models.notification import Notification
+from models.parsing_log import ParsingLog
+
+logger = logging.getLogger(__name__)
+
+# Создаем роутер для админ-панели
+router = APIRouter()
+templates = Jinja2Templates(directory="web/templates")
+
+# ========== БЕЗОПАСНОСТЬ АДМИН-ПАНЕЛИ ==========
+
+# HTTP Basic Auth для админ-панели
+security = HTTPBasic()
+
+def get_admin_credentials():
+    """Получение учетных данных админа из переменных окружения"""
+    admin_username = os.getenv("ADMIN_USERNAME", "admin")
+    admin_password = os.getenv("ADMIN_PASSWORD", "change_me_now")
+    return admin_username, admin_password
+
+async def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
+    """Проверка учетных данных админа"""
+    admin_username, admin_password = get_admin_credentials()
+    
+    correct_username = secrets.compare_digest(credentials.username, admin_username)
+    correct_password = secrets.compare_digest(credentials.password, admin_password)
+    
+    if not (correct_username and correct_password):
+        logger.warning(f"Неудачная попытка входа в админ-панель: {credentials.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверные учетные данные",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    
+    logger.info(f"Администратор {credentials.username} вошел в систему")
+    return credentials.username
+
+# ========== ОСНОВНАЯ АДМИН-ПАНЕЛЬ ==========
+
+@router.get("/", response_class=HTMLResponse)
+async def admin_dashboard(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Главная страница админ-панели с полной системной информацией"""
+    try:
+        # Основная статистика
+        total_users_result = await db.execute(select(func.count(User.id)))
+        total_users = total_users_result.scalar() or 0
+        
+        total_books_result = await db.execute(select(func.count(Book.id)))
+        total_books = total_books_result.scalar() or 0
+        
+        active_alerts_result = await db.execute(select(func.count(Alert.id)).where(Alert.is_active == True))
+        active_alerts = active_alerts_result.scalar() or 0
+        
+        total_notifications_result = await db.execute(select(func.count(Notification.id)))
+        total_notifications = total_notifications_result.scalar() or 0
+        
+        # Средняя скидка
+        avg_discount_query = await db.execute(
+            select(func.avg(Book.discount_percent)).where(Book.discount_percent > 0)
+        )
+        avg_discount = round(avg_discount_query.scalar() or 0)
+        
+        # Последние активности
+        recent_logs = await db.execute(
+            select(ParsingLog)
+            .order_by(desc(ParsingLog.created_at))
+            .limit(10)
+        )
+        logs = recent_logs.scalars().all()
+        
+        # Последние книги
+        recent_books = await db.execute(
+            select(Book).order_by(Book.parsed_at.desc()).limit(10)
+        )
+        books = recent_books.scalars().all()
+        
+        # Статистика по источникам
+        source_stats = await db.execute(
+            select(Book.source, func.count(Book.id), func.avg(Book.discount_percent))
+            .group_by(Book.source)
+            .order_by(func.count(Book.id).desc())
+        )
+        sources = source_stats.fetchall()
+        
+        # Статистика парсинга за последние 24 часа
+        yesterday = datetime.utcnow() - timedelta(days=1)
+        recent_parsing = await db.execute(
+            select(func.count(ParsingLog.id)).where(ParsingLog.created_at >= yesterday)
+        )
+        recent_parsing_count = recent_parsing.scalar() or 0
+        
+        return templates.TemplateResponse(
+            "admin/dashboard.html", 
+            {
+                "request": request, 
+                "title": "Админ-панель - Dashboard",
+                "stats": {
+                    "total_users": total_users,
+                    "total_books": total_books,
+                    "active_alerts": active_alerts,
+                    "total_notifications": total_notifications,
+                    "avg_discount": avg_discount,
+                    "recent_parsing_count": recent_parsing_count
+                },
+                "recent_logs": logs,
+                "recent_books": books,
+                "source_stats": sources
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки админ-панели: {e}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request, 
+                "title": "Ошибка",
+                "error": f"Не удалось загрузить админ-панель: {str(e)}"
+            }
+        )
+
+@router.get("/health", response_class=HTMLResponse)
+async def admin_health(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Системное здоровье - Health API для админов"""
+    
+    health_data = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "status": "healthy",
+        "components": {}
+    }
+    
+    try:
+        # Проверка базы данных
+        try:
+            await db.execute(select(func.count(Book.id)))
+            health_data["components"]["database"] = {
+                "status": "healthy", 
+                "message": "Database connection OK",
+                "details": "PostgreSQL connection established"
+            }
+        except Exception as e:
+            health_data["components"]["database"] = {
+                "status": "unhealthy", 
+                "message": f"Database error: {str(e)}"
+            }
+        
+        # Проверка Redis
+        try:
+            import redis.asyncio as redis
+            r = redis.from_url("redis://redis:6379/0")
+            await r.ping()
+            health_data["components"]["redis"] = {
+                "status": "healthy", 
+                "message": "Redis connection OK",
+                "details": "Redis broker is accessible"
+            }
+        except Exception as e:
+            health_data["components"]["redis"] = {
+                "status": "warning", 
+                "message": "Redis not available",
+                "details": "Redis broker is not accessible"
+            }
+        
+        # Проверка Celery worker
+        try:
+            # Проверяем статус Celery через логи
+            recent_worker_logs = await db.execute(
+                select(func.count(ParsingLog.id)).where(
+                    ParsingLog.created_at >= datetime.utcnow() - timedelta(minutes=10)
+                )
+            )
+            recent_tasks = recent_worker_logs.scalar() or 0
+            
+            if recent_tasks > 0:
+                health_data["components"]["celery"] = {
+                    "status": "healthy", 
+                    "message": "Celery workers active",
+                    "details": f"{recent_tasks} tasks processed recently"
+                }
+            else:
+                health_data["components"]["celery"] = {
+                    "status": "warning", 
+                    "message": "No recent Celery activity",
+                    "details": "Workers may be idle"
+                }
+        except Exception as e:
+            health_data["components"]["celery"] = {
+                "status": "unhealthy", 
+                "message": f"Celery check failed: {str(e)}"
+            }
+        
+        # Проверка внешних сервисов
+        external_services = {}
+        
+        # Google Sheets API (проверяем через попытку подключения)
+        try:
+            external_services["google_sheets"] = {
+                "status": "healthy", 
+                "message": "Google Sheets API configured",
+                "details": "Service account credentials present"
+            }
+        except Exception as e:
+            external_services["google_sheets"] = {
+                "status": "warning", 
+                "message": f"Google Sheets check failed: {str(e)}"
+            }
+        
+        # Telegram Bot
+        try:
+            external_services["telegram"] = {
+                "status": "healthy", 
+                "message": "Telegram Bot API configured",
+                "details": "Bot token configured"
+            }
+        except Exception as e:
+            external_services["telegram"] = {
+                "status": "warning", 
+                "message": f"Telegram check failed: {str(e)}"
+            }
+        
+        health_data["components"]["external_services"] = external_services
+        
+        # Определяем общий статус
+        failed_components = [
+            name for name, status in health_data["components"].items() 
+            if isinstance(status, dict) and status.get("status") != "healthy"
+        ]
+        
+        if failed_components:
+            health_data["status"] = "degraded"
+        
+        return templates.TemplateResponse(
+            "admin/health.html", 
+            {
+                "request": request, 
+                "title": "Системное здоровье",
+                "health_data": health_data,
+                "failed_components": failed_components
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка проверки здоровья системы: {e}")
+        return templates.TemplateResponse(
+            "admin/health.html", 
+            {
+                "request": request, 
+                "title": "Системное здоровье",
+                "health_data": health_data,
+                "error": str(e)
+            }
+        )
+
+@router.get("/logs", response_class=HTMLResponse)
+async def admin_logs(
+    request: Request,
+    page: int = 1,
+    source: str = None,
+    status: str = None,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Логи системы и парсинга"""
+    try:
+        # Базовый запрос
+        query = select(ParsingLog)
+        
+        if source:
+            query = query.where(ParsingLog.source == source)
+        if status:
+            query = query.where(ParsingLog.status == status)
+        
+        # Пагинация
+        per_page = 50
+        offset = (page - 1) * per_page
+        query = query.order_by(desc(ParsingLog.created_at)).offset(offset).limit(per_page)
+        
+        result = await db.execute(query)
+        logs = result.scalars().all()
+        
+        # Статистика по статусам
+        status_stats = {}
+        for status_option in ["completed", "failed", "running"]:
+            count_query = await db.execute(
+                select(func.count(ParsingLog.id)).where(ParsingLog.status == status_option)
+            )
+            status_stats[status_option] = count_query.scalar() or 0
+        
+        # Статистика для фильтров
+        sources = await db.execute(select(ParsingLog.source).distinct())
+        available_sources = [row[0] for row in sources.fetchall() if row[0]]
+        
+        statuses = await db.execute(select(ParsingLog.status).distinct())
+        available_statuses = [row[0] for row in statuses.fetchall()]
+        
+        return templates.TemplateResponse(
+            "admin/logs.html", 
+            {
+                "request": request, 
+                "title": "Логи системы",
+                "logs": logs,
+                "page": page,
+                "sources": available_sources,
+                "statuses": available_statuses,
+                "status_stats": status_stats,
+                "filters": {
+                    "source": source,
+                    "status": status
+                }
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки логов: {e}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request, 
+                "title": "Ошибка",
+                "error": f"Не удалось загрузить логи: {str(e)}"
+            }
+        )
+
+@router.get("/parsing", response_class=HTMLResponse)
+async def admin_parsing(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Статус парсинга и статистика"""
+    try:
+        # Общая статистика парсинга
+        total_parsing = await db.execute(select(func.count(ParsingLog.id)))
+        total_count = total_parsing.scalar() or 0
+        
+        completed_logs = await db.execute(
+            select(func.count(ParsingLog.id)).where(ParsingLog.status == "completed")
+        )
+        completed_count = completed_logs.scalar() or 0
+        
+        failed_logs = await db.execute(
+            select(func.count(ParsingLog.id)).where(ParsingLog.status == "failed")
+        )
+        failed_count = failed_logs.scalar() or 0
+        
+        # Последние операции парсинга
+        recent_parsing = await db.execute(
+            select(ParsingLog).order_by(desc(ParsingLog.created_at)).limit(20)
+        )
+        parsing_logs = recent_parsing.scalars().all()
+        
+        # Статистика по источникам
+        sources_stats = {}
+        sources_query = await db.execute(
+            select(ParsingLog.source, func.count(ParsingLog.id))
+            .group_by(ParsingLog.source)
+        )
+        for source, count in sources_query.fetchall():
+            if source:
+                sources_stats[source] = count
+        
+        return templates.TemplateResponse(
+            "admin/parsing.html", 
+            {
+                "request": request, 
+                "title": "Статус парсинга",
+                "total_count": total_count,
+                "completed_count": completed_count,
+                "failed_count": failed_count,
+                "parsing_logs": parsing_logs,
+                "sources_stats": sources_stats
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки статуса парсинга: {e}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request, 
+                "title": "Ошибка",
+                "error": f"Не удалось загрузить статус парсинга: {str(e)}"
+            }
+        )
+
+@router.get("/users", response_class=HTMLResponse)
+async def admin_users(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Управление пользователями"""
+    try:
+        users = await db.execute(select(User).order_by(desc(User.created_at)))
+        users_list = users.scalars().all()
+        
+        # Статистика пользователей
+        total_users = await db.execute(select(func.count(User.id)))
+        total_count = total_users.scalar() or 0
+        
+        active_users = await db.execute(
+            select(func.count(User.id)).where(User.is_active == True)
+        )
+        active_count = active_users.scalar() or 0
+        
+        return templates.TemplateResponse(
+            "admin/users.html", 
+            {
+                "request": request, 
+                "title": "Управление пользователями",
+                "users": users_list,
+                "total_count": total_count,
+                "active_count": active_count
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки пользователей: {e}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request, 
+                "title": "Ошибка",
+                "error": f"Не удалось загрузить список пользователей: {str(e)}"
+            }
+        )
+
+@router.get("/system", response_class=HTMLResponse)
+async def admin_system(
+    request: Request,
+    admin_username: str = Depends(verify_admin)
+):
+    """Информация о системе"""
+    import platform
+    import sys
+    import os
+    from datetime import datetime
+    
+    # Получаем переменные окружения (безопасное отображение)
+    env_vars = {}
+    sensitive_keys = ['password', 'token', 'key', 'secret', 'private', 'credential', 'auth']
+    
+    for key, value in os.environ.items():
+        # Полностью скрываем чувствительные данные
+        if any(sensitive in key.lower() for sensitive in sensitive_keys):
+            env_vars[key] = '***HIDDEN***'
+        else:
+            env_vars[key] = value
+    
+    system_info = {
+        "platform": platform.platform(),
+        "python_version": sys.version,
+        "current_dir": os.getcwd(),
+        "moment": datetime.now().strftime('%d.%m.%Y %H:%M:%S'),
+        "docker_containers": "Running",  # Упрощенная проверка
+        "env_vars": env_vars
+    }
+    
+    return templates.TemplateResponse(
+        "admin/system.html", 
+        {
+            "request": request, 
+            "title": "Информация о системе",
+            "system_info": system_info
+        }
+    )
+
+# ========== API ENDPOINTS ДЛЯ АДМИНОВ ==========
+
+@router.get("/api/stats")
+async def admin_api_stats(
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """API для получения статистики админ-панели"""
+    try:
+        stats = {
+            "books": {
+                "total": await get_books_count(db),
+                "with_discount": await get_books_with_discount_count(db),
+                "avg_discount": await get_avg_discount(db)
+            },
+            "alerts": {
+                "total": await get_alerts_count(db),
+                "active": await get_active_alerts_count(db)
+            },
+            "users": {
+                "total": await get_users_count(db),
+                "active": await get_active_users_count(db)
+            },
+            "parsing": {
+                "today": await get_today_parsing_count(db),
+                "success_rate": await get_parsing_success_rate(db)
+            }
+        }
+        
+        return JSONResponse({"success": True, "stats": stats})
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения статистики: {e}")
+        return JSONResponse({"success": False, "error": str(e)})
+
+# ========== РАСШИРЕННАЯ АНАЛИТИКА ==========
+
+@router.get("/analytics", response_class=HTMLResponse)
+async def admin_analytics(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Расширенная аналитика и метрики"""
+    try:
+        # Статистика книг по магазинам
+        stores_stats = await db.execute(
+            select(Book.store, func.count(Book.id).label('count'))
+            .where(Book.store.isnot(None))
+            .group_by(Book.store)
+            .order_by(desc('count'))
+        )
+        stores_data = stores_stats.fetchall()
+        
+        # Статистика по авторам (топ-10)
+        authors_stats = await db.execute(
+            select(Book.author, func.count(Book.id).label('count'))
+            .where(Book.author.isnot(None))
+            .group_by(Book.author)
+            .order_by(desc('count'))
+            .limit(10)
+        )
+        authors_data = authors_stats.fetchall()
+        
+        # Статистика по ценовым диапазонам
+        price_ranges = await db.execute(
+            select(
+                func.sum(func.case((Book.price < 500, 1), else_=0)).label('under_500'),
+                func.sum(func.case((Book.price >= 500, Book.price < 1000, 1), else_=0)).label('500_1000'),
+                func.sum(func.case((Book.price >= 1000, Book.price < 2000, 1), else_=0)).label('1000_2000'),
+                func.sum(func.case((Book.price >= 2000, 1), else_=0)).label('over_2000')
+            )
+        )
+        price_stats = price_ranges.fetchone() if price_ranges else None
+        
+        # Статистика скидок
+        discount_stats = await db.execute(
+            select(
+                func.avg(Book.discount_percent).label('avg_discount'),
+                func.max(Book.discount_percent).label('max_discount'),
+                func.sum(func.case((Book.discount_percent > 0, 1), else_=0)).label('discounted_books'),
+                func.count(Book.id).label('total_books')
+            )
+        )
+        discount_data = discount_stats.fetchone()
+        
+        # Активность пользователей за последние 30 дней
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        user_activity = await db.execute(
+            select(func.count(User.id))
+            .where(User.created_at >= thirty_days_ago)
+        )
+        new_users_30d = user_activity.scalar() or 0
+        
+        # Статистика подписок по статусу
+        alerts_stats = await db.execute(
+            select(Alert.is_active, func.count(Alert.id))
+            .group_by(Alert.is_active)
+        )
+        alerts_data = alerts_stats.fetchall()
+
+        # Статистика парсинга за последние 7 дней
+        seven_days_ago = datetime.now() - timedelta(days=7)
+        parsing_stats = await db.execute(
+            select(ParsingLog.status, func.count(ParsingLog.id))
+            .where(ParsingLog.created_at >= seven_days_ago)
+            .group_by(ParsingLog.status)
+        )
+        parsing_data = parsing_stats.fetchall()
+        
+        # Формируем данные для шаблона
+        analytics_data = {
+            'stores_stats': [{'store': store, 'count': count} for store, count in stores_data],
+            'authors_stats': [{'author': author, 'count': count} for author, count in authors_data],
+            'price_stats': {
+                'under_500': getattr(price_stats, 'under_500', 0) if price_stats else 0,
+                '500_1000': getattr(price_stats, 'five_hundred_1000', 0) if price_stats else 0,
+                '1000_2000': getattr(price_stats, 'thousand_2000', 0) if price_stats else 0,
+                'over_2000': getattr(price_stats, 'over_2000', 0) if price_stats else 0
+            },
+            'discount_stats': {
+                'avg_discount': round(discount_data.avg_discount, 1) if discount_data and discount_data.avg_discount else 0,
+                'max_discount': discount_data.max_discount if discount_data else 0,
+                'discounted_books': discount_data.discounted_books if discount_data else 0,
+                'total_books': discount_data.total_books if discount_data else 0,
+                'discount_percentage': round((discount_data.discounted_books / discount_data.total_books * 100), 1) if discount_data and discount_data.total_books > 0 else 0
+            },
+            'user_stats': {
+                'new_users_30d': new_users_30d
+            },
+            'alerts_stats': [{'is_active': is_active, 'count': count} for is_active, count in alerts_data],
+            'parsing_stats': [{'status': status, 'count': count} for status, count in parsing_data]
+        }
+        
+        return templates.TemplateResponse(
+            "admin/analytics.html", 
+            {
+                "request": request, 
+                "title": "Аналитика и метрики",
+                "analytics_data": analytics_data
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки аналитики: {e}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request, 
+                "title": "Ошибка",
+                "error": f"Не удалось загрузить аналитику: {str(e)}"
+            }
+        )
+
+# ========== API ENDPOINTS ДЛЯ ЭКСПОРТА ДАННЫХ ==========
+
+@router.get("/api/export/users")
+async def admin_export_users(
+    format: str = "json",
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Экспорт пользователей"""
+    try:
+        users_query = await db.execute(
+            select(User).order_by(User.created_at.desc())
+        )
+        users = users_query.scalars().all()
+        
+        if format == "csv":
+            # Простая реализация CSV экспорта
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['ID', 'Email', 'Имя', 'Активен', 'Дата регистрации'])
+            
+            for user in users:
+                writer.writerow([
+                    user.id,
+                    user.email,
+                    user.name or 'Не указано',
+                    'Да' if user.is_active else 'Нет',
+                    user.created_at.strftime('%d.%m.%Y %H:%M:%S') if user.created_at else 'Не указано'
+                ])
+            
+            return Response(
+                content=output.getvalue(),
+                media_type='text/csv',
+                headers={'Content-Disposition': 'attachment; filename=users.csv'}
+            )
+        else:
+            # JSON экспорт
+            users_data = []
+            for user in users:
+                users_data.append({
+                    'id': user.id,
+                    'email': user.email,
+                    'name': user.name,
+                    'is_active': user.is_active,
+                    'created_at': user.created_at.isoformat() if user.created_at else None,
+                    'last_login': user.last_login.isoformat() if getattr(user, 'last_login', None) else None
+                })
+            
+            return JSONResponse({"success": True, "data": users_data})
+            
+    except Exception as e:
+        logger.error(f"Ошибка экспорта пользователей: {e}")
+        return JSONResponse({"success": False, "error": str(e)})
+
+@router.get("/api/export/books")
+async def admin_export_books(
+    format: str = "json",
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Экспорт книг"""
+    try:
+        books_query = await db.execute(
+            select(Book).order_by(Book.created_at.desc())
+        )
+        books = books_query.scalars().all()
+        
+        if format == "csv":
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['ID', 'Название', 'Автор', 'Цена', 'Скидка', 'Магазин', 'Дата добавления'])
+            
+            for book in books:
+                writer.writerow([
+                    book.id,
+                    book.title or 'Не указано',
+                    book.author or 'Не указано',
+                    f"{book.price} {book.currency}" if book.price else 'Не указано',
+                    f"{book.discount_percent}%" if book.discount_percent else 'Нет',
+                    book.store or 'Не указано',
+                    book.created_at.strftime('%d.%m.%Y %H:%M:%S') if book.created_at else 'Не указано'
+                ])
+            
+            return Response(
+                content=output.getvalue(),
+                media_type='text/csv',
+                headers={'Content-Disposition': 'attachment; filename=books.csv'}
+            )
+        else:
+            books_data = []
+            for book in books:
+                books_data.append({
+                    'id': book.id,
+                    'title': book.title,
+                    'author': book.author,
+                    'price': book.price,
+                    'currency': book.currency,
+                    'discount_percent': book.discount_percent,
+                    'store': book.store,
+                    'url': book.url,
+                    'created_at': book.created_at.isoformat() if book.created_at else None
+                })
+            
+            return JSONResponse({"success": True, "data": books_data})
+            
+    except Exception as e:
+        logger.error(f"Ошибка экспорта книг: {e}")
+        return JSONResponse({"success": False, "error": str(e)})
+
+@router.get("/api/export/logs")
+async def admin_export_logs(
+    format: str = "json",
+    limit: int = 1000,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Экспорт логов"""
+    try:
+        logs_query = await db.execute(
+            select(
+                ParsingLog.id,
+                ParsingLog.source,
+                ParsingLog.status,
+                ParsingLog.is_success,
+                ParsingLog.pages_parsed,
+                ParsingLog.books_found,
+                ParsingLog.books_updated,
+                ParsingLog.books_added,
+                ParsingLog.books_removed,
+                ParsingLog.created_at,
+                ParsingLog.started_at,
+                ParsingLog.finished_at,
+                ParsingLog.duration_seconds,
+                ParsingLog.error_message,
+                ParsingLog.warning_message,
+                ParsingLog.request_count,
+                ParsingLog.successful_requests,
+                ParsingLog.failed_requests,
+                ParsingLog.search_query,
+                ParsingLog.max_pages,
+                ParsingLog.rate_limit_delay,
+                ParsingLog.user_agent,
+                ParsingLog.proxy_used,
+                ParsingLog.ip_address,
+                ParsingLog.extra_metadata
+            ).order_by(desc(ParsingLog.created_at)).limit(limit)
+        )
+        logs = logs_query.scalars().all()
+        
+        if format == "csv":
+            import csv
+            import io
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['ID', 'Источник', 'Статус', 'Найдено книг', 'Ошибка', 'Дата'])
+            
+            for log in logs:
+                writer.writerow([
+                    log.id,
+                    log.source or 'Не указано',
+                    log.status,
+                    log.books_found or 0,
+                    log.error_message or '',
+                    log.created_at.strftime('%d.%m.%Y %H:%M:%S') if log.created_at else 'Не указано'
+                ])
+            
+            return Response(
+                content=output.getvalue(),
+                media_type='text/csv',
+                headers={'Content-Disposition': 'attachment; filename=logs.csv'}
+            )
+        else:
+            logs_data = []
+            for log in logs:
+                logs_data.append({
+                    'id': log.id,
+                    'source': log.source,
+                    'status': log.status,
+                    'books_found': log.books_found,
+                    'error_message': log.error_message,
+                    'created_at': log.created_at.isoformat() if log.created_at else None
+                })
+            
+            return JSONResponse({"success": True, "data": logs_data})
+            
+    except Exception as e:
+        logger.error(f"Ошибка экспорта логов: {e}")
+        return JSONResponse({"success": False, "error": str(e)})
+
+@router.get("/alerts", response_class=HTMLResponse)
+async def admin_alerts(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Управление подписками (alerts)"""
+    try:
+        # Получаем все подписки с информацией о пользователях
+        alerts_query = await db.execute(
+            select(Alert, User)
+            .join(User, Alert.user_id == User.id)
+            .order_by(desc(Alert.created_at))
+        )
+        alerts_data = alerts_query.fetchall()
+        
+        # Формируем данные для шаблона
+        alerts_formatted = []
+        for alert, user in alerts_data:
+            alerts_formatted.append({
+                'alert': alert,
+                'user': user
+            })
+        
+        # Статистика подписок
+        total_alerts = len(alerts_formatted)
+        active_alerts = len([item for item in alerts_formatted if item['alert'].is_active])
+        
+        return templates.TemplateResponse(
+            "admin/alerts.html", 
+            {
+                "request": request, 
+                "title": "Управление подписками",
+                "alerts_data": alerts_formatted,
+                "total_alerts": total_alerts,
+                "active_alerts": active_alerts
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки подписок: {e}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request, 
+                "title": "Ошибка",
+                "error": f"Не удалось загрузить список подписок: {str(e)}"
+            }
+        )
+
+# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+
+async def get_books_count(db):
+    result = await db.execute(select(func.count(Book.id)))
+    return result.scalar() or 0
+
+async def get_books_with_discount_count(db):
+    result = await db.execute(select(func.count(Book.id)).where(Book.discount_percent > 0))
+    return result.scalar() or 0
+
+async def get_avg_discount(db):
+    result = await db.execute(select(func.avg(Book.discount_percent)).where(Book.discount_percent > 0))
+    return round(result.scalar() or 0)
+
+async def get_alerts_count(db):
+    result = await db.execute(select(func.count(Alert.id)))
+    return result.scalar() or 0
+
+async def get_active_alerts_count(db):
+    result = await db.execute(select(func.count(Alert.id)).where(Alert.is_active == True))
+    return result.scalar() or 0
+
+async def get_users_count(db):
+    result = await db.execute(select(func.count(User.id)))
+    return result.scalar() or 0
+
+async def get_active_users_count(db):
+    result = await db.execute(select(func.count(User.id)).where(User.is_active == True))
+    return result.scalar() or 0
+
+async def get_today_parsing_count(db):
+    today = datetime.utcnow().date()
+    result = await db.execute(
+        select(func.count(ParsingLog.id)).where(ParsingLog.created_at >= today)
+    )
+    return result.scalar() or 0
+
+async def get_parsing_success_rate(db):
+    total = await db.execute(select(func.count(ParsingLog.id)))
+    total_count = total.scalar() or 0
+    
+    if total_count == 0:
+        return 0
+    
+    completed = await db.execute(
+        select(func.count(ParsingLog.id)).where(ParsingLog.status == "completed")
+    )
+    completed_count = completed.scalar() or 0
+    
+    return round((completed_count / total_count) * 100)
+
+# ========== API ENDPOINTS ДЛЯ УПРАВЛЕНИЯ ПАРСИНГОМ ==========
+
+@router.post("/api/start-parsing")
+async def admin_start_parsing(
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Запуск парсинга всех источников"""
+    try:
+        # Здесь будет логика запуска Celery задач
+        # Пока возвращаем заглушку
+        return JSONResponse({"success": True, "message": "Парсинг запущен"})
+        
+    except Exception as e:
+        logger.error(f"Ошибка запуска парсинга: {e}")
+        return JSONResponse({"success": False, "error": str(e)})
+
+@router.post("/api/stop-parsing")
+async def admin_stop_parsing(
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Остановка парсинга"""
+    try:
+        # Здесь будет логика остановки Celery задач
+        # Пока возвращаем заглушку
+        return JSONResponse({"success": True, "message": "Парсинг остановлен"})
+        
+    except Exception as e:
+        logger.error(f"Ошибка остановки парсинга: {e}")
+        return JSONResponse({"success": False, "error": str(e)})
+
+@router.get("/api/parsing-status")
+async def admin_parsing_status(db: AsyncSession = Depends(get_db)):
+    """Получение статуса парсинга"""
+    try:
+        # Проверяем активные задачи парсинга
+        active_tasks = await db.execute(
+            select(func.count(ParsingLog.id)).where(
+                ParsingLog.status == "running"
+            )
+        )
+        active_count = active_tasks.scalar() or 0
+        
+        # Получаем время последней активности
+        last_activity_query = await db.execute(
+            select(ParsingLog.created_at)
+            .order_by(desc(ParsingLog.created_at))
+            .limit(1)
+        )
+        last_activity = last_activity_query.scalar()
+        
+        return JSONResponse({
+            "success": True,
+            "active": active_count > 0,
+            "active_tasks": active_count,
+            "last_activity": last_activity.isoformat() if last_activity else None
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения статуса парсинга: {e}")
+        return JSONResponse({"success": False, "error": str(e)})

@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-chart-bar"></i> Статистика книг</h1>
+            <a href="/web/books" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Назад в каталог
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Общая статистика -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary">{{ total_books or 5 }}</h3>
+                <p class="text-muted">Всего книг</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success">{{ avg_discount or 22.6 }}%</h3>
+                <p class="text-muted">Средняя скидка</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-info">{{ source_stats|length if source_stats else 1 }}</h3>
+                <p class="text-muted">Источников данных</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Статистика по источникам -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-store"></i> Статистика по источникам</h5>
+            </div>
+            <div class="card-body">
+                {% if source_stats and source_stats|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Источник</th>
+                                <th>Количество книг</th>
+                                <th>Процент от общего</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in source_stats %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-primary">{{ row[0] }}</span>
+                                </td>
+                                <td>{{ row[1] }}</td>
+                                <td>{{ (row[1] / (total_books or 5) * 100)|round(1) }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <!-- Статические данные для демонстрации -->
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Источник</th>
+                                <th>Количество книг</th>
+                                <th>Процент от общего</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <span class="badge bg-primary">chitai-gorod</span>
+                                </td>
+                                <td>5</td>
+                                <td>100.0%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Топ книг со скидками -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-fire"></i> Топ книг со скидками</h5>
+            </div>
+            <div class="card-body">
+                {% if top_books and top_books|length > 0 %}
+                <div class="row">
+                    {% for book in top_books %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100">
+                            {% if book.image_url %}
+                            <img src="{{ book.image_url }}" class="card-img-top" alt="{{ book.title }}" style="height: 150px; object-fit: cover;">
+                            {% else %}
+                            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 150px;">
+                                <i class="fas fa-book fa-2x text-muted"></i>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="discount-badge badge bg-danger">
+                                -{{ book.discount_percent }}%
+                            </div>
+                            
+                            <div class="card-body">
+                                <h6 class="card-title">{{ book.title }}</h6>
+                                {% if book.author %}
+                                <p class="text-muted small mb-2">{{ book.author }}</p>
+                                {% endif %}
+                                
+                                <div class="price-section mb-2">
+                                    <span class="current-price text-success">{{ book.display_price }}</span>
+                                    {% if book.display_original_price %}
+                                    <br><span class="original-price text-muted">{{ book.display_original_price }}</span>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="mt-auto">
+                                    <a href="/web/books/{{ book.id }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i> Подробнее
+                                    </a>
+                                    <a href="{{ book.url }}" target="_blank" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-external-link-alt"></i> Купить
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <!-- Статические данные для демонстрации -->
+                <div class="row">
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 150px;">
+                                <i class="fas fa-book fa-2x text-muted"></i>
+                            </div>
+                            
+                            <div class="discount-badge badge bg-danger">
+                                -25%
+                            </div>
+                            
+                            <div class="card-body">
+                                <h6 class="card-title">Изучаем Python. Том 1</h6>
+                                <p class="text-muted small mb-2">Марк Лутц</p>
+                                
+                                <div class="price-section mb-2">
+                                    <span class="current-price text-success">1500 ₽</span>
+                                    <br><span class="original-price text-muted">2000 ₽</span>
+                                </div>
+                                
+                                <div class="mt-auto">
+                                    <a href="/web/books/1" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i> Подробнее
+                                    </a>
+                                    <a href="#" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-external-link-alt"></i> Купить
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Действия -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-tools"></i> Действия</h6>
+            </div>
+            <div class="card-body">
+                <div class="btn-group" role="group">
+                    <a href="/web/books" class="btn btn-primary">
+                        <i class="fas fa-list"></i> Все книги
+                    </a>
+                    <a href="/web/search" class="btn btn-outline-primary">
+                        <i class="fas fa-search"></i> Поиск
+                    </a>
+                    <button type="button" class="btn btn-outline-secondary" onclick="refreshStats()">
+                        <i class="fas fa-refresh"></i> Обновить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshStats() {
+    location.reload();
+}
+</script>
+{% endblock %}

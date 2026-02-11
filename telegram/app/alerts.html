@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Подписки - BookHunter</title>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/mini-app.css">
+
+    <!-- Telegram Web App Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container" style="display: flex; align-items: center; gap: 12px;">
+            <button class="header__back" onclick="window.history.back()">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h1 class="header__title" style="font-size: 1.2rem;">
+                <i class="fas fa-bell"></i> Мои подписки
+            </h1>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="container">
+            <div class="nav__item" data-route="home">
+                <i class="fas fa-home"></i> Главная
+            </div>
+            <div class="nav__item" data-route="books">
+                <i class="fas fa-book"></i> Книги
+            </div>
+            <div class="nav__item active" data-route="alerts">
+                <i class="fas fa-bell"></i> Подписки
+            </div>
+            <div class="nav__item" data-route="profile">
+                <i class="fas fa-user"></i> Профиль
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container" id="main-content">
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stats__card">
+                <div class="stats__icon"><i class="fas fa-bell"></i></div>
+                <div class="stats__value" id="stat-total-alerts">0</div>
+                <div class="stats__label">Всего</div>
+            </div>
+            <div class="stats__card">
+                <div class="stats__icon"><i class="fas fa-check-circle"></i></div>
+                <div class="stats__value" id="stat-active-alerts">0</div>
+                <div class="stats__label">Активных</div>
+            </div>
+            <div class="stats__card">
+                <div class="stats__icon"><i class="fas fa-envelope"></i></div>
+                <div class="stats__value" id="stat-sent-notifications">0</div>
+                <div class="stats__label">Уведомлений</div>
+            </div>
+        </div>
+
+        <!-- Create Alert Button -->
+        <div class="card">
+            <button class="btn btn--primary" onclick="app.showCreateAlertForm()">
+                <i class="fas fa-plus"></i> Создать подписку
+            </button>
+        </div>
+
+        <!-- Create Alert Form (Hidden by default) -->
+        <div id="create-alert-form" style="display: none;">
+            <div class="card">
+                <h4 class="card__header"><i class="fas fa-plus-circle"></i> Новая подписка</h4>
+
+                <div class="form-group">
+                    <label class="form-label">Название книги *</label>
+                    <input type="text" class="form-input" id="alert-title" placeholder="Например: Дюна">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Автор</label>
+                    <input type="text" class="form-input" id="alert-author" placeholder="Например: Фрэнк Герберт">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Максимальная цена (₽)</label>
+                    <input type="number" class="form-input" id="alert-price" placeholder="Например: 500">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Минимальная скидка (%)</label>
+                    <input type="number" class="form-input" id="alert-discount" placeholder="Например: 30" min="0" max="100">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Источник</label>
+                    <select class="form-select" id="alert-source">
+                        <option value="">Все источники</option>
+                        <option value="chitai-gorod">Читай-город</option>
+                        <option value="labirint">Лабиринт</option>
+                        <option value="ozon">Ozon</option>
+                        <option value="wildberries">Wildberries</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn--primary" onclick="app.submitAlert()">
+                        <i class="fas fa-check"></i> Создать
+                    </button>
+                    <button class="btn btn--secondary" onclick="app.hideCreateAlertForm()">
+                        <i class="fas fa-times"></i> Отмена
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts List -->
+        <h3 style="font-family: 'Georgia', serif; color: var(--accent-primary); margin: 24px 0 16px; font-size: 1.2rem;">
+            <i class="fas fa-list"></i> Список подписок
+        </h3>
+
+        <div id="alerts-container">
+            <div class="loading">
+                <div class="loading__spinner"></div>
+                <div class="loading__text">Загрузка подписок...</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer Space -->
+    <div class="footer-space"></div>
+
+    <!-- Scripts -->
+    <script src="js/telegram.js"></script>
+    <script src="js/mini-app.js"></script>
+
+    <script>
+        // Расширение приложения для страницы подписок
+        BookHunterApp.prototype.showCreateAlertForm = function() {
+            const form = document.getElementById('create-alert-form');
+            form.style.display = 'block';
+            form.scrollIntoView({ behavior: 'smooth' });
+            window.tg.hapticClick();
+        };
+
+        BookHunterApp.prototype.hideCreateAlertForm = function() {
+            document.getElementById('create-alert-form').style.display = 'none';
+            // Очищаем форму
+            document.getElementById('alert-title').value = '';
+            document.getElementById('alert-author').value = '';
+            document.getElementById('alert-price').value = '';
+            document.getElementById('alert-discount').value = '';
+            document.getElementById('alert-source').value = '';
+            window.tg.hapticClick();
+        };
+
+        BookHunterApp.prototype.submitAlert = async function() {
+            const title = document.getElementById('alert-title').value.trim();
+            const author = document.getElementById('alert-author').value.trim();
+            const price = document.getElementById('alert-price').value;
+            const discount = document.getElementById('alert-discount').value;
+            const source = document.getElementById('alert-source').value;
+
+            if (!title) {
+                this.showError('Введите название книги');
+                return;
+            }
+
+            if (!price && !discount) {
+                this.showError('Укажите цену или скидку');
+                return;
+            }
+
+            try {
+                const chatId = window.tg.getChatId();
+
+                const response = await fetch(`${this.apiBaseUrl}/api/alerts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: chatId,
+                        book_title: title,
+                        book_author: author || null,
+                        target_price: price ? parseFloat(price) : null,
+                        min_discount: discount ? parseFloat(discount) : null,
+                        book_source: source || null,
+                        is_active: true,
+                        notification_type: 'price_drop'
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Ошибка создания подписки');
+                }
+
+                window.tg.hapticSuccess();
+                this.showSuccess('Подписка создана!');
+                this.hideCreateAlertForm();
+
+                // Обновляем список подписок
+                await this.loadAlerts();
+            } catch (error) {
+                console.error('Ошибка создания подписки:', error);
+                window.tg.hapticError();
+                this.showError(error.message || 'Не удалось создать подписку');
+            }
+        };
+
+        BookHunterApp.prototype.editAlert = async function(alertId) {
+            // TODO: Реализовать редактирование подписки
+            this.showToast('Редактирование в разработке', 'info');
+        };
+
+        // Обновление статистики подписок при загрузке
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const chatId = window.tg.getChatId();
+                const response = await fetch(`${this.apiBaseUrl}/api/alerts?user_id=${chatId}`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const alerts = data.alerts || [];
+
+                    const totalAlerts = alerts.length;
+                    const activeAlerts = alerts.filter(a => a.is_active).length;
+                    const sentNotifications = alerts.reduce((sum, a) => sum + (a.notifications_sent || 0), 0);
+
+                    document.getElementById('stat-total-alerts').textContent = totalAlerts;
+                    document.getElementById('stat-active-alerts').textContent = activeAlerts;
+                    document.getElementById('stat-sent-notifications').textContent = sentNotifications;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки статистики подписок:', error);
+            }
+        });
+    </script>
+</body>
+</html>
