@@ -7,11 +7,14 @@ from dotenv import load_dotenv
 # Загрузка переменных окружения
 load_dotenv()
 
-# URL базы данных
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
-    "postgresql+asyncpg://bookuser:bookpass@postgres:5432/book_discounts"
-)
+# URL базы данных (обязательная переменная окружения)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is required! "
+        "Please set it in your .env file or environment."
+    )
 
 # Безопасное логирование: скрываем пароль
 safe_db_url = DATABASE_URL
