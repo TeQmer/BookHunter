@@ -82,6 +82,8 @@ services:
       - LOG_LEVEL=INFO
     volumes:
       - ./:/app
+    ports:
+      - "8000:8000"
     networks:
       - bookhunter_network
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
