@@ -30,24 +30,7 @@ class SheetManager:
             return
         
         try:
-            # Получаем путь к файлу credentials
-            credentials_path = os.getenv("GOOGLE_SHEETS_CREDENTIALS_PATH", "credentials.json")
             self.spreadsheet_id = os.getenv("GOOGLE_SHEET_ID")
-            
-            # Диагностика конфигурации
-            if not credentials_path:
-                parser_logger.error("Переменная GOOGLE_SHEETS_CREDENTIALS_PATH не настроена")
-                return
-            
-            if not os.path.exists(credentials_path):
-                parser_logger.error(f"Файл credentials не найден: {credentials_path}")
-                # Попробуем найти файл в текущей директории
-                local_creds = "./credentials.json"
-                if os.path.exists(local_creds):
-                    credentials_path = local_creds
-                    parser_logger.info(f"Найден файл credentials в текущей директории: {local_creds}")
-                else:
-                    return
             
             if not self.spreadsheet_id:
                 parser_logger.error("Переменная GOOGLE_SHEET_ID не настроена")
@@ -59,7 +42,13 @@ class SheetManager:
                 'https://www.googleapis.com/auth/drive'
             ]
             
-            credentials = Credentials.from_service_account_file(credentials_path, scopes=scope)
+            # Приоритет: переменные окружения > файл
+            credentials = self._load_credentials_from_env() or self._load_credentials_from_file()
+
+            if not credentials:
+                parser_logger.error("Не удалось загрузить credentials: ни переменные окружения, ни файл не настроены")
+                return
+
             self.service = build('sheets', 'v4', credentials=credentials)
             
             # Проверяем доступ к таблице и получаем/создаем лист
@@ -72,6 +61,70 @@ class SheetManager:
             self.service = None
             self.spreadsheet_id = None
             self.worksheet_id = None
+    
+    def _load_credentials_from_env(self) -> Optional[Credentials]:
+        """Загрузка credentials из переменных окружения"""
+        try:
+            credentials_dict = {
+                "type": os.getenv("GOOGLE_CREDENTIALS_TYPE"),
+                "project_id": os.getenv("GOOGLE_CREDENTIALS_PROJECT_ID"),
+                "private_key_id": os.getenv("GOOGLE_CREDENTIALS_PRIVATE_KEY_ID"),
+                "private_key": os.getenv("GOOGLE_CREDENTIALS_PRIVATE_KEY", "").replace("\\n", "\n"),
+                "client_email": os.getenv("GOOGLE_CREDENTIALS_CLIENT_EMAIL"),
+                "client_id": os.getenv("GOOGLE_CREDENTIALS_CLIENT_ID"),
+                "auth_uri": os.getenv("GOOGLE_CREDENTIALS_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
+                "token_uri": os.getenv("GOOGLE_CREDENTIALS_TOKEN_URI", "https://oauth2.googleapis.com/token"),
+                "auth_provider_x509_cert_url": os.getenv("GOOGLE_CREDENTIALS_AUTH_PROVIDER_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
+                "client_x509_cert_url": os.getenv("GOOGLE_CREDENTIALS_CLIENT_CERT_URL")
+            }
+
+            # Проверяем, что все обязательные поля заполнены
+            required_fields = ["type", "project_id", "private_key_id", "private_key", "client_email", "client_id"]
+            if not all(credentials_dict.get(field) for field in required_fields):
+                parser_logger.debug("Не все обязательные поля credentials заполнены в переменных окружения")
+                return None
+
+            scope = [
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive'
+            ]
+            
+            credentials = Credentials.from_service_account_info(credentials_dict, scopes=scope)
+            parser_logger.info("Credentials загружены из переменных окружения")
+            return credentials
+
+        except Exception as e:
+            parser_logger.debug(f"Ошибка загрузки credentials из переменных окружения: {e}")
+            return None
+
+    def _load_credentials_from_file(self) -> Optional[Credentials]:
+        """Загрузка credentials из файла (резервный метод)"""
+        try:
+            credentials_path = os.getenv("GOOGLE_SHEETS_CREDENTIALS_PATH", "credentials.json")
+
+            if not credentials_path:
+                return None
+
+            if not os.path.exists(credentials_path):
+                # Попробуем найти файл в текущей директории
+                local_creds = "./credentials.json"
+                if os.path.exists(local_creds):
+                    credentials_path = local_creds
+                else:
+                    return None
+
+            scope = [
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/drive'
+            ]
+
+            credentials = Credentials.from_service_account_file(credentials_path, scopes=scope)
+            parser_logger.info(f"Credentials загружены из файла: {credentials_path}")
+            return credentials
+
+        except Exception as e:
+            parser_logger.debug(f"Ошибка загрузки credentials из файла: {e}")
+            return None
     
     def _setup_worksheet(self):
         """Настройка рабочего листа"""
