@@ -141,7 +141,8 @@ app.include_router(admin_router, prefix="/admin", tags=["admin"])
 @app.get("/")
 async def root():
     """Перенаправление на веб-интерфейс"""
-    return {"message": "Система мониторинга скидок на книги", "docs": "/docs", "web": "/web"}
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/web", status_code=302)
 
 # Глобальный обработчик ошибок
 @app.exception_handler(Exception)
