@@ -43,7 +43,7 @@
 ### 1. Подключение к серверу Beget
 
 ```bash
-ssh user@your-server-ip.beget.tech
+ssh root@85.198.103.166
 # Или через SSH ключ:
 ssh -i ~/.ssh/beget_key user@your-server-ip.beget.tech
 ```

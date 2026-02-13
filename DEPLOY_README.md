@@ -4,7 +4,8 @@
 
 | Ваша задача | Инструкция |
 |-------------|------------|
-| **Первый деплой на сервер** | [DEPLOY_TO_SERVER.md](DEPLOY_TO_SERVER.md) |
+| **Деплой на Beget (домен + сервер там же)** | [DEPLOY_BEGET.md](DEPLOY_BEGET.md) ⭐ |
+| **Первый деплой на VPS/облако** | [DEPLOY_TO_SERVER.md](DEPLOY_TO_SERVER.md) |
 | **Настройка CI/CD (GitHub Actions)** | [CI_CD_GUIDE.md](CI_CD_GUIDE.md) |
 | **Быстрый старт CI/CD** | [QUICK_DEPLOY.md](QUICK_DEPLOY.md) |
 | **Очистка проекта** | См. ниже |
@@ -45,9 +46,11 @@ chmod +x cleanup.sh
 ### На сервере:
 - [ ] Docker и Docker Compose установлены
 - [ ] SSH доступ настроен
-- [ ] `.env` файл создан и настроен
-- [ ] `credentials.json` загружен
-- [ ] Домен настроен (опционально)
+- [ ] `.env.prod` файл создан и настроен
+- [ ] Все `GOOGLE_CREDENTIALS_*` переменные заполнены (НЕ credentials.json!)
+- [ ] DNS настроен (A-запись добавлена, если используете домен)
+- [ ] DNS обновился (nslookup возвращает правильный IP)
+- [ ] SSL сертификат установлен (если используете домен)
 
 ### В GitHub:
 - [ ] Репозиторий создан
@@ -193,11 +196,13 @@ tar -xzf backups/files_20260210_120000.tar.gz
 
 ### Проверьте перед деплоем:
 
-- [ ] Пароли в `.env` изменены на сложные
+- [ ] Пароли в `.env.prod` изменены на сложные (генерируйте через `secrets.token_urlsafe(32)`)
 - [ ] `DEBUG=False`
-- [ ] `credentials.json` в `.gitignore`
-- [ ] `.env` в `.gitignore`
-- [ ] SSL/HTTPS настроен
+- [ ] Все `GOOGLE_CREDENTIALS_*` переменные заполнены в `.env.prod`
+- [ ] `credentials.json` НЕ используется (только переменные окружения!)
+- [ ] `.env` и `.env.prod` в `.gitignore`
+- [ ] DNS настроен (если используете домен)
+- [ ] SSL/HTTPS настроен (после настройки DNS!)
 - [ ] Firewall настроен
 
 ---

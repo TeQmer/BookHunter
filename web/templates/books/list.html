@@ -976,11 +976,11 @@ document.addEventListener('DOMContentLoaded', function() {
             original_price: book.original_price
         });
         
-        const hasDiscount = book.discount_percent < 0 && book.original_price;
-        const discountPercent = hasDiscount ? Math.abs(book.discount_percent) : 0;
+        const hasDiscount = book.discount_percent > 0 && book.original_price && book.original_price > book.current_price;
+        const discountPercent = hasDiscount ? book.discount_percent : 0;
         const discountBadge = hasDiscount ? 
-            `<span class="discount-badge">-${discountPercent}%</span>` : '';
-        
+            `<span class="discount-badge position-absolute top-0 end-0 m-2 badge bg-danger">-${discountPercent}%</span>` : '';
+
         const bookImage = book.image_url ? 
             `<img src="${book.image_url}" alt="${book.title}" class="book-cover-img">` :
             `<div class="book-image-placeholder">
@@ -995,8 +995,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const priceSection = hasDiscount ? `
             <div class="price-section">
                 <div class="d-flex align-items-center gap-2">
-                    <span class="original-price text-decoration-line-through">${formattedOriginalPrice}</span>
                     <span class="current-price-discounted fw-bold text-danger">${formattedCurrentPrice}</span>
+                    <span class="original-price text-muted text-decoration-line-through">${formattedOriginalPrice}</span>
                 </div>
             </div>
         ` : `
@@ -1021,10 +1021,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         return `
             <div class="book-col-5">
-                <div class="book-card-compact h-100" onclick="showBookDetails(${book.id})">
+                <div class="book-card-compact h-100 position-relative" onclick="showBookDetails(${book.id})">
+                    ${discountBadge}
                     <div class="book-cover-container">
                         ${bookImage}
-                        ${discountBadge}
                     </div>
                     <div class="book-info p-3">
                         <h6 class="book-title mb-2">${escapeHtml(book.title)}</h6>

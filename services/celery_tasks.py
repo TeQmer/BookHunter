@@ -891,3 +891,4 @@ async def _update_popular_books_async():
         except Exception as e:
             celery_logger.error(f"Ошибка обновления популярных книг: {e}")
             return 0
+

@@ -62,6 +62,11 @@ def setup_celery() -> Celery:
                 'task': 'services.celery_tasks.test_task',
                 'schedule': crontab(hour=9, minute=0),  # Каждый день в 9:00
             },
+            # Обновление токена Читай-города каждые 3 часа
+            'update-chitai-gorod-token-every-3-hours': {
+                'task': 'services.celery_tasks.update_chitai_gorod_token',
+                'schedule': 10800.0,  # 3 часа в секундах
+            },
         },
         CELERY_BEAT_SCHEDULER='celery.beat.PersistentScheduler',
         

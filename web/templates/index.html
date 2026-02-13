@@ -371,17 +371,19 @@ function renderRecentBooks(books) {
 }
 
 function createBookCard(book) {
-    // Исправляем проверку скидки - скидки хранятся как отрицательные числа
-    const hasDiscount = book.discount_percent < 0;
-    const discountPercent = hasDiscount ? Math.abs(book.discount_percent) : 0;
+    // Скидки хранятся как положительные числа в базе данных
+    const hasDiscount = book.discount_percent > 0 && book.original_price && book.original_price > book.current_price;
+    const discountPercent = hasDiscount ? book.discount_percent : 0;
     const discountBadge = hasDiscount ? 
-        `<span class="discount-badge badge badge-success badge-sm">-${discountPercent}%</span>` : '';
-    
+        `<span class="discount-badge position-absolute top-0 end-0 badge bg-danger m-2">-${discountPercent}%</span>` : '';
+
     const formattedPrice = new Intl.NumberFormat('ru-RU').format(book.current_price) + ' ₽';
+    const formattedOriginalPrice = book.original_price ? new Intl.NumberFormat('ru-RU').format(book.original_price) + ' ₽' : '';
     const formattedDate = book.parsed_at ? new Date(book.parsed_at).toLocaleDateString('ru-RU') : '';
     
     return `
-        <div class="recent-book-item border-bottom p-3 book-hover-effect" onclick="window.location.href='/web/books?book_id=${book.id}&action=show_details'">
+        <div class="recent-book-item border-bottom p-3 book-hover-effect position-relative" onclick="window.location.href='/web/books?book_id=${book.id}&action=show_details'">
+            ${discountBadge}
             <div class="d-flex justify-content-between align-items-start">
                 <div class="flex-grow-1">
                     <h6 class="book-title mb-1">${escapeHtml(book.title)}</h6>
@@ -389,7 +391,8 @@ function createBookCard(book) {
                     
                     <div class="d-flex align-items-center gap-2 mt-2">
                         <span class="current-price fw-bold text-primary">${formattedPrice}</span>
-                        ${discountBadge}
+                        ${book.original_price && book.original_price > book.current_price ?
+                            `<span class="original-price text-muted text-decoration-line-through ms-2">${formattedOriginalPrice}</span>` : ''}
                         <small class="text-muted ms-auto">${formattedDate}</small>
                     </div>
                 </div>

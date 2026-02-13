@@ -54,7 +54,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             f"style-src 'self' 'unsafe-inline' {cdn_sources_str}; "
             f"img-src 'self' data: https:; "
             f"font-src 'self' data: {cdn_sources_str}; "
-            f"connect-src 'self' https://api.telegram.org; "
+            f"connect-src 'self' {cdn_sources_str} https://api.telegram.org; "
             f"frame-ancestors 'none';"
         )
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -120,7 +120,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
 # Подключение Telegram Mini App
-app.mount("/telegram", StaticFiles(directory="telegram/app"), name="telegram")
+app.mount("/telegram", StaticFiles(directory="telegram/app", html=True), name="telegram")
 
 # Подключение шаблонов Jinja2
 templates = Jinja2Templates(directory="web/templates")

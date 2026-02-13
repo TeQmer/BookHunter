@@ -157,6 +157,10 @@
                                     </div>
                                     <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent-primary);">
                                         ${book.current_price || 0} ₽
+                                        ${(book.original_price || 0) > 0 && book.original_price > book.current_price
+                                            ? `<span style="font-size: 0.8rem; color: var(--text-secondary); text-decoration: line-through; margin-left: 8px;">${book.original_price} ₽</span>`
+                                            : ''
+                                        }
                                         ${(book.discount_percent || 0) > 0
                                             ? `<span style="font-size: 0.75rem; background: var(--danger); color: white; padding: 2px 6px; border-radius: 8px; margin-left: 8px;">-${book.discount_percent}%</span>`
                                             : ''
