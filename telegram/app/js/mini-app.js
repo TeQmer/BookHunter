@@ -89,6 +89,9 @@ class BookHunterApp {
             case 'profile':
                 this.showProfilePage();
                 break;
+            case 'book-detail':
+                this.showBookDetailPage();
+                break;
         }
 
         // Обновляем активный пункт меню
@@ -113,8 +116,10 @@ class BookHunterApp {
 
         this.currentRoute = route;
 
-        // Загружаем данные для страницы
-        this.loadPageData(route, params);
+        // Загружаем данные для страницы (кроме book-detail, он загружается отдельно)
+        if (route !== 'book-detail') {
+            this.loadPageData(route, params);
+        }
     }
 
     /**
@@ -234,6 +239,22 @@ class BookHunterApp {
             profilePage.style.display = 'block';
         } else {
             console.error('[showProfilePage] profilePage не найден!');
+        }
+    }
+
+    /**
+     * Показать страницу деталей книги
+     */
+    showBookDetailPage() {
+        console.log('[showBookDetailPage] Показываем страницу деталей книги');
+
+        const bookDetailPage = document.getElementById('book-detail-page');
+        console.log('[showBookDetailPage] bookDetailPage:', bookDetailPage);
+
+        if (bookDetailPage) {
+            bookDetailPage.style.display = 'block';
+        } else {
+            console.error('[showBookDetailPage] bookDetailPage не найден!');
         }
     }
 
@@ -392,7 +413,7 @@ class BookHunterApp {
     }
 
     /**
-     * Загрузка списка книг
+     * Загрузка списка книг с умным поиском
      */
     async loadBooks(params = {}) {
         try {
@@ -400,12 +421,14 @@ class BookHunterApp {
             console.log('[loadBooks] apiBaseUrl:', this.apiBaseUrl);
 
             let url;
+            let useSmartSearch = false;
 
             if (params.query) {
-                // Если есть поисковый запрос, используем API парсера
-                url = `${this.apiBaseUrl}/api/parser/books/${encodeURIComponent(params.query)}`;
+                // Умный поиск: сначала база данных, потом парсинг
+                useSmartSearch = true;
+                url = `${this.apiBaseUrl}/web/books/api/search?q=${encodeURIComponent(params.query)}`;
                 if (params.source) {
-                    url += `?source=${params.source}`;
+                    url += `&source=${params.source}`;
                 }
             } else {
                 // Если нет запроса, используем веб API для получения всех книг
@@ -439,11 +462,97 @@ class BookHunterApp {
 
             console.log('[loadBooks] Книги для рендеринга:', this.data.books.length);
 
+            // Если книг нет и это поиск - запускаем парсинг
+            if (useSmartSearch && this.data.books.length === 0) {
+                console.log('[loadBooks] Книг нет в базе, запускаем парсинг...');
+                await this.startParsing(params.query, params.source || 'chitai-gorod');
+                return;
+            }
+
             this.renderBooks(this.data.books);
         } catch (error) {
             console.error('[loadBooks] Ошибка загрузки книг:', error);
             this.showError('Не удалось загрузить книги');
         }
+    }
+
+    /**
+     * Запуск парсинга книг
+     */
+    async startParsing(query, source = 'chitai-gorod') {
+        try {
+            console.log('[startParsing] Запускаем парсинг для:', query);
+
+            const response = await fetch(`${this.apiBaseUrl}/api/parser/search`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query, source })
+            });
+
+            const data = await response.json();
+            console.log('[startParsing] Ответ:', data);
+
+            // Показываем сообщение о парсинге
+            if (data.parse_task_id) {
+                this.showParsingStatus(data.parse_task_id, query);
+            } else {
+                this.showError('Не удалось запустить поиск книг');
+            }
+        } catch (error) {
+            console.error('[startParsing] Ошибка:', error);
+            this.showError('Не удалось запустить поиск книг');
+        }
+    }
+
+    /**
+     * Показать статус парсинга и периодически обновлять
+     */
+    async showParsingStatus(taskId, query) {
+        console.log('[showParsingStatus] Показываем статус парсинга:', taskId);
+
+        const container = document.getElementById('books-container');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="card" style="text-align: center; padding: 24px;">
+                <div class="loading__spinner" style="margin: 0 auto 16px;"></div>
+                <h4 style="margin-bottom: 8px;">Поиск книг...</h4>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                    Ищем книги по запросу "${query}" на сайте магазина...
+                </p>
+                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 12px;">
+                    Это может занять несколько секунд
+                </p>
+            </div>
+        `;
+
+        // Периодически проверяем статус
+        const checkInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`${this.apiBaseUrl}/api/parser/parse/${taskId}`);
+                const data = await response.json();
+
+                console.log('[showParsingStatus] Статус:', data.status);
+
+                if (data.status === 'completed') {
+                    clearInterval(checkInterval);
+                    console.log('[showParsingStatus] Парсинг завершен, загружаем книги');
+                    await this.loadBooks({ query });
+                } else if (data.status === 'error') {
+                    clearInterval(checkInterval);
+                    container.innerHTML = this.getEmptyState('Ошибка поиска', 'Не удалось найти книги. Попробуйте другой запрос.');
+                }
+            } catch (error) {
+                console.error('[showParsingStatus] Ошибка проверки статуса:', error);
+            }
+        }, 2000);
+
+        // Таймаут 30 секунд
+        setTimeout(() => {
+            clearInterval(checkInterval);
+        }, 30000);
     }
 
     /**
@@ -738,10 +847,237 @@ class BookHunterApp {
     /**
      * Показать детали книги
      */
-    showBookDetails(bookId) {
-        // TODO: Реализовать показ деталей книги
-        console.log('Показ деталей книги:', bookId);
+    async showBookDetails(bookId) {
+        console.log('[showBookDetails] Показ деталей книги:', bookId);
         window.tg.hapticClick();
+
+        // Переключаемся на страницу деталей
+        this.hideAllPages();
+        this.showBookDetailPage();
+
+        // Показываем кнопку назад
+        window.tg.showBackButton();
+
+        // Загружаем детали книги
+        await this.loadBookDetail(bookId);
+    }
+
+    /**
+     * Загрузка деталей книги
+     */
+    async loadBookDetail(bookId) {
+        try {
+            console.log('[loadBookDetail] Загрузка деталей книги:', bookId);
+
+            const response = await fetch(`${this.apiBaseUrl}/api/parser/book/${bookId}`);
+            console.log('[loadBookDetail] Статус ответа:', response.status);
+
+            if (!response.ok) {
+                throw new Error('Книга не найдена');
+            }
+
+            const data = await response.json();
+            console.log('[loadBookDetail] Получены данные:', data);
+
+            if (data.success && data.book) {
+                this.renderBookDetail(data.book);
+            } else {
+                throw new Error('Неверный формат ответа');
+            }
+        } catch (error) {
+            console.error('[loadBookDetail] Ошибка:', error);
+            this.showError('Не удалось загрузить информацию о книге');
+        }
+    }
+
+    /**
+     * Отрисовка деталей книги
+     */
+    renderBookDetail(book) {
+        console.log('[renderBookDetail] Рендеринг деталей книги:', book.title);
+
+        const container = document.getElementById('book-detail-content');
+        if (!container) {
+            console.error('[renderBookDetail] Контейнер не найден');
+            return;
+        }
+
+        const discount = book.discount_percent || 0;
+        const hasDiscount = discount > 0;
+
+        container.innerHTML = `
+            <div style="display: flex; gap: 16px; flex-direction: column;">
+                <!-- Изображение книги -->
+                <div style="display: flex; justify-content: center; margin-bottom: 16px;">
+                    ${book.image_url
+                        ? `<img src="${book.image_url}" alt="${book.title}" style="max-width: 200px; max-height: 280px; border-radius: 8px;">`
+                        : `<div style="width: 200px; height: 280px; background: var(--bg-card); display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+                            <i class="fas fa-book" style="font-size: 64px; color: var(--text-muted);"></i>
+                           </div>`
+                    }
+                </div>
+
+                <!-- Информация о книге -->
+                <div>
+                    <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 8px; line-height: 1.3;">
+                        ${this.escapeHtml(book.title)}
+                    </h2>
+
+                    ${book.author ? `
+                        <p style="color: var(--text-secondary); font-size: 1.1rem; margin-bottom: 16px;">
+                            ${this.escapeHtml(book.author)}
+                        </p>
+                    ` : ''}
+
+                    <!-- Цена и скидка -->
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                        <span style="font-size: 1.8rem; font-weight: 700; color: var(--success);">
+                            ${book.current_price || 0} ₽
+                        </span>
+                        ${hasDiscount && book.original_price && book.original_price > book.current_price ? `
+                            <span style="font-size: 1.2rem; color: var(--text-muted); text-decoration: line-through;">
+                                ${book.original_price} ₽
+                            </span>
+                        ` : ''}
+                        ${hasDiscount ? `
+                            <span style="background: var(--danger); color: white; padding: 4px 12px; border-radius: 16px; font-weight: 600;">
+                                -${discount}%
+                            </span>
+                        ` : ''}
+                    </div>
+
+                    <!-- Дополнительная информация -->
+                    <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--text-secondary);">Магазин:</span>
+                            <span style="font-weight: 600;">${this.escapeHtml(book.source || 'Неизвестно')}</span>
+                        </div>
+                        ${book.isbn ? `
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: var(--text-secondary);">ISBN:</span>
+                                <span style="font-weight: 600;">${this.escapeHtml(book.isbn)}</span>
+                            </div>
+                        ` : ''}
+                        ${book.genres ? `
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Жанры:</span>
+                                <span style="font-weight: 600;">${this.escapeHtml(book.genres)}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <!-- Кнопки действий -->
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <a href="${book.url}" target="_blank" class="btn btn--primary" style="text-align: center; text-decoration: none; display: block; padding: 12px 24px; border-radius: 12px; font-weight: 600;">
+                            <i class="fas fa-external-link-alt"></i> Перейти в магазин
+                        </a>
+
+                        <button class="btn btn--secondary" onclick="app.toggleAlertForBook(${book.id})" style="padding: 12px 24px; border-radius: 12px; font-weight: 600;">
+                            <i class="fas fa-bell"></i> Подписаться на скидку
+                        </button>
+                    </div>
+
+                    <!-- Информация о парсинге -->
+                    ${book.parsed_at ? `
+                        <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 16px; text-align: center;">
+                            Информация обновлена: ${new Date(book.parsed_at).toLocaleString('ru-RU')}
+                        </p>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+
+        // Сохраняем текущую книгу для подписки
+        this.currentBook = book;
+
+        console.log('[renderBookDetail] Рендеринг завершен');
+    }
+
+    /**
+     * Переключение подписки на книгу
+     */
+    async toggleAlertForBook(bookId) {
+        console.log('[toggleAlertForBook] Переключение подписки для книги:', bookId);
+
+        try {
+            // Проверяем, есть ли уже подписка
+            const checkResponse = await fetch(`${this.apiBaseUrl}/api/alerts/book/${bookId}`);
+            const checkData = await checkResponse.json();
+
+            if (checkData.alert) {
+                // Подписка уже есть - удаляем
+                const deleteResponse = await fetch(`${this.apiBaseUrl}/api/alerts/${checkData.alert.id}/`, {
+                    method: 'DELETE'
+                });
+
+                if (deleteResponse.ok) {
+                    window.tg.hapticSuccess();
+                    this.showSuccess('Подписка удалена');
+                } else {
+                    throw new Error('Не удалось удалить подписку');
+                }
+            } else {
+                // Создаем новую подписку
+                await this.createAlertFromBook(bookId);
+            }
+        } catch (error) {
+            console.error('[toggleAlertForBook] Ошибка:', error);
+            this.showError(error.message || 'Не удалось изменить подписку');
+        }
+    }
+
+    /**
+     * Создание подписки на книгу
+     */
+    async createAlertFromBook(bookId) {
+        try {
+            console.log('[createAlertFromBook] Создание подписки на книгу:', bookId);
+
+            // Получаем user_id
+            let userId = window.tg.getChatId();
+
+            if (!userId) {
+                userId = window.tg.getQueryId();
+            }
+
+            if (!userId) {
+                throw new Error('Не удалось получить ID пользователя');
+            }
+
+            // Получаем информацию о книге
+            const book = this.currentBook;
+            if (!book) {
+                throw new Error('Информация о книге не найдена');
+            }
+
+            const response = await fetch(`${this.apiBaseUrl}/api/alerts/create-from-book`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    book_id: bookId,
+                    user_id: userId,
+                    target_price: book.current_price,
+                    min_discount: book.discount_percent || 0
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка создания подписки');
+            }
+
+            const data = await response.json();
+            console.log('[createAlertFromBook] Ответ:', data);
+
+            window.tg.hapticSuccess();
+            this.showSuccess('Подписка создана!');
+        } catch (error) {
+            console.error('[createAlertFromBook] Ошибка:', error);
+            window.tg.hapticError();
+            throw error;
+        }
     }
 
     /**

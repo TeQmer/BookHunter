@@ -444,6 +444,33 @@ class TelegramWebApp {
             this.webApp.setBackgroundColor(color);
         }
     }
+
+    /**
+     * Установить обработчик кнопки назад
+     */
+    onBackButton(callback) {
+        if (this.webApp?.BackButton) {
+            this.webApp.BackButton.onClick(callback);
+        }
+    }
+
+    /**
+     * Показать кнопку назад
+     */
+    showBackButton() {
+        if (this.webApp?.BackButton) {
+            this.webApp.BackButton.show();
+        }
+    }
+
+    /**
+     * Скрыть кнопку назад
+     */
+    hideBackButton() {
+        if (this.webApp?.BackButton) {
+            this.webApp.BackButton.hide();
+        }
+    }
 }
 
 // Создаем глобальный экземпляр
