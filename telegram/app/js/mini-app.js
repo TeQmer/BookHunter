@@ -417,7 +417,17 @@ class BookHunterApp {
             console.log('[loadBooks] Получены данные:', data);
 
             // Обрабатываем разные форматы ответа
-            this.data.books = data.books || [];
+            // API парсера: {success: true, books: [...]}
+            // Веб API: {books: [...]}
+            if (data.success && data.books) {
+                this.data.books = data.books;
+            } else if (data.books) {
+                this.data.books = data.books;
+            } else {
+                this.data.books = [];
+            }
+
+            console.log('[loadBooks] Книги для рендеринга:', this.data.books.length);
 
             this.renderBooks(this.data.books);
         } catch (error) {
@@ -430,15 +440,25 @@ class BookHunterApp {
      * Отрисовка списка книг
      */
     renderBooks(books) {
+        console.log('[renderBooks] Начинаем отрисовку книг:', books.length);
+
         const container = document.getElementById('books-container');
-        if (!container) return;
+        console.log('[renderBooks] Контейнер:', container);
+
+        if (!container) {
+            console.error('[renderBooks] Контейнер #books-container не найден!');
+            return;
+        }
 
         if (!books || books.length === 0) {
+            console.log('[renderBooks] Книг нет, показываем пустое состояние');
             container.innerHTML = this.getEmptyState('Книги не найдены', 'Попробуйте изменить параметры поиска');
             return;
         }
 
+        console.log('[renderBooks] Рендеринг', books.length, 'книг');
         container.innerHTML = books.map(book => this.createBookCard(book)).join('');
+        console.log('[renderBooks] HTML обновлен');
 
         // Добавляем обработчики событий
         container.querySelectorAll('.book-card').forEach(card => {
@@ -449,6 +469,8 @@ class BookHunterApp {
                 }
             });
         });
+
+        console.log('[renderBooks] Отрисовка завершена');
     }
 
     /**
