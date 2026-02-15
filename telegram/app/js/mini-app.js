@@ -253,6 +253,14 @@ class BookHunterApp {
 
         if (bookDetailPage) {
             bookDetailPage.style.display = 'block';
+
+            // Добавляем обработчик клика на страницу деталей для закрытия
+            bookDetailPage.onclick = (e) => {
+                // Закрываем только если клик не на интерактивные элементы
+                if (e.target === bookDetailPage) {
+                    this.closeBookDetail();
+                }
+            };
         } else {
             console.error('[showBookDetailPage] bookDetailPage не найден!');
         }
@@ -381,8 +389,7 @@ class BookHunterApp {
                 container.querySelectorAll('.book-card').forEach(card => {
                     card.addEventListener('click', () => {
                         const bookId = card.dataset.bookId;
-                        this.navigate('books');
-                        window.tg.hapticClick();
+                        this.showBookDetails(bookId);
                     });
                 });
             }
@@ -958,9 +965,17 @@ class BookHunterApp {
         }
 
         container.innerHTML = `
-            <div style="display: flex; gap: 16px; flex-direction: column;">
+            <div style="position: relative; display: flex; gap: 16px; flex-direction: column;">
+                <!-- Кнопка закрытия -->
+                <button
+                    onclick="app.closeBookDetail()"
+                    style="position: absolute; top: 0; right: 0; background: var(--bg-card); border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 20px; z-index: 10;"
+                >
+                    <i class="fas fa-times"></i>
+                </button>
+
                 <!-- Изображение книги -->
-                <div style="display: flex; justify-content: center; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: center; margin-bottom: 16px; padding-top: 8px;">
                     ${book.image_url
                         ? `<img src="${book.image_url}" alt="${book.title}" style="max-width: 200px; max-height: 280px; border-radius: 8px;">`
                         : `<div style="width: 200px; height: 280px; background: var(--bg-card); display: flex; align-items: center; justify-content: center; border-radius: 8px;">
@@ -1043,6 +1058,21 @@ class BookHunterApp {
         this.currentBook = book;
 
         console.log('[renderBookDetail] Рендеринг завершен');
+    }
+
+    /**
+     * Закрыть страницу деталей книги
+     */
+    closeBookDetail() {
+        console.log('[closeBookDetail] Закрытие деталей книги');
+        window.tg.hapticClick();
+
+        // Возвращаемся на предыдущую страницу
+        if (this.currentRoute === 'book-detail') {
+            this.navigate('books');
+        } else {
+            this.navigate('home');
+        }
     }
 
     /**
