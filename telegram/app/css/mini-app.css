@@ -71,8 +71,8 @@ body {
 
 /* Header */
 .header {
-    background: var(--gradient-primary);
-    color: var(--text-light);
+    background: var(--text-light);
+    color: var(--accent-primary);
     padding: 16px;
     position: sticky;
     top: 0;
@@ -372,8 +372,13 @@ body {
 
 .btn--secondary {
     background: var(--bg-secondary);
-    color: var(--accent-primary);
-    border: 2px solid var(--accent-primary);
+    color: #FFFFFF;
+    border: 2px solid #8B4513;
+}
+
+.btn--search {
+    background: var(--text-light);
+    color: #8B4513;
 }
 
 .btn--success {
@@ -703,6 +708,11 @@ body {
     .footer-space {
         height: max(80px, env(safe-area-inset-bottom));
     }
+}
+
+/* Utility classes */
+.text-white {
+    color: #FFFFFF;
 }
 
 /* Dark Mode Support (Telegram Theme) */

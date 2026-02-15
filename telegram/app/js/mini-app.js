@@ -1036,11 +1036,11 @@ class BookHunterApp {
                     <!-- Кнопки действий -->
                     <div style="display: flex; flex-direction: column; gap: 12px;">
                         <a href="${book.url}" target="_blank" class="btn btn--primary" style="text-align: center; text-decoration: none; display: block; padding: 12px 24px; border-radius: 12px; font-weight: 600;">
-                            <i class="fas fa-external-link-alt"></i> Перейти в магазин
+                            <i class="fas fa-external-link-alt"></i> <span style="color: #FFFFFF;">Перейти в магазин</span>
                         </a>
 
                         <button class="btn btn--secondary" onclick="app.toggleAlertForBook(${book.id})" style="padding: 12px 24px; border-radius: 12px; font-weight: 600;">
-                            <i class="fas fa-bell"></i> Подписаться на скидку
+                            <i class="fas fa-bell"></i> <span style="color: #FFFFFF;">Подписаться на скидку</span>
                         </button>
                     </div>
 
