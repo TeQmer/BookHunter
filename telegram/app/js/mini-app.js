@@ -878,7 +878,16 @@ class BookHunterApp {
             console.log('[loadBookDetail] Статус ответа:', response.status);
 
             if (!response.ok) {
-                throw new Error('Книга не найдена');
+                // Пытаемся получить детали ошибки
+                let errorMessage = 'Книга не найдена';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.detail || errorMessage;
+                    console.error('[loadBookDetail] Ошибка сервера:', errorData);
+                } catch (e) {
+                    console.error('[loadBookDetail] Не удалось прочитать ошибку:', e);
+                }
+                throw new Error(errorMessage);
             }
 
             const data = await response.json();
@@ -886,12 +895,32 @@ class BookHunterApp {
 
             if (data.success && data.book) {
                 this.renderBookDetail(data.book);
+            } else if (data.book) {
+                // Альтернативный формат ответа
+                this.renderBookDetail(data.book);
             } else {
                 throw new Error('Неверный формат ответа');
             }
         } catch (error) {
             console.error('[loadBookDetail] Ошибка:', error);
             this.showError('Не удалось загрузить информацию о книге');
+
+            // Показываем сообщение об ошибке в контейнере
+            const container = document.getElementById('book-detail-content');
+            if (container) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 32px;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">😕</div>
+                        <h4 style="margin-bottom: 8px;">Ошибка загрузки</h4>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
+                            ${this.escapeHtml(error.message || 'Не удалось загрузить информацию о книге')}
+                        </p>
+                        <button class="btn btn--secondary" onclick="app.navigate('books')">
+                            <i class="fas fa-arrow-left"></i> Вернуться к списку
+                        </button>
+                    </div>
+                `;
+            }
         }
     }
 
