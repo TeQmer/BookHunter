@@ -5,12 +5,12 @@
     /* Основные цвета */
     --bg-primary: #F5F1E8;
     --bg-secondary: #FFF8F0;
-    --bg-accent: #DEB887;
+    --bg-accent: #FFFFFF;
     --bg-card: #FFFFFF;
     --bg-header: #8B4513;
 
     /* Акцентные цвета */
-    --accent-primary: #8B4513;
+    --accent-primary: #FFFFFF;
     --accent-secondary: #D2691E;
     --accent-tertiary: #CD853F;
 
@@ -18,7 +18,7 @@
     --text-primary: #2C2C2C;
     --text-secondary: #5D5D5D;
     --text-muted: #8A8A8A;
-    --text-light: #FFFFFF;
+    --text-light: #2C2C2C;
 
     /* Статусные цвета */
     --success: #6B8E23;
@@ -114,7 +114,7 @@ body {
     background: var(--bg-card);
     border-bottom: 1px solid var(--bg-accent);
     border-collapse: separate;
-    border-spacing: 8px 0;
+    border-spacing: 8px 8px;
 }
 
 .nav__row {
@@ -314,7 +314,7 @@ body {
 .book-card__price {
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--accent-primary);
+    color: var(--success);
     margin-bottom: 4px;
 }
 
