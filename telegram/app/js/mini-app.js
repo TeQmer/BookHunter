@@ -337,12 +337,12 @@ class BookHunterApp {
     async loadAlerts() {
         try {
             const chatId = window.tg.getChatId();
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts?user_id=${chatId}`);
+            const response = await fetch(`${this.apiBaseUrl}/api/alerts/?user_id=${chatId}`);
 
             if (!response.ok) throw new Error('Ошибка загрузки подписок');
 
             const data = await response.json();
-            this.data.alerts = data.alerts || [];
+            this.data.alerts = data || [];
 
             this.renderAlerts(this.data.alerts);
         } catch (error) {
@@ -435,7 +435,7 @@ class BookHunterApp {
         try {
             const chatId = window.tg.getChatId();
 
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts`, {
+            const response = await fetch(`${this.apiBaseUrl}/api/alerts/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -475,7 +475,7 @@ class BookHunterApp {
             const confirmed = await window.tg.showConfirm('Удалить эту подписку?');
             if (!confirmed) return;
 
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts/${alertId}`, {
+            const response = await fetch(`${this.apiBaseUrl}/api/alerts/${alertId}/`, {
                 method: 'DELETE'
             });
 
