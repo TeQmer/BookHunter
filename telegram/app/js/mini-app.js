@@ -170,19 +170,25 @@ class BookHunterApp {
      */
     async loadBooks(params = {}) {
         try {
-            let url = `${this.apiBaseUrl}/api/books?page=${params.page || 1}&limit=${params.limit || 20}`;
+            let url;
 
             if (params.query) {
-                url += `&q=${encodeURIComponent(params.query)}`;
-            }
-            if (params.source) {
-                url += `&source=${params.source}`;
+                // Если есть поисковый запрос, используем API парсера
+                url = `${this.apiBaseUrl}/api/parser/books/${encodeURIComponent(params.query)}`;
+                if (params.source) {
+                    url += `?source=${params.source}`;
+                }
+            } else {
+                // Если нет запроса, используем веб API для получения всех книг
+                url = `${this.apiBaseUrl}/web/books/api/all`;
             }
 
             const response = await fetch(url);
             if (!response.ok) throw new Error('Ошибка загрузки книг');
 
             const data = await response.json();
+
+            // Обрабатываем разные форматы ответа
             this.data.books = data.books || [];
 
             this.renderBooks(this.data.books);

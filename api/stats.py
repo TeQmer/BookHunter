@@ -29,9 +29,9 @@ async def get_main_page_stats(db: AsyncSession = Depends(get_db)) -> Dict[str, A
         
         # Средняя скидка (только для книг со скидкой)
         avg_discount_result = await db.execute(
-            select(func.avg(Book.discount_percent)).where(Book.discount_percent < 0)
+            select(func.avg(Book.discount_percent)).where(Book.discount_percent > 0)
         )
-        avg_discount = round(abs(avg_discount_result.scalar() or 0), 1)
+        avg_discount = round(avg_discount_result.scalar() or 0, 1)
         
         # Количество уникальных магазинов
         sources_result = await db.execute(select(func.count(func.distinct(Book.source))))
