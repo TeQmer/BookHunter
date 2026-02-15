@@ -71,7 +71,7 @@ body {
 
 /* Header */
 .header {
-    background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+    background: #D2691E;
     color: #FFFFFF;
     padding: 16px;
     position: sticky;
@@ -141,9 +141,8 @@ body {
 }
 
 .nav__item.active {
-    background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+    background: #D2691E;
     color: #FFFFFF;
-    border-color: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
 }
 
 .nav__item:active {
@@ -377,7 +376,7 @@ body {
 }
 
 .btn--search-books {
-    background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+    background: #D2691E;
     color: #FFFFFF;
 }
 
