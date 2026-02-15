@@ -141,9 +141,9 @@ body {
 }
 
 .nav__item.active {
-    background: #8B4513;
+    background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
     color: #FFFFFF;
-    border-color: #8B4513;
+    border-color: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
 }
 
 .nav__item:active {
@@ -212,7 +212,7 @@ body {
 .stats__icon {
     font-size: 1.3rem;
     margin-bottom: 6px;
-    color: var(--accent-secondary);
+    color: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
     flex-shrink: 0;
 }
 
@@ -377,7 +377,7 @@ body {
 }
 
 .btn--search-books {
-    background: #8B4513;
+    background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
     color: #FFFFFF;
 }
 
