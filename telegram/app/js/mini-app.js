@@ -121,12 +121,19 @@ class BookHunterApp {
      * Скрыть все страницы
      */
     hideAllPages() {
+        console.log('[hideAllPages] Скрываем все страницы');
+
         const mainContent = document.getElementById('main-content');
+        console.log('[hideAllPages] mainContent:', mainContent);
 
         // Скрываем страницы, которые имеют display: none по умолчанию
         const booksPage = document.getElementById('books-page');
         const alertsPage = document.getElementById('alerts-page');
         const profilePage = document.getElementById('profile-page');
+
+        console.log('[hideAllPages] booksPage:', booksPage);
+        console.log('[hideAllPages] alertsPage:', alertsPage);
+        console.log('[hideAllPages] profilePage:', profilePage);
 
         if (booksPage) booksPage.style.display = 'none';
         if (alertsPage) alertsPage.style.display = 'none';
@@ -141,6 +148,11 @@ class BookHunterApp {
         const quickActionsHeader = mainContent.querySelectorAll('h3')[1]; // Быстрые действия заголовок
         const recentBooksHeader = mainContent.querySelectorAll('h3')[2]; // Недавние книги заголовок
 
+        console.log('[hideAllPages] heroSection:', heroSection);
+        console.log('[hideAllPages] statsSection:', statsSection);
+        console.log('[hideAllPages] quickActionsSection:', quickActionsSection);
+        console.log('[hideAllPages] recentBooksSection:', recentBooksSection);
+
         if (heroSection) heroSection.style.display = 'none';
         if (statsSection) statsSection.style.display = 'none';
         if (quickActionsSection) quickActionsSection.style.display = 'none';
@@ -154,6 +166,8 @@ class BookHunterApp {
      * Показать домашнюю страницу
      */
     showHomePage() {
+        console.log('[showHomePage] Показываем домашнюю страницу');
+
         const mainContent = document.getElementById('main-content');
 
         // Показываем элементы домашней страницы
@@ -178,9 +192,16 @@ class BookHunterApp {
      * Показать страницу книг
      */
     showBooksPage() {
+        console.log('[showBooksPage] Показываем страницу книг');
+
         const booksPage = document.getElementById('books-page');
+        console.log('[showBooksPage] booksPage:', booksPage);
+
         if (booksPage) {
             booksPage.style.display = 'block';
+            console.log('[showBooksPage] booksPage.style.display:', booksPage.style.display);
+        } else {
+            console.error('[showBooksPage] booksPage не найден!');
         }
     }
 
@@ -188,9 +209,15 @@ class BookHunterApp {
      * Показать страницу подписок
      */
     showAlertsPage() {
+        console.log('[showAlertsPage] Показываем страницу подписок');
+
         const alertsPage = document.getElementById('alerts-page');
+        console.log('[showAlertsPage] alertsPage:', alertsPage);
+
         if (alertsPage) {
             alertsPage.style.display = 'block';
+        } else {
+            console.error('[showAlertsPage] alertsPage не найден!');
         }
     }
 
@@ -198,9 +225,15 @@ class BookHunterApp {
      * Показать страницу профиля
      */
     showProfilePage() {
+        console.log('[showProfilePage] Показываем страницу профиля');
+
         const profilePage = document.getElementById('profile-page');
+        console.log('[showProfilePage] profilePage:', profilePage);
+
         if (profilePage) {
             profilePage.style.display = 'block';
+        } else {
+            console.error('[showProfilePage] profilePage не найден!');
         }
     }
 
