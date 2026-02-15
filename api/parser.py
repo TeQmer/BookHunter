@@ -320,6 +320,7 @@ async def get_book_by_id(
     """Получение книги по ID для детального просмотра"""
     
     try:
+        from sqlalchemy import select
         from models.book import Book
         
         result = await db.execute(select(Book).where(Book.id == book_id))
