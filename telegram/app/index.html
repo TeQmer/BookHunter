@@ -36,9 +36,14 @@
             </div>
         </div>
         <div class="nav__row">
+            <div class="nav__item" data-route="recent">
+                <i class="fas fa-clock"></i> Недавние
+            </div>
             <div class="nav__item" data-route="alerts">
                 <i class="fas fa-bell"></i> Подписки
             </div>
+        </div>
+        <div class="nav__row">
             <div class="nav__item" data-route="profile">
                 <i class="fas fa-user"></i> Профиль
             </div>
@@ -48,22 +53,22 @@
     <!-- Main Content -->
     <main class="container" id="main-content">
         <!-- Hero Section -->
-        <div class="card" style="background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%); color: #ffffff; border: none;">
+        <div class="card" style="background: linear-gradient(135deg, #5D4037 0%, #8B6F47 50%, #A0785A 100%); color: #EFEBE9; border: 2px solid #D4AF37;">
             <div style="text-align: center; padding: 24px 16px;">
-                <h2 style="font-family: 'Georgia', serif; font-size: 1.5rem; margin-bottom: 8px;">
+                <h2 style="font-family: 'Georgia', 'Crimson Text', serif; font-size: 1.5rem; margin-bottom: 8px; font-weight: 700;">
                     📚 BookHunter — Охота на лучшие скидки книг
                 </h2>
-                <p style="opacity: 0.9; margin-bottom: 16px;">
+                <p style="opacity: 0.9; margin-bottom: 16px; font-size: 0.95rem; line-height: 1.5;">
                     Отслеживайте скидки на книги, получайте уведомления о выгодных предложениях и экономьте на покупках
                 </p>
-                <button class="btn" style="background: #FFFFFF; color: #8B4513;" onclick="app.navigate('books')">
+                <button class="btn" style="background: #EFEBE9; color: #5D4037; font-weight: 700;" onclick="app.navigate('books')">
                     <i class="fas fa-search"></i> Найти книги
                 </button>
             </div>
         </div>
 
         <!-- Stats -->
-        <h3 class="text-white" style="font-family: 'Georgia', serif; margin: 24px 0 16px; font-size: 1.2rem;">
+        <h3 class="text-white" style="font-family: 'Georgia', 'Crimson Text', serif; margin: 24px 0 16px; font-size: 1.2rem; color: var(--text-primary); font-weight: 700;">
             <i class="fas fa-chart-line"></i> Статистика
         </h3>
 
@@ -86,7 +91,7 @@
         </div>
 
         <!-- Quick Actions -->
-        <h3 class="text-white" style="font-family: 'Georgia', serif; margin: 24px 0 16px; font-size: 1.2rem;">
+        <h3 class="text-white" style="font-family: 'Georgia', 'Crimson Text', serif; margin: 24px 0 16px; font-size: 1.2rem; color: var(--text-primary); font-weight: 700;">
             <i class="fas fa-bolt"></i> Быстрые действия
         </h3>
 
@@ -103,7 +108,7 @@
         </div>
 
         <!-- Recent Books -->
-        <h3 class="text-white" style="font-family: 'Georgia', serif; margin: 24px 0 16px; font-size: 1.2rem;">
+        <h3 class="text-white" style="font-family: 'Georgia', 'Crimson Text', serif; margin: 24px 0 16px; font-size: 1.2rem; color: var(--text-primary); font-weight: 700;">
             <i class="fas fa-clock"></i> Недавние книги
         </h3>
 
@@ -193,6 +198,38 @@
                 <div class="loading">
                     <div class="loading__spinner"></div>
                     <div class="loading__text">Загрузка подписок...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Books Page (hidden by default) -->
+        <div id="recent-page" style="display: none;">
+            <div class="card">
+                <h4 class="card__header"><i class="fas fa-clock"></i> Недавние книги</h4>
+                <p style="color: var(--text-secondary); margin-bottom: 12px;">
+                    Последние добавленные книги в базу
+                </p>
+            </div>
+
+            <div id="recent-books-full-container">
+                <div class="loading">
+                    <div class="loading__spinner"></div>
+                    <div class="loading__text">Загрузка книг...</div>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <div id="recent-pagination" style="display: none; margin-top: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                    <button class="btn btn--secondary" id="recent-prev-btn" onclick="app.loadRecentBooksPage('prev')" style="flex: 1;" disabled>
+                        <i class="fas fa-chevron-left"></i> Назад
+                    </button>
+                    <span id="recent-page-info" style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 600;">
+                        Страница 1
+                    </span>
+                    <button class="btn btn--secondary" id="recent-next-btn" onclick="app.loadRecentBooksPage('next')" style="flex: 1;">
+                        Вперёд <i class="fas fa-chevron-right"></i>
+                    </button>
                 </div>
             </div>
         </div>

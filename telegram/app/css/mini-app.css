@@ -1,39 +1,44 @@
-/* Telegram Mini App Styles - BookHunter */
+/* Telegram Mini App Styles - BookHunter - Bookish Theme */
 
-/* CSS Variables for Book-themed Color Scheme */
+/* CSS Variables for Book-themed Color Scheme - Universal for Light/Dark Themes */
 :root {
-    /* Основные цвета */
-    --bg-primary: #F5F1E8;
-    --bg-secondary: #FFF8F0;
-    --bg-accent: #FFFFFF;
-    --bg-card: #FFFFFF;
-    --bg-header: #8B4513;
+    /* Основные цвета - старая бумага и переплёт */
+    --bg-primary: #EDE5D8;
+    --bg-secondary: #E8DDD0;
+    --bg-accent: #D4C4B0;
+    --bg-card: #F5EDE0;
+    --bg-header: #5D4037;
 
-    /* Акцентные цвета */
-    --accent-primary: #FFFFFF;
-    --accent-secondary: #D2691E;
-    --accent-tertiary: #CD853F;
+    /* Акцентные цвета - классические книжные */
+    --accent-primary: #8B6F47;
+    --accent-secondary: #A0785A;
+    --accent-tertiary: #D4AF37;
 
-    /* Текстовые цвета */
-    --text-primary: #2C2C2C;
-    --text-secondary: #5D5D5D;
-    --text-muted: #8A8A8A;
-    --text-light: #2C2C2C;
+    /* Текстовые цвета - высокая контрастность для обеих тем */
+    --text-primary: #3E2723;
+    --text-secondary: #5D4037;
+    --text-muted: #8D6E63;
+    --text-light: #F5EDE0;
 
     /* Статусные цвета */
-    --success: #6B8E23;
-    --warning: #DAA520;
-    --danger: #B22222;
-    --info: #4682B4;
+    --success: #558B2F;
+    --warning: #F9A825;
+    --danger: #C62828;
+    --info: #1565C0;
 
     /* Тени */
-    --shadow-light: rgba(139, 69, 19, 0.08);
-    --shadow-medium: rgba(139, 69, 19, 0.12);
-    --shadow-strong: rgba(139, 69, 19, 0.18);
+    --shadow-light: rgba(62, 39, 35, 0.08);
+    --shadow-medium: rgba(62, 39, 35, 0.12);
+    --shadow-strong: rgba(62, 39, 35, 0.18);
 
     /* Градиенты */
-    --gradient-primary: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
-    --gradient-card: linear-gradient(145deg, #FFFFFF 0%, #FFF8F0 100%);
+    --gradient-primary: linear-gradient(135deg, #5D4037 0%, #8B6F47 100%);
+    --gradient-card: linear-gradient(145deg, #F5EDE0 0%, #EDE5D8 100%);
+    --gradient-header: linear-gradient(135deg, #4E342E 0%, #5D4037 50%, #6D4C41 100%);
+
+    /* Границы */
+    --border-color: #D7CCC8;
+    --border-light: #EFEBE9;
 
     /* Telegram Theme Colors */
     --tg-theme-bg-color: var(--bg-primary);
@@ -71,13 +76,14 @@ body {
 
 /* Header */
 .header {
-    background: #D2691E;
-    color: #FFFFFF;
+    background: var(--gradient-header);
+    color: var(--text-light);
     padding: 16px;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 10px var(--shadow-medium);
+    box-shadow: 0 4px 12px var(--shadow-medium);
+    border-bottom: 2px solid var(--accent-tertiary);
 }
 
 .header__title {
@@ -112,7 +118,7 @@ body {
     table-layout: fixed;
     padding: 12px 16px;
     background: var(--bg-card);
-    border-bottom: 1px solid var(--bg-accent);
+    border-bottom: 2px solid var(--border-color);
     border-collapse: separate;
     border-spacing: 8px 8px;
 }
@@ -130,9 +136,14 @@ body {
     color: var(--text-secondary);
     font-size: 0.85rem;
     font-weight: 600;
-    border: 2px solid transparent;
+    border: 2px solid var(--border-light);
     transition: all 0.2s;
     cursor: pointer;
+    text-align: center;
+}
+
+/* Центрируем единственный элемент в строке */
+.nav__row .nav__item:only-child {
     text-align: center;
 }
 
@@ -141,8 +152,10 @@ body {
 }
 
 .nav__item.active {
-    background: #D2691E;
-    color: #FFFFFF;
+    background: var(--gradient-primary);
+    color: var(--text-light);
+    border-color: var(--accent-tertiary);
+    box-shadow: 0 4px 8px var(--shadow-light);
 }
 
 .nav__item:active {
@@ -163,7 +176,7 @@ body {
     padding: 16px;
     margin: 12px 0;
     box-shadow: 0 2px 8px var(--shadow-light);
-    border: 1px solid rgba(139, 69, 19, 0.08);
+    border: 1px solid var(--border-color);
     transition: all 0.2s;
 }
 
@@ -179,7 +192,7 @@ body {
     color: var(--accent-primary);
     margin-bottom: 12px;
     padding-bottom: 8px;
-    border-bottom: 1px solid var(--bg-accent);
+    border-bottom: 2px solid var(--border-light);
 }
 
 /* Stats Cards */
@@ -197,7 +210,7 @@ body {
     padding: 16px 4px;
     text-align: center;
     box-shadow: 0 2px 8px var(--shadow-light);
-    border: 1px solid rgba(139, 69, 19, 0.1);
+    border: 2px solid var(--border-light);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -211,7 +224,7 @@ body {
 .stats__icon {
     font-size: 1.3rem;
     margin-bottom: 6px;
-    color: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+    color: var(--accent-primary);
     flex-shrink: 0;
 }
 
@@ -244,7 +257,7 @@ body {
     overflow: hidden;
     margin: 12px 0;
     box-shadow: 0 2px 8px var(--shadow-light);
-    border: 1px solid rgba(139, 69, 19, 0.08);
+    border: 2px solid var(--border-light);
     display: flex;
     flex-direction: row;
     transition: all 0.2s;
@@ -252,6 +265,7 @@ body {
 
 .book-card:active {
     transform: scale(0.98);
+    border-color: var(--accent-secondary);
 }
 
 .book-card__cover {
@@ -262,6 +276,7 @@ body {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    border-right: 1px solid var(--border-light);
 }
 
 .book-card__cover img {
@@ -313,7 +328,7 @@ body {
 .book-card__price {
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--success);
+    color: var(--accent-primary);
     margin-bottom: 4px;
 }
 
@@ -327,13 +342,14 @@ body {
 
 .book-card__discount {
     display: inline-block;
-    background: var(--danger);
+    background: var(--gradient-primary);
     color: var(--text-light);
     padding: 4px 8px;
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 600;
     margin-top: auto;
+    border: 1px solid var(--accent-tertiary);
 }
 
 .book-card__source {
@@ -364,30 +380,34 @@ body {
 }
 
 .btn--primary {
-    background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
-    color: #FFFFFF;
+    background: var(--gradient-primary);
+    color: var(--text-light);
     box-shadow: 0 4px 12px var(--shadow-medium);
+    border: 2px solid var(--accent-tertiary);
 }
 
 .btn--secondary {
-    background: var(--bg-secondary);
-    color: #FFFFFF;
-    border: 2px solid #8B4513;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 2px solid var(--accent-primary);
 }
 
 .btn--search-books {
-    background: #D2691E;
-    color: #FFFFFF;
+    background: var(--gradient-primary);
+    color: var(--text-light);
+    border: 2px solid var(--accent-tertiary);
 }
 
 .btn--success {
     background: var(--success);
     color: var(--text-light);
+    border: 2px solid var(--accent-tertiary);
 }
 
 .btn--danger {
     background: var(--danger);
     color: var(--text-light);
+    border: 2px solid var(--accent-tertiary);
 }
 
 .btn--small {
@@ -410,7 +430,7 @@ body {
 .form-label {
     display: block;
     font-weight: 600;
-    color: var(--accent-primary);
+    color: var(--text-primary);
     margin-bottom: 8px;
     font-size: 0.9rem;
 }
@@ -420,7 +440,7 @@ body {
 .form-textarea {
     width: 100%;
     padding: 12px 16px;
-    border: 2px solid var(--bg-accent);
+    border: 2px solid var(--border-color);
     border-radius: 12px;
     font-size: 1rem;
     background: var(--bg-card);
@@ -433,7 +453,7 @@ body {
 .form-textarea:focus {
     outline: none;
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(139, 69, 19, 0.1);
+    box-shadow: 0 0 0 3px rgba(139, 111, 71, 0.15);
 }
 
 .form-textarea {
@@ -453,13 +473,13 @@ body {
     border-radius: 16px;
     padding: 12px 16px;
     box-shadow: 0 2px 8px var(--shadow-light);
-    border: 2px solid transparent;
+    border: 2px solid var(--border-color);
     transition: all 0.2s;
 }
 
 .search__input:focus-within {
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(139, 69, 19, 0.1);
+    box-shadow: 0 0 0 3px rgba(139, 111, 71, 0.15);
 }
 
 .search__input input {
@@ -486,7 +506,7 @@ body {
     padding: 16px;
     margin: 12px 0;
     box-shadow: 0 2px 8px var(--shadow-light);
-    border: 1px solid rgba(139, 69, 19, 0.08);
+    border: 2px solid var(--border-light);
 }
 
 .alert-item__title {
@@ -514,6 +534,7 @@ body {
 .alert-item__status--active {
     background: var(--success);
     color: var(--text-light);
+    border: 1px solid var(--accent-tertiary);
 }
 
 .alert-item__status--inactive {
@@ -545,6 +566,7 @@ body {
     color: var(--text-light);
     font-size: 3rem;
     box-shadow: 0 4px 12px var(--shadow-medium);
+    border: 3px solid var(--accent-tertiary);
 }
 
 .profile__name {
@@ -573,6 +595,7 @@ body {
     border-radius: 12px;
     padding: 16px 8px;
     box-shadow: 0 2px 8px var(--shadow-light);
+    border: 2px solid var(--border-light);
 }
 
 .profile__stat-value {
@@ -602,7 +625,7 @@ body {
 .loading__spinner {
     width: 48px;
     height: 48px;
-    border: 4px solid var(--bg-accent);
+    border: 4px solid var(--border-light);
     border-top-color: var(--accent-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -654,9 +677,10 @@ body {
     color: var(--text-light);
     padding: 16px;
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 12px var(--shadow-strong);
     z-index: 1000;
     animation: slideUp 0.3s ease;
+    border: 2px solid var(--accent-tertiary);
 }
 
 @keyframes slideUp {
@@ -717,29 +741,35 @@ body {
 /* Dark Mode Support (Telegram Theme) */
 @media (prefers-color-scheme: dark) {
     :root {
-        --bg-primary: #1a1a1a;
-        --bg-secondary: #2a2a2a;
-        --bg-card: #333333;
-        --text-primary: #ffffff;
-        --text-secondary: #cccccc;
-        --text-muted: #999999;
-        --gradient-card: linear-gradient(145deg, #333333 0%, #2a2a2a 100%);
+        --bg-primary: #2C241B;
+        --bg-secondary: #3E3428;
+        --bg-accent: #4A3F32;
+        --bg-card: #362C21;
+        --text-primary: #EFEBE9;
+        --text-secondary: #D7CCC8;
+        --text-muted: #A1887F;
+        --border-color: #4E3E32;
+        --border-light: #3E3428;
+        --gradient-card: linear-gradient(145deg, #362C21 0%, #2C241B 100%);
     }
 }
 
 /* Адаптация под Telegram WebApp Theme */
 html.theme-dark body,
 body[data-theme="dark"] {
-    --bg-primary: #1a1a1a;
-    --bg-secondary: #2a2a2a;
-    --bg-card: #333333;
-    --text-primary: #ffffff;
-    --text-secondary: #cccccc;
-    --text-muted: #999999;
-    --gradient-card: linear-gradient(145deg, #333333 0%, #2a2a2a 100%);
-    --shadow-light: rgba(0, 0, 0, 0.08);
-    --shadow-medium: rgba(0, 0, 0, 0.12);
-    --shadow-strong: rgba(0, 0, 0, 0.18);
+    --bg-primary: #2C241B;
+    --bg-secondary: #3E3428;
+    --bg-accent: #4A3F32;
+    --bg-card: #362C21;
+    --text-primary: #EFEBE9;
+    --text-secondary: #D7CCC8;
+    --text-muted: #A1887F;
+    --border-color: #4E3E32;
+    --border-light: #3E3428;
+    --gradient-card: linear-gradient(145deg, #362C21 0%, #2C241B 100%);
+    --shadow-light: rgba(0, 0, 0, 0.15);
+    --shadow-medium: rgba(0, 0, 0, 0.2);
+    --shadow-strong: rgba(0, 0, 0, 0.3);
 }
 
 /* Исправление цвета текста в формах для темной темы */
@@ -751,7 +781,7 @@ body[data-theme="dark"] .form-input,
 body[data-theme="dark"] .form-select,
 body[data-theme="dark"] .form-textarea,
 body[data-theme="dark"] .search__input input {
-    color: #ffffff;
+    color: var(--text-primary);
 }
 
 /* Исправление цвета плейсхолдера в темной теме */
@@ -761,7 +791,7 @@ html.theme-dark .search__input input::placeholder,
 body[data-theme="dark"] .form-input::placeholder,
 body[data-theme="dark"] .form-select,
 body[data-theme="dark"] .search__input input::placeholder {
-    color: #999999;
+    color: var(--text-muted);
 }
 
 /* Исправление цвета заголовков в темной теме */
@@ -773,7 +803,7 @@ body[data-theme="dark"] h2,
 body[data-theme="dark"] h3,
 body[data-theme="dark"] h4,
 body[data-theme="dark"] .card__header {
-    color: #ffffff;
+    color: var(--text-primary);
 }
 
 /* Исправление цвета акцента в темной теме */
@@ -781,5 +811,5 @@ html.theme-dark .stats__value,
 html.theme-dark .book-card__price,
 body[data-theme="dark"] .stats__value,
 body[data-theme="dark"] .book-card__price {
-    color: #ffffff;
+    color: var(--accent-primary);
 }

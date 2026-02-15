@@ -83,6 +83,9 @@ class BookHunterApp {
             case 'books':
                 this.showBooksPage();
                 break;
+            case 'recent':
+                this.showRecentPage();
+                break;
             case 'alerts':
                 this.showAlertsPage();
                 break;
@@ -133,14 +136,17 @@ class BookHunterApp {
 
         // Скрываем страницы, которые имеют display: none по умолчанию
         const booksPage = document.getElementById('books-page');
+        const recentPage = document.getElementById('recent-page');
         const alertsPage = document.getElementById('alerts-page');
         const profilePage = document.getElementById('profile-page');
 
         console.log('[hideAllPages] booksPage:', booksPage);
+        console.log('[hideAllPages] recentPage:', recentPage);
         console.log('[hideAllPages] alertsPage:', alertsPage);
         console.log('[hideAllPages] profilePage:', profilePage);
 
         if (booksPage) booksPage.style.display = 'none';
+        if (recentPage) recentPage.style.display = 'none';
         if (alertsPage) alertsPage.style.display = 'none';
         if (profilePage) profilePage.style.display = 'none';
 
@@ -267,6 +273,22 @@ class BookHunterApp {
     }
 
     /**
+     * Показать страницу недавних книг
+     */
+    showRecentPage() {
+        console.log('[showRecentPage] Показываем страницу недавних книг');
+
+        const recentPage = document.getElementById('recent-page');
+        console.log('[showRecentPage] recentPage:', recentPage);
+
+        if (recentPage) {
+            recentPage.style.display = 'block';
+        } else {
+            console.error('[showRecentPage] recentPage не найден!');
+        }
+    }
+
+    /**
      * Загрузка данных страницы
      */
     async loadPageData(route, params) {
@@ -286,6 +308,9 @@ class BookHunterApp {
                     console.log('[loadPageData] Нет query, показываем пустое состояние');
                     this.renderBooks([]);
                 }
+                break;
+            case 'recent':
+                await this.loadRecentBooksFull(params.page || 1);
                 break;
             case 'alerts':
                 await this.loadAlerts();
@@ -404,6 +429,95 @@ class BookHunterApp {
                 </div>
             `;
         }
+    }
+
+    /**
+     * Загрузка недавних книг с пагинацией (для отдельной страницы)
+     */
+    async loadRecentBooksFull(page = 1) {
+        console.log('[loadRecentBooksFull] Загрузка недавних книг, страница:', page);
+
+        try {
+            const limit = 30; // Максимум 30 книг на странице
+            const offset = (page - 1) * limit;
+
+            const response = await fetch(`${this.apiBaseUrl}/web/books/api/all?limit=${limit}&offset=${offset}`);
+            if (!response.ok) throw new Error('Ошибка загрузки книг');
+
+            const data = await response.json();
+            const books = data.books || [];
+            const totalCount = data.total || 0;
+
+            const container = document.getElementById('recent-books-full-container');
+            const pagination = document.getElementById('recent-pagination');
+
+            if (books.length === 0) {
+                container.innerHTML = `
+                    <div class="empty">
+                        <div class="empty__icon"><i class="fas fa-inbox"></i></div>
+                        <h3 class="empty__title">Нет книг</h3>
+                        <p class="empty__text">Начните поиск книг в каталоге</p>
+                    </div>
+                `;
+                pagination.style.display = 'none';
+            } else {
+                container.innerHTML = books.map(book => this.createBookCard(book)).join('');
+
+                // Добавляем обработчики кликов
+                container.querySelectorAll('.book-card').forEach(card => {
+                    card.addEventListener('click', (e) => {
+                        if (!e.target.closest('.btn')) {
+                            const bookId = card.dataset.bookId;
+                            this.showBookDetails(bookId);
+                        }
+                    });
+                });
+
+                // Обновляем пагинацию
+                const totalPages = Math.ceil(totalCount / limit);
+                const pageInfo = document.getElementById('recent-page-info');
+                const prevBtn = document.getElementById('recent-prev-btn');
+                const nextBtn = document.getElementById('recent-next-btn');
+
+                pageInfo.textContent = `Страница ${page} из ${totalPages}`;
+                prevBtn.disabled = page <= 1;
+                nextBtn.disabled = page >= totalPages;
+
+                pagination.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки недавних книг:', error);
+            const container = document.getElementById('recent-books-full-container');
+            const pagination = document.getElementById('recent-pagination');
+            container.innerHTML = `
+                <div class="empty">
+                    <div class="empty__icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <h3 class="empty__title">Ошибка загрузки</h3>
+                    <p class="empty__text">Не удалось загрузить список книг</p>
+                </div>
+            `;
+            pagination.style.display = 'none';
+        }
+    }
+
+    /**
+     * Загрузка страницы недавних книг (пагинация)
+     */
+    async loadRecentBooksPage(direction) {
+        console.log('[loadRecentBooksPage] Загрузка страницы:', direction);
+
+        // Получаем текущую страницу из URL
+        const params = new URLSearchParams(window.location.search);
+        let currentPage = parseInt(params.get('page')) || 1;
+
+        if (direction === 'prev') {
+            currentPage = Math.max(1, currentPage - 1);
+        } else if (direction === 'next') {
+            currentPage = currentPage + 1;
+        }
+
+        // Навигация с новой страницей
+        this.navigate('recent', { page: currentPage });
     }
 
     /**
