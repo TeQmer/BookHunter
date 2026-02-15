@@ -241,12 +241,22 @@ class BookHunterApp {
      * Загрузка данных страницы
      */
     async loadPageData(route, params) {
+        console.log('[loadPageData] Загрузка данных для страницы:', route, 'params:', params);
+
         switch (route) {
             case 'home':
                 await this.loadStats();
                 break;
             case 'books':
-                await this.loadBooks(params);
+                // Книги загружаются только при поиске или применении фильтров
+                // Если есть query - загружаем книги, иначе показываем пустое состояние
+                if (params.query) {
+                    console.log('[loadPageData] Загружаем книги с query:', params.query);
+                    await this.loadBooks(params);
+                } else {
+                    console.log('[loadPageData] Нет query, показываем пустое состояние');
+                    this.renderBooks([]);
+                }
                 break;
             case 'alerts':
                 await this.loadAlerts();
@@ -616,15 +626,10 @@ class BookHunterApp {
             return;
         }
 
-        this.showLoading('Поиск книг...');
-
-        try {
-            await this.loadBooks({ query });
-            window.tg.hapticSuccess();
-        } catch (error) {
-            console.error('Ошибка поиска:', error);
-            this.showError('Не удалось выполнить поиск');
-        }
+        // Переключаемся на страницу books
+        // navigate автоматически вызовет loadPageData, который загрузит книги
+        console.log('[searchBooks] Переключаемся на страницу books с query:', query);
+        this.navigate('books', { query });
     }
 
     /**
