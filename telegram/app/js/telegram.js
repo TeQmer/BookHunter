@@ -46,6 +46,17 @@ class TelegramWebApp {
         if (themeParams) {
             const root = document.documentElement;
 
+            // Определяем тему (светлая или темная)
+            const bgColor = themeParams.bg_color || '#FFFFFF';
+            const isDarkTheme = this.isDarkColor(bgColor);
+
+            // Устанавливаем класс темы
+            if (isDarkTheme) {
+                root.classList.add('theme-dark');
+            } else {
+                root.classList.remove('theme-dark');
+            }
+
             // Применяем цвета темы Telegram
             if (themeParams.bg_color) {
                 root.style.setProperty('--tg-theme-bg-color', themeParams.bg_color);
@@ -72,7 +83,29 @@ class TelegramWebApp {
             // Обновляем цвет фона
             document.body.style.backgroundColor = themeParams.bg_color;
             document.body.style.color = themeParams.text_color;
+
+            console.log('Telegram тема применена:', isDarkTheme ? 'темная' : 'светлая');
         }
+    }
+
+    /**
+     * Проверка, является ли цвет темным
+     */
+    isDarkColor(color) {
+        if (!color) return false;
+
+        // Удаляем # если есть
+        color = color.replace('#', '');
+
+        // Парсим RGB
+        const r = parseInt(color.substr(0, 2), 16);
+        const g = parseInt(color.substr(2, 2), 16);
+        const b = parseInt(color.substr(4, 2), 16);
+
+        // Вычисляем яркость
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+        return brightness < 128;
     }
 
     /**
