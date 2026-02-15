@@ -5,7 +5,6 @@
 # Для продакшена используйте docker-compose.prod.yml
 #
 # ============================================================
-version: '3.8'
 
 services:
   postgres:
@@ -124,6 +123,7 @@ services:
       - GOOGLE_CREDENTIALS_CLIENT_CERT_URL=${GOOGLE_CREDENTIALS_CLIENT_CERT_URL}
     volumes:
       - ./:/app
+      - celerybeat_data:/app
     command: celery -A services.celery_app beat --loglevel=info
 
   telegram_bot:
@@ -156,3 +156,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  celerybeat_data:
