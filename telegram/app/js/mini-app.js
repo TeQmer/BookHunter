@@ -70,7 +70,26 @@ class BookHunterApp {
      * Навигация между страницами
      */
     navigate(route, params = {}) {
-        console.log('Навигация на:', route, params);
+        console.log('[navigate] Навигация на:', route, params);
+
+        // Скрываем все страницы
+        this.hideAllPages();
+
+        // Показываем нужную страницу
+        switch (route) {
+            case 'home':
+                this.showHomePage();
+                break;
+            case 'books':
+                this.showBooksPage();
+                break;
+            case 'alerts':
+                this.showAlertsPage();
+                break;
+            case 'profile':
+                this.showProfilePage();
+                break;
+        }
 
         // Обновляем активный пункт меню
         document.querySelectorAll('.nav__item').forEach(item => {
@@ -96,6 +115,93 @@ class BookHunterApp {
 
         // Загружаем данные для страницы
         this.loadPageData(route, params);
+    }
+
+    /**
+     * Скрыть все страницы
+     */
+    hideAllPages() {
+        const mainContent = document.getElementById('main-content');
+
+        // Скрываем страницы, которые имеют display: none по умолчанию
+        const booksPage = document.getElementById('books-page');
+        const alertsPage = document.getElementById('alerts-page');
+        const profilePage = document.getElementById('profile-page');
+
+        if (booksPage) booksPage.style.display = 'none';
+        if (alertsPage) alertsPage.style.display = 'none';
+        if (profilePage) profilePage.style.display = 'none';
+
+        // Скрываем элементы домашней страницы
+        const heroSection = mainContent.querySelector('.card[style*="gradient-primary"]');
+        const statsSection = mainContent.querySelector('.stats');
+        const quickActionsSection = mainContent.querySelectorAll('.card')[1]; // Второй блок card
+        const recentBooksSection = document.getElementById('recent-books-container');
+        const statsHeader = mainContent.querySelectorAll('h3')[0]; // Статистика заголовок
+        const quickActionsHeader = mainContent.querySelectorAll('h3')[1]; // Быстрые действия заголовок
+        const recentBooksHeader = mainContent.querySelectorAll('h3')[2]; // Недавние книги заголовок
+
+        if (heroSection) heroSection.style.display = 'none';
+        if (statsSection) statsSection.style.display = 'none';
+        if (quickActionsSection) quickActionsSection.style.display = 'none';
+        if (recentBooksSection) recentBooksSection.style.display = 'none';
+        if (statsHeader) statsHeader.style.display = 'none';
+        if (quickActionsHeader) quickActionsHeader.style.display = 'none';
+        if (recentBooksHeader) recentBooksHeader.style.display = 'none';
+    }
+
+    /**
+     * Показать домашнюю страницу
+     */
+    showHomePage() {
+        const mainContent = document.getElementById('main-content');
+
+        // Показываем элементы домашней страницы
+        const heroSection = mainContent.querySelector('.card[style*="gradient-primary"]');
+        const statsSection = mainContent.querySelector('.stats');
+        const quickActionsSection = mainContent.querySelectorAll('.card')[1]; // Второй блок card
+        const recentBooksSection = document.getElementById('recent-books-container');
+        const statsHeader = mainContent.querySelectorAll('h3')[0]; // Статистика заголовок
+        const quickActionsHeader = mainContent.querySelectorAll('h3')[1]; // Быстрые действия заголовок
+        const recentBooksHeader = mainContent.querySelectorAll('h3')[2]; // Недавние книги заголовок
+
+        if (heroSection) heroSection.style.display = 'block';
+        if (statsSection) statsSection.style.display = 'flex';
+        if (quickActionsSection) quickActionsSection.style.display = 'block';
+        if (recentBooksSection) recentBooksSection.style.display = 'block';
+        if (statsHeader) statsHeader.style.display = 'block';
+        if (quickActionsHeader) quickActionsHeader.style.display = 'block';
+        if (recentBooksHeader) recentBooksHeader.style.display = 'block';
+    }
+
+    /**
+     * Показать страницу книг
+     */
+    showBooksPage() {
+        const booksPage = document.getElementById('books-page');
+        if (booksPage) {
+            booksPage.style.display = 'block';
+        }
+    }
+
+    /**
+     * Показать страницу подписок
+     */
+    showAlertsPage() {
+        const alertsPage = document.getElementById('alerts-page');
+        if (alertsPage) {
+            alertsPage.style.display = 'block';
+        }
+    }
+
+    /**
+     * Показать страницу профиля
+     */
+    showProfilePage() {
+        const profilePage = document.getElementById('profile-page');
+        if (profilePage) {
+            profilePage.style.display = 'block';
+        }
     }
 
     /**
@@ -247,6 +353,9 @@ class BookHunterApp {
      */
     async loadBooks(params = {}) {
         try {
+            console.log('[loadBooks] Начинаем загрузку книг, params:', params);
+            console.log('[loadBooks] apiBaseUrl:', this.apiBaseUrl);
+
             let url;
 
             if (params.query) {
@@ -260,17 +369,26 @@ class BookHunterApp {
                 url = `${this.apiBaseUrl}/web/books/api/all`;
             }
 
+            console.log('[loadBooks] URL запроса:', url);
+
             const response = await fetch(url);
-            if (!response.ok) throw new Error('Ошибка загрузки книг');
+            console.log('[loadBooks] Статус ответа:', response.status, response.statusText);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('[loadBooks] Текст ошибки:', errorText);
+                throw new Error('Ошибка загрузки книг');
+            }
 
             const data = await response.json();
+            console.log('[loadBooks] Получены данные:', data);
 
             // Обрабатываем разные форматы ответа
             this.data.books = data.books || [];
 
             this.renderBooks(this.data.books);
         } catch (error) {
-            console.error('Ошибка загрузки книг:', error);
+            console.error('[loadBooks] Ошибка загрузки книг:', error);
             this.showError('Не удалось загрузить книги');
         }
     }
@@ -336,34 +454,44 @@ class BookHunterApp {
      */
     async loadAlerts() {
         try {
+            console.log('[loadAlerts] Начинаем загрузку подписок');
+            console.log('[loadAlerts] apiBaseUrl:', this.apiBaseUrl);
+
             // Пробуем получить user_id, если не получилось - используем query_id
             let userId = window.tg.getChatId();
 
             if (!userId) {
-                console.warn('Chat ID не получен, пробуем query_id...');
+                console.warn('[loadAlerts] Chat ID не получен, пробуем query_id...');
                 userId = window.tg.getQueryId();
             }
 
             if (!userId) {
-                console.error('Не удалось получить ни Chat ID, ни Query ID');
+                console.error('[loadAlerts] Не удалось получить ни Chat ID, ни Query ID');
                 this.showError('Не удалось получить ID пользователя. Откройте приложение через Telegram.');
                 this.renderAlerts([]);
                 return;
             }
 
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts/?user_id=${userId}`);
+            const url = `${this.apiBaseUrl}/api/alerts/?user_id=${userId}`;
+            console.log('[loadAlerts] URL запроса:', url);
+
+            const response = await fetch(url);
+            console.log('[loadAlerts] Статус ответа:', response.status, response.statusText);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+                console.error('[loadAlerts] Ошибка:', errorData);
                 throw new Error(errorData.detail || 'Ошибка загрузки подписок');
             }
 
             const data = await response.json();
+            console.log('[loadAlerts] Получены данные:', data);
+
             this.data.alerts = data || [];
 
             this.renderAlerts(this.data.alerts);
         } catch (error) {
-            console.error('Ошибка загрузки подписок:', error);
+            console.error('[loadAlerts] Ошибка загрузки подписок:', error);
             this.showError(error.message || 'Не удалось загрузить подписок');
         }
     }
@@ -437,12 +565,36 @@ class BookHunterApp {
 
         try {
             await this.loadBooks({ query });
-            this.navigate('books', { query });
             window.tg.hapticSuccess();
         } catch (error) {
             console.error('Ошибка поиска:', error);
             this.showError('Не удалось выполнить поиск');
         }
+    }
+
+    /**
+     * Применение фильтров
+     */
+    async applyFilters() {
+        const source = document.getElementById('filter-source').value;
+        const discount = document.getElementById('filter-discount').value;
+        const price = document.getElementById('filter-price').value;
+        const query = document.getElementById('search-input').value;
+
+        this.showLoading('Применение фильтров...');
+
+        // TODO: Добавить логику фильтрации на сервере
+        setTimeout(() => {
+            this.loadBooks({ query, source, discount, price });
+        }, 500);
+    }
+
+    /**
+     * Загрузить еще книг
+     */
+    loadMoreBooks() {
+        // TODO: Реализовать подгрузку следующих страниц
+        this.showToast('Функция в разработке', 'info');
     }
 
     /**
@@ -625,4 +777,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Навигация на начальную страницу
     window.app.navigate(route, routeParams);
+
+    // Обработка Enter в поиске
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                app.searchBooks(e.target.value);
+            }
+        });
+    }
 });
