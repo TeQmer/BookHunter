@@ -130,26 +130,6 @@
     <script src="js/mini-app.js"></script>
 
     <script>
-        // Расширение приложения для страницы книг
-        BookHunterApp.prototype.applyFilters = function() {
-            const source = document.getElementById('filter-source').value;
-            const discount = document.getElementById('filter-discount').value;
-            const price = document.getElementById('filter-price').value;
-            const query = document.getElementById('search-input').value;
-
-            this.showLoading('Применение фильтров...');
-
-            // TODO: Добавить логику фильтрации на сервере
-            setTimeout(() => {
-                this.loadBooks({ query, source, discount, price });
-            }, 500);
-        };
-
-        BookHunterApp.prototype.loadMoreBooks = function() {
-            // TODO: Реализовать подгрузку следующих страниц
-            this.showToast('Функция в разработке', 'info');
-        };
-
         // Обработка Enter в поиске
         document.getElementById('search-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {

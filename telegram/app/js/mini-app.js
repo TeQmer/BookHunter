@@ -740,11 +740,17 @@ class BookHunterApp {
     renderBooks(books) {
         console.log('[renderBooks] Начинаем отрисовку книг:', books.length);
 
-        const container = document.getElementById('books-container');
+        // Ищем контейнер для книг - может быть books-container или другой
+        let container = document.getElementById('books-container');
+        if (!container) {
+            // Пробуем найти контейнер на странице поиска
+            container = document.getElementById('search-results-container');
+        }
+
         console.log('[renderBooks] Контейнер:', container);
 
         if (!container) {
-            console.error('[renderBooks] Контейнер #books-container не найден!');
+            console.error('[renderBooks] Контейнер для книг не найден!');
             return;
         }
 
