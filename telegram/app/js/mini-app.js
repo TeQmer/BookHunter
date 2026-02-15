@@ -483,20 +483,25 @@ class BookHunterApp {
         try {
             console.log('[startParsing] Запускаем парсинг для:', query);
 
-            const response = await fetch(`${this.apiBaseUrl}/api/parser/search`, {
+            const response = await fetch(`${this.apiBaseUrl}/api/parser/parse-body`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ query, source })
+                body: JSON.stringify({ query, source, fetch_details: false })
             });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка запуска парсинга');
+            }
 
             const data = await response.json();
             console.log('[startParsing] Ответ:', data);
 
             // Показываем сообщение о парсинге
-            if (data.parse_task_id) {
-                this.showParsingStatus(data.parse_task_id, query);
+            if (data.task_id) {
+                this.showParsingStatus(data.task_id, query);
             } else {
                 this.showError('Не удалось запустить поиск книг');
             }
