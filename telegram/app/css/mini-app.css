@@ -72,7 +72,7 @@ body {
 /* Header */
 .header {
     background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
-    color: var(--text-light);
+    color: #FFFFFF;
     padding: 16px;
     position: sticky;
     top: 0;
@@ -366,7 +366,7 @@ body {
 
 .btn--primary {
     background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
-    color: var(--text-light);
+    color: #FFFFFF;
     box-shadow: 0 4px 12px var(--shadow-medium);
 }
 
