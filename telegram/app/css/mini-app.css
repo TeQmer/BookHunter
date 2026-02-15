@@ -71,8 +71,8 @@ body {
 
 /* Header */
 .header {
-    background: var(--text-light);
-    color: var(--accent-primary);
+    background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+    color: var(--text-light);
     padding: 16px;
     position: sticky;
     top: 0;
@@ -365,7 +365,7 @@ body {
 }
 
 .btn--primary {
-    background: var(--gradient-primary);
+    background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
     color: var(--text-light);
     box-shadow: 0 4px 12px var(--shadow-medium);
 }
@@ -376,8 +376,8 @@ body {
     border: 2px solid #8B4513;
 }
 
-.btn--search {
-    background: var(--text-light);
+.btn--search-books {
+    background: #FFFFFF;
     color: #8B4513;
 }
 
