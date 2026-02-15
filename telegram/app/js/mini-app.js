@@ -337,9 +337,20 @@ class BookHunterApp {
     async loadAlerts() {
         try {
             const chatId = window.tg.getChatId();
+
+            if (!chatId) {
+                console.error('Chat ID не получен. Проверьте консоль для деталей.');
+                this.showError('Не удалось получить ID пользователя. Откройте приложение через Telegram.');
+                this.renderAlerts([]);
+                return;
+            }
+
             const response = await fetch(`${this.apiBaseUrl}/api/alerts/?user_id=${chatId}`);
 
-            if (!response.ok) throw new Error('Ошибка загрузки подписок');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка загрузки подписок');
+            }
 
             const data = await response.json();
             this.data.alerts = data || [];
@@ -347,7 +358,7 @@ class BookHunterApp {
             this.renderAlerts(this.data.alerts);
         } catch (error) {
             console.error('Ошибка загрузки подписок:', error);
-            this.showError('Не удалось загрузить подписки');
+            this.showError(error.message || 'Не удалось загрузить подписок');
         }
     }
 
@@ -435,6 +446,10 @@ class BookHunterApp {
         try {
             const chatId = window.tg.getChatId();
 
+            if (!chatId) {
+                throw new Error('Не удалось получить ID пользователя. Убедитесь, что вы открыли приложение через Telegram.');
+            }
+
             const response = await fetch(`${this.apiBaseUrl}/api/alerts/`, {
                 method: 'POST',
                 headers: {
@@ -451,7 +466,10 @@ class BookHunterApp {
                 })
             });
 
-            if (!response.ok) throw new Error('Ошибка создания подписки');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка создания подписки');
+            }
 
             window.tg.hapticSuccess();
             this.showSuccess('Подписка создана!');
@@ -463,7 +481,7 @@ class BookHunterApp {
         } catch (error) {
             console.error('Ошибка создания подписки:', error);
             window.tg.hapticError();
-            this.showError('Не удалось создать подписку');
+            this.showError(error.message || 'Не удалось создать подписку');
         }
     }
 

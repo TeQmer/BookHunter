@@ -194,7 +194,20 @@ class TelegramWebApp {
      * Получить данные пользователя
      */
     getUser() {
-        return this.webApp?.initDataUnsafe?.user || null;
+        if (!this.webApp) {
+            console.warn('Telegram WebApp не доступен, пользователь не определен');
+            return null;
+        }
+
+        const user = this.webApp.initDataUnsafe?.user;
+        console.log('initDataUnsafe:', this.webApp.initDataUnsafe);
+        console.log('User из initDataUnsafe:', user);
+
+        if (!user) {
+            console.warn('Пользователь не найден в initDataUnsafe');
+        }
+
+        return user || null;
     }
 
     /**
@@ -202,7 +215,15 @@ class TelegramWebApp {
      */
     getChatId() {
         const user = this.getUser();
-        return user?.id || null;
+        const chatId = user?.id || null;
+
+        console.log('Chat ID:', chatId);
+
+        if (!chatId) {
+            console.error('Не удалось получить Chat ID. Проверьте, что приложение открыто через Telegram.');
+        }
+
+        return chatId;
     }
 
     /**
