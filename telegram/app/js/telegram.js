@@ -191,6 +191,33 @@ class TelegramWebApp {
     }
 
     /**
+     * Получить данные пользователя через декодирование initData
+     */
+    getUserFromInitData() {
+        if (!this.webApp?.initData) {
+            return null;
+        }
+
+        try {
+            // Декодируем URL-encoded строку initData
+            const params = new URLSearchParams(this.webApp.initData);
+            const userParam = params.get('user');
+
+            if (!userParam) {
+                return null;
+            }
+
+            // Парсим JSON
+            const user = JSON.parse(decodeURIComponent(userParam));
+            console.log('User из initData:', user);
+            return user;
+        } catch (error) {
+            console.error('Ошибка декодирования initData:', error);
+            return null;
+        }
+    }
+
+    /**
      * Получить данные пользователя
      */
     getUser() {
@@ -199,12 +226,20 @@ class TelegramWebApp {
             return null;
         }
 
-        const user = this.webApp.initDataUnsafe?.user;
+        // Сначала пробуем через initDataUnsafe
+        let user = this.webApp.initDataUnsafe?.user;
         console.log('initDataUnsafe:', this.webApp.initDataUnsafe);
         console.log('User из initDataUnsafe:', user);
 
+        // Если не нашли, пробуем через декодирование initData
         if (!user) {
-            console.warn('Пользователь не найден в initDataUnsafe');
+            console.log('Пробуем получить user через initData...');
+            user = this.getUserFromInitData();
+        }
+
+        if (!user) {
+            console.warn('Пользователь не найден ни в initDataUnsafe, ни в initData');
+            console.warn('initData:', this.webApp.initData);
         }
 
         return user || null;
@@ -221,9 +256,31 @@ class TelegramWebApp {
 
         if (!chatId) {
             console.error('Не удалось получить Chat ID. Проверьте, что приложение открыто через Telegram.');
+            console.error('WebApp доступен:', !!this.webApp);
+            console.error('initData:', this.webApp?.initData || 'нет');
+            console.error('initDataUnsafe:', this.webApp?.initDataUnsafe || 'нет');
         }
 
         return chatId;
+    }
+
+    /**
+     * Получить query_id (альтернативный способ идентификации)
+     */
+    getQueryId() {
+        if (!this.webApp?.initData) {
+            return null;
+        }
+
+        try {
+            const params = new URLSearchParams(this.webApp.initData);
+            const queryId = params.get('query_id');
+            console.log('Query ID:', queryId);
+            return queryId;
+        } catch (error) {
+            console.error('Ошибка получения query_id:', error);
+            return null;
+        }
     }
 
     /**

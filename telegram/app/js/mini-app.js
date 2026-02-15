@@ -336,16 +336,22 @@ class BookHunterApp {
      */
     async loadAlerts() {
         try {
-            const chatId = window.tg.getChatId();
+            // Пробуем получить user_id, если не получилось - используем query_id
+            let userId = window.tg.getChatId();
 
-            if (!chatId) {
-                console.error('Chat ID не получен. Проверьте консоль для деталей.');
+            if (!userId) {
+                console.warn('Chat ID не получен, пробуем query_id...');
+                userId = window.tg.getQueryId();
+            }
+
+            if (!userId) {
+                console.error('Не удалось получить ни Chat ID, ни Query ID');
                 this.showError('Не удалось получить ID пользователя. Откройте приложение через Telegram.');
                 this.renderAlerts([]);
                 return;
             }
 
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts/?user_id=${chatId}`);
+            const response = await fetch(`${this.apiBaseUrl}/api/alerts/?user_id=${userId}`);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -444,9 +450,15 @@ class BookHunterApp {
      */
     async createAlert(bookData) {
         try {
-            const chatId = window.tg.getChatId();
+            // Пробуем получить user_id, если не получилось - используем query_id
+            let userId = window.tg.getChatId();
 
-            if (!chatId) {
+            if (!userId) {
+                console.warn('Chat ID не получен, пробуем query_id...');
+                userId = window.tg.getQueryId();
+            }
+
+            if (!userId) {
                 throw new Error('Не удалось получить ID пользователя. Убедитесь, что вы открыли приложение через Telegram.');
             }
 
@@ -456,7 +468,7 @@ class BookHunterApp {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    user_id: chatId,
+                    user_id: userId,
                     book_id: bookData.id,
                     book_title: bookData.title,
                     book_author: bookData.author,
