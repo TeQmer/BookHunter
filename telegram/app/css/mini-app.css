@@ -141,9 +141,9 @@ body {
 }
 
 .nav__item.active {
-    background: var(--accent-primary);
-    color: var(--text-light);
-    border-color: var(--accent-primary);
+    background: #8B4513;
+    color: #FFFFFF;
+    border-color: #8B4513;
 }
 
 .nav__item:active {
@@ -377,8 +377,8 @@ body {
 }
 
 .btn--search-books {
-    background: #FFFFFF;
-    color: #8B4513;
+    background: #8B4513;
+    color: #FFFFFF;
 }
 
 .btn--success {
@@ -782,5 +782,5 @@ html.theme-dark .stats__value,
 html.theme-dark .book-card__price,
 body[data-theme="dark"] .stats__value,
 body[data-theme="dark"] .book-card__price {
-    color: #DEB887;
+    color: #ffffff;
 }
