@@ -13,6 +13,8 @@ class BookHunterApp {
             alerts: [],
             stats: null
         };
+        this.recentBooksPage = 1; // Текущая страница недавних книг на главной
+        this.recentBooksTotal = 0; // Общее количество недавних книг
         this.init();
     }
 
@@ -83,9 +85,6 @@ class BookHunterApp {
             case 'books':
                 this.showBooksPage();
                 break;
-            case 'recent':
-                this.showRecentPage();
-                break;
             case 'alerts':
                 this.showAlertsPage();
                 break;
@@ -136,17 +135,14 @@ class BookHunterApp {
 
         // Скрываем страницы, которые имеют display: none по умолчанию
         const booksPage = document.getElementById('books-page');
-        const recentPage = document.getElementById('recent-page');
         const alertsPage = document.getElementById('alerts-page');
         const profilePage = document.getElementById('profile-page');
 
         console.log('[hideAllPages] booksPage:', booksPage);
-        console.log('[hideAllPages] recentPage:', recentPage);
         console.log('[hideAllPages] alertsPage:', alertsPage);
         console.log('[hideAllPages] profilePage:', profilePage);
 
         if (booksPage) booksPage.style.display = 'none';
-        if (recentPage) recentPage.style.display = 'none';
         if (alertsPage) alertsPage.style.display = 'none';
         if (profilePage) profilePage.style.display = 'none';
 
@@ -155,6 +151,7 @@ class BookHunterApp {
         const statsSection = mainContent.querySelector('.stats');
         const quickActionsSection = mainContent.querySelectorAll('.card')[1]; // Второй блок card
         const recentBooksSection = document.getElementById('recent-books-container');
+        const recentPagination = document.getElementById('recent-pagination');
         const statsHeader = mainContent.querySelectorAll('h3')[0]; // Статистика заголовок
         const quickActionsHeader = mainContent.querySelectorAll('h3')[1]; // Быстрые действия заголовок
         const recentBooksHeader = mainContent.querySelectorAll('h3')[2]; // Недавние книги заголовок
@@ -168,6 +165,7 @@ class BookHunterApp {
         if (statsSection) statsSection.style.display = 'none';
         if (quickActionsSection) quickActionsSection.style.display = 'none';
         if (recentBooksSection) recentBooksSection.style.display = 'none';
+        if (recentPagination) recentPagination.style.display = 'none';
         if (statsHeader) statsHeader.style.display = 'none';
         if (quickActionsHeader) quickActionsHeader.style.display = 'none';
         if (recentBooksHeader) recentBooksHeader.style.display = 'none';
@@ -186,6 +184,7 @@ class BookHunterApp {
         const statsSection = mainContent.querySelector('.stats');
         const quickActionsSection = mainContent.querySelectorAll('.card')[1]; // Второй блок card
         const recentBooksSection = document.getElementById('recent-books-container');
+        const recentPagination = document.getElementById('recent-pagination');
         const statsHeader = mainContent.querySelectorAll('h3')[0]; // Статистика заголовок
         const quickActionsHeader = mainContent.querySelectorAll('h3')[1]; // Быстрые действия заголовок
         const recentBooksHeader = mainContent.querySelectorAll('h3')[2]; // Недавние книги заголовок
@@ -194,6 +193,7 @@ class BookHunterApp {
         if (statsSection) statsSection.style.display = 'flex';
         if (quickActionsSection) quickActionsSection.style.display = 'block';
         if (recentBooksSection) recentBooksSection.style.display = 'block';
+        if (recentPagination) recentPagination.style.display = 'block';
         if (statsHeader) statsHeader.style.display = 'block';
         if (quickActionsHeader) quickActionsHeader.style.display = 'block';
         if (recentBooksHeader) recentBooksHeader.style.display = 'block';
@@ -309,9 +309,6 @@ class BookHunterApp {
                     this.renderBooks([]);
                 }
                 break;
-            case 'recent':
-                await this.loadRecentBooksFull(params.page || 1);
-                break;
             case 'alerts':
                 await this.loadAlerts();
                 break;
@@ -329,11 +326,14 @@ class BookHunterApp {
      */
     async loadInitialData() {
         try {
+            // Сбрасываем страницу недавних книг на 1
+            this.recentBooksPage = 1;
+
             // Загружаем статистику
             await this.loadStats();
 
             // Загружаем недавние книги
-            await this.loadRecentBooks();
+            await this.loadRecentBooks(1);
         } catch (error) {
             console.error('Ошибка загрузки начальных данных:', error);
             this.showError('Не удалось загрузить данные. Проверьте соединение.');
@@ -359,17 +359,25 @@ class BookHunterApp {
     }
 
     /**
-     * Загрузка недавних книг
+     * Загрузка недавних книг с пагинацией
      */
-    async loadRecentBooks() {
+    async loadRecentBooks(page = 1) {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/web/books/api/all?limit=5`);
+            const limit = 15; // 15 книг на странице
+            const offset = (page - 1) * limit;
+
+            const response = await fetch(`${this.apiBaseUrl}/web/books/api/all?limit=${limit}&offset=${offset}`);
             if (!response.ok) throw new Error('Ошибка загрузки книг');
 
             const data = await response.json();
             const books = data.books || [];
+            const total = data.total || 0;
+
+            this.recentBooksTotal = total;
+            this.recentBooksPage = page;
 
             const container = document.getElementById('recent-books-container');
+            const pagination = document.getElementById('recent-pagination');
 
             if (books.length === 0) {
                 container.innerHTML = `
@@ -379,6 +387,7 @@ class BookHunterApp {
                         <p class="empty__text">Начните поиск книг в каталоге</p>
                     </div>
                 `;
+                if (pagination) pagination.style.display = 'none';
             } else {
                 container.innerHTML = books.map(book => `
                     <div class="book-card" data-book-id="${book.id}" style="cursor: pointer;">
@@ -417,10 +426,25 @@ class BookHunterApp {
                         this.showBookDetails(bookId);
                     });
                 });
+
+                // Обновляем пагинацию
+                if (pagination) {
+                    const totalPages = Math.ceil(total / limit);
+                    const pageInfo = document.getElementById('recent-page-info');
+                    const prevBtn = document.getElementById('recent-prev-btn');
+                    const nextBtn = document.getElementById('recent-next-btn');
+
+                    if (pageInfo) pageInfo.textContent = `Страница ${page} из ${totalPages}`;
+                    if (prevBtn) prevBtn.disabled = page <= 1;
+                    if (nextBtn) nextBtn.disabled = page >= totalPages;
+
+                    pagination.style.display = 'block';
+                }
             }
         } catch (error) {
             console.error('Ошибка загрузки недавних книг:', error);
             const container = document.getElementById('recent-books-container');
+            const pagination = document.getElementById('recent-pagination');
             container.innerHTML = `
                 <div class="empty">
                     <div class="empty__icon"><i class="fas fa-exclamation-triangle"></i></div>
@@ -428,6 +452,7 @@ class BookHunterApp {
                     <p class="empty__text">Не удалось загрузить список книг</p>
                 </div>
             `;
+            if (pagination) pagination.style.display = 'none';
         }
     }
 
@@ -506,6 +531,25 @@ class BookHunterApp {
     async loadRecentBooksPage(direction) {
         console.log('[loadRecentBooksPage] Загрузка страницы:', direction);
 
+        // Получаем текущую страницу
+        let currentPage = this.recentBooksPage || 1;
+
+        if (direction === 'prev') {
+            currentPage = Math.max(1, currentPage - 1);
+        } else if (direction === 'next') {
+            currentPage = currentPage + 1;
+        }
+
+        // Загружаем новую страницу
+        await this.loadRecentBooks(currentPage);
+    }
+
+    /**
+     * Загрузка страницы недавних книг (для отдельной страницы)
+     */
+    async loadRecentBooksFullPage(direction) {
+        console.log('[loadRecentBooksFullPage] Загрузка страницы:', direction);
+
         // Получаем текущую страницу из URL
         const params = new URLSearchParams(window.location.search);
         let currentPage = parseInt(params.get('page')) || 1;
@@ -552,8 +596,17 @@ class BookHunterApp {
                     url += `&source=${params.source}`;
                 }
             } else {
-                // Если нет запроса, используем веб API для получения всех книг
+                // Если нет запроса, используем веб API для получения всех книг с фильтрацией
                 url = `${this.apiBaseUrl}/web/books/api/all`;
+                if (params.source) {
+                    url += `&source=${params.source}`;
+                }
+                if (params.discount) {
+                    url += `&min_discount=${params.discount}`;
+                }
+                if (params.price) {
+                    url += `&max_price=${params.price}`;
+                }
             }
 
             console.log('[loadBooks] URL запроса:', url);
@@ -878,10 +931,8 @@ class BookHunterApp {
 
         this.showLoading('Применение фильтров...');
 
-        // TODO: Добавить логику фильтрации на сервере
-        setTimeout(() => {
-            this.loadBooks({ query, source, discount, price });
-        }, 500);
+        // Загружаем книги с фильтрацией
+        await this.loadBooks({ query, source, discount, price });
     }
 
     /**

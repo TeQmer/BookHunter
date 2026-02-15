@@ -36,14 +36,9 @@
             </div>
         </div>
         <div class="nav__row">
-            <div class="nav__item" data-route="recent">
-                <i class="fas fa-clock"></i> Недавние
-            </div>
             <div class="nav__item" data-route="alerts">
                 <i class="fas fa-bell"></i> Подписки
             </div>
-        </div>
-        <div class="nav__row">
             <div class="nav__item" data-route="profile">
                 <i class="fas fa-user"></i> Профиль
             </div>
@@ -116,6 +111,21 @@
             <div class="empty">
                 <div class="empty__icon"><i class="fas fa-book"></i></div>
                 <h3 class="empty__title">Книги загружаются...</h3>
+            </div>
+        </div>
+
+        <!-- Pagination for Recent Books on Home Page -->
+        <div id="recent-pagination" style="display: none; margin-top: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                <button class="btn btn--secondary" id="recent-prev-btn" onclick="app.loadRecentBooksPage('prev')" style="flex: 1;" disabled>
+                    <i class="fas fa-chevron-left"></i> Назад
+                </button>
+                <span id="recent-page-info" style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 600;">
+                    Страница 1
+                </span>
+                <button class="btn btn--secondary" id="recent-next-btn" onclick="app.loadRecentBooksPage('next')" style="flex: 1;">
+                    Вперёд <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
         </div>
 

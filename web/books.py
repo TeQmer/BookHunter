@@ -292,10 +292,60 @@ async def book_detail(book_id: int, request: Request, db: AsyncSession = Depends
 # ========== НОВЫЕ API ENDPOINTS ДЛЯ УМНОГО ПОИСКА ==========
 
 @router.get("/api/all")
-async def get_all_books(db: AsyncSession = Depends(get_db)):
+async def get_all_books(
+    source: str = Query(None),
+    min_discount: str = Query(None),
+    max_price: str = Query(None),
+    limit: int = Query(None),
+    offset: int = Query(None),
+    db: AsyncSession = Depends(get_db)
+):
     """Получить все книги из базы данных для JavaScript фильтрации"""
     try:
-        query = select(Book).order_by(Book.current_price.asc())
+        # Преобразуем строковые параметры в числа, если они не пустые
+        min_discount_int = None
+        max_price_float = None
+
+        if min_discount and min_discount.strip():
+            try:
+                min_discount_int = int(min_discount.strip())
+                if not (0 <= min_discount_int <= 100):
+                    min_discount_int = None
+            except ValueError:
+                min_discount_int = None
+
+        if max_price and max_price.strip():
+            try:
+                max_price_float = float(max_price.strip())
+                if max_price_float <= 0:
+                    max_price_float = None
+            except ValueError:
+                max_price_float = None
+
+        # Базовый запрос
+        query = select(Book)
+
+        # Применяем фильтры
+        if source:
+            query = query.where(Book.source == source)
+
+        if min_discount_int is not None:
+            query = query.where(Book.discount_percent >= min_discount_int)
+
+        if max_price_float is not None:
+            query = query.where(Book.current_price <= max_price_float)
+
+        # Подсчет общего количества
+        count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+        total = count_result.scalar() or 0
+
+        # Пагинация
+        if offset is not None:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+
+        query = query.order_by(Book.parsed_at.desc())
         result = await db.execute(query)
         books = result.scalars().all()
         
@@ -304,12 +354,12 @@ async def get_all_books(db: AsyncSession = Depends(get_db)):
         for book in books:
             books_list.append(book.to_dict())
         
-        logger.info(f"Загружено {len(books_list)} книг для каталога")
-        
+        logger.info(f"Загружено {len(books_list)} книг для каталога (всего: {total})")
+
         return JSONResponse({
             "success": True,
             "books": books_list,
-            "total": len(books_list)
+            "total": total
         })
         
     except Exception as e:

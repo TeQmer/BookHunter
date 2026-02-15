@@ -64,6 +64,20 @@ git push origin main
 ```bash
 ssh пользователь@ip-адрес-сервера
 ```
+# 1. Проверить структуру папки
+ls -la /var/www/bookhunter/telegram/
+
+# 2. Скопировать файлы из telegram/app/ в /var/www/bookhunter/telegram/
+cp -r telegram/app/* /var/www/bookhunter/telegram/
+
+# 3. Проверить, что файлы скопировались
+ls -la /var/www/bookhunter/telegram/
+
+# 4. Перезагрузить nginx
+sudo nginx -s reload
+
+# 5. Проверить статус nginx
+sudo systemctl status nginx
 
 **Пример:**
 ```bash
