@@ -5,7 +5,7 @@
 
 class BookHunterApp {
     constructor() {
-        this.apiBaseUrl = window.location.origin;
+        this.apiBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : window.location.origin;
         this.currentRoute = 'home';
         this.user = null;
         this.data = {
@@ -128,6 +128,9 @@ class BookHunterApp {
         try {
             // Загружаем статистику
             await this.loadStats();
+
+            // Загружаем недавние книги
+            await this.loadRecentBooks();
         } catch (error) {
             console.error('Ошибка загрузки начальных данных:', error);
             this.showError('Не удалось загрузить данные. Проверьте соединение.');
@@ -149,6 +152,80 @@ class BookHunterApp {
         } catch (error) {
             console.error('Ошибка загрузки статистики:', error);
             this.showError('Не удалось загрузить статистику');
+        }
+    }
+
+    /**
+     * Загрузка недавних книг
+     */
+    async loadRecentBooks() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/web/books/api/all?limit=5`);
+            if (!response.ok) throw new Error('Ошибка загрузки книг');
+
+            const data = await response.json();
+            const books = data.books || [];
+
+            const container = document.getElementById('recent-books-container');
+
+            if (books.length === 0) {
+                container.innerHTML = `
+                    <div class="empty">
+                        <div class="empty__icon"><i class="fas fa-inbox"></i></div>
+                        <h3 class="empty__title">Нет книг</h3>
+                        <p class="empty__text">Начните поиск книг в каталоге</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = books.map(book => `
+                    <div class="book-card" data-book-id="${book.id}" style="cursor: pointer;">
+                        <div class="book-card__cover" style="width: 60px; height: 80px;">
+                            ${book.image_url
+                                ? `<img src="${book.image_url}" alt="${book.title}">`
+                                : `<div class="book-card__cover-placeholder"><i class="fas fa-book"></i></div>`
+                            }
+                        </div>
+                        <div class="book-card__info">
+                            <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">
+                                ${this.escapeHtml(book.title)}
+                            </h4>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
+                                ${this.escapeHtml(book.author || 'Неизвестный автор')}
+                            </div>
+                            <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent-primary);">
+                                ${book.current_price || 0} ₽
+                                ${(book.original_price || 0) > 0 && book.original_price > book.current_price
+                                    ? `<span style="font-size: 0.8rem; color: var(--text-secondary); text-decoration: line-through; margin-left: 8px;">${book.original_price} ₽</span>`
+                                    : ''
+                                }
+                                ${(book.discount_percent || 0) > 0
+                                    ? `<span style="font-size: 0.75rem; background: var(--danger); color: white; padding: 2px 6px; border-radius: 8px; margin-left: 8px;">-${book.discount_percent}%</span>`
+                                    : ''
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Добавляем обработчики кликов
+                container.querySelectorAll('.book-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const bookId = card.dataset.bookId;
+                        this.navigate('books');
+                        window.tg.hapticClick();
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки недавних книг:', error);
+            const container = document.getElementById('recent-books-container');
+            container.innerHTML = `
+                <div class="empty">
+                    <div class="empty__icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <h3 class="empty__title">Ошибка загрузки</h3>
+                    <p class="empty__text">Не удалось загрузить список книг</p>
+                </div>
+            `;
         }
     }
 
