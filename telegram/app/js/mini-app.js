@@ -939,6 +939,24 @@ class BookHunterApp {
         const discount = book.discount_percent || 0;
         const hasDiscount = discount > 0;
 
+        // Декодируем жанры если это JSON-массив
+        let genresDisplay = '';
+        if (book.genres) {
+            try {
+                if (book.genres.startsWith('[')) {
+                    // Это JSON-массив
+                    const genres = JSON.parse(book.genres);
+                    genresDisplay = genres.join(', ');
+                } else {
+                    // Это обычная строка
+                    genresDisplay = book.genres;
+                }
+            } catch (e) {
+                console.error('[renderBookDetail] Ошибка парсинга жанров:', e);
+                genresDisplay = book.genres;
+            }
+        }
+
         container.innerHTML = `
             <div style="display: flex; gap: 16px; flex-direction: column;">
                 <!-- Изображение книги -->
@@ -992,10 +1010,10 @@ class BookHunterApp {
                                 <span style="font-weight: 600;">${this.escapeHtml(book.isbn)}</span>
                             </div>
                         ` : ''}
-                        ${book.genres ? `
+                        ${genresDisplay ? `
                             <div style="display: flex; justify-content: space-between;">
                                 <span style="color: var(--text-secondary);">Жанры:</span>
-                                <span style="font-weight: 600;">${this.escapeHtml(book.genres)}</span>
+                                <span style="font-weight: 600; text-align: right; max-width: 60%;">${this.escapeHtml(genresDisplay)}</span>
                             </div>
                         ` : ''}
                     </div>
