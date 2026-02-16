@@ -373,10 +373,33 @@ async def get_all_books(
 @router.get("/api/search")
 async def search_books_api(
     q: str = Query(..., description="Поисковый запрос"),
+    source: str = Query(None, description="Фильтр по источнику"),
+    min_discount: str = Query(None, description="Минимальная скидка"),
+    max_price: str = Query(None, description="Максимальная цена"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Поиск книг по названию или автору"""
+    """Поиск книг по названию или автору с фильтрацией"""
     try:
+        # Преобразуем строковые параметры в числа, если они не пустые
+        min_discount_int = None
+        max_price_float = None
+
+        if min_discount and min_discount.strip():
+            try:
+                min_discount_int = int(min_discount.strip())
+                if not (0 <= min_discount_int <= 100):
+                    min_discount_int = None
+            except ValueError:
+                min_discount_int = None
+
+        if max_price and max_price.strip():
+            try:
+                max_price_float = float(max_price.strip())
+                if max_price_float <= 0:
+                    max_price_float = None
+            except ValueError:
+                max_price_float = None
+
         # Ищем в базе данных по названию ИЛИ автору
         # Улучшенный поиск: разбиваем запрос на слова и очищаем от пунктуации
         search_words = clean_search_words(q)
@@ -401,6 +424,16 @@ async def search_books_api(
         else:
             query = select(Book)
             
+        # Применяем фильтры
+        if source:
+            query = query.where(Book.source == source)
+
+        if min_discount_int is not None:
+            query = query.where(Book.discount_percent >= min_discount_int)
+
+        if max_price_float is not None:
+            query = query.where(Book.current_price <= max_price_float)
+
         query = query.order_by(Book.current_price.asc())
         
         result = await db.execute(query)
@@ -411,8 +444,8 @@ async def search_books_api(
         for book in books:
             books_list.append(book.to_dict())
         
-        logger.info(f"Поиск '{q}': найдено {len(books_list)} книг")
-        
+        logger.info(f"Поиск '{q}' (филтры: source={source}, min_discount={min_discount_int}, max_price={max_price_float}): найдено {len(books_list)} книг")
+
         return JSONResponse({
             "success": True,
             "query": q,

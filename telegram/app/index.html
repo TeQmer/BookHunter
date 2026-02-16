@@ -212,38 +212,6 @@
             </div>
         </div>
 
-        <!-- Recent Books Page (hidden by default) -->
-        <div id="recent-page" style="display: none;">
-            <div class="card">
-                <h4 class="card__header"><i class="fas fa-clock"></i> Недавние книги</h4>
-                <p style="color: var(--text-secondary); margin-bottom: 12px;">
-                    Последние добавленные книги в базу
-                </p>
-            </div>
-
-            <div id="recent-books-full-container">
-                <div class="loading">
-                    <div class="loading__spinner"></div>
-                    <div class="loading__text">Загрузка книг...</div>
-                </div>
-            </div>
-
-            <!-- Pagination -->
-            <div id="recent-pagination" style="display: none; margin-top: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                    <button class="btn btn--secondary" id="recent-prev-btn" onclick="app.loadRecentBooksPage('prev')" style="flex: 1;" disabled>
-                        <i class="fas fa-chevron-left"></i> Назад
-                    </button>
-                    <span id="recent-page-info" style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 600;">
-                        Страница 1
-                    </span>
-                    <button class="btn btn--secondary" id="recent-next-btn" onclick="app.loadRecentBooksPage('next')" style="flex: 1;">
-                        Вперёд <i class="fas fa-chevron-right"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
         <!-- Profile Page (hidden by default) -->
         <div id="profile-page" style="display: none;">
             <div class="card">

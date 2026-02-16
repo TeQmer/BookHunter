@@ -50,6 +50,18 @@
     --tg-theme-secondary-bg-color: var(--bg-secondary);
 }
 
+/* Telegram Light Theme Background - красивый книжный фон */
+html:not(.theme-dark):not([data-theme="dark"]) body,
+body:not(.theme-dark):not([data-theme="dark"]) {
+    background-image:
+        linear-gradient(135deg, rgba(93, 64, 55, 0.04) 0%, transparent 60%),
+        linear-gradient(45deg, rgba(139, 111, 71, 0.03) 0%, transparent 60%),
+        radial-gradient(circle at 10% 20%, rgba(212, 175, 55, 0.06) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(160, 120, 90, 0.06) 0%, transparent 40%);
+    background-attachment: fixed;
+    background-color: #EDE5D8;
+}
+
 /* Книжный фон для светлой темы */
 body {
     background-color: var(--bg-primary);
