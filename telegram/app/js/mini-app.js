@@ -283,15 +283,9 @@ class BookHunterApp {
                 await this.loadStats();
                 break;
             case 'books':
-                // Книги загружаются только при поиске или применении фильтров
-                // Если есть query - загружаем книги, иначе показываем пустое состояние
-                if (params.query) {
-                    console.log('[loadPageData] Загружаем книги с query:', params.query);
-                    await this.loadBooks(params);
-                } else {
-                    console.log('[loadPageData] Нет query, показываем пустое состояние');
-                    this.renderBooks([]);
-                }
+                // Всегда загружаем книги - все или с фильтрами/поиском
+                console.log('[loadPageData] Загружаем книги для страницы books');
+                await this.loadBooks(params);
                 break;
             case 'alerts':
                 await this.loadAlerts();
@@ -350,12 +344,16 @@ class BookHunterApp {
             const limit = 15; // 15 книг на странице
             const offset = (page - 1) * limit;
 
+            // Загружаем книги с сортировкой по цене по возрастанию
             const response = await fetch(`${this.apiBaseUrl}/web/books/api/all?limit=${limit}&offset=${offset}`);
             if (!response.ok) throw new Error('Ошибка загрузки книг');
 
             const data = await response.json();
             const books = data.books || [];
             const total = data.total || 0;
+
+            // Сортируем книги по цене по возрастанию
+            books.sort((a, b) => (a.current_price || 0) - (b.current_price || 0));
 
             this.recentBooksTotal = total;
             this.recentBooksPage = page;
@@ -423,6 +421,12 @@ class BookHunterApp {
                     if (nextBtn) nextBtn.disabled = page >= totalPages;
 
                     pagination.style.display = 'block';
+                }
+
+                // Прокручиваем к началу блока недавних книг
+                const recentHeader = document.querySelector('h3:has(i.fa-clock)');
+                if (recentHeader) {
+                    recentHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             }
         } catch (error) {
@@ -497,16 +501,20 @@ class BookHunterApp {
                     url += `&max_price=${params.price}`;
                 }
             } else {
-                // Если нет запроса, используем веб API для получения всех книг с фильтрацией
+                // Если нет запроса, загружаем все книги с сортировкой по цене
                 url = `${this.apiBaseUrl}/web/books/api/all`;
+                const queryParams = [];
                 if (params.source) {
-                    url += `&source=${params.source}`;
+                    queryParams.push(`source=${params.source}`);
                 }
                 if (params.discount) {
-                    url += `&min_discount=${params.discount}`;
+                    queryParams.push(`min_discount=${params.discount}`);
                 }
                 if (params.price) {
-                    url += `&max_price=${params.price}`;
+                    queryParams.push(`max_price=${params.price}`);
+                }
+                if (queryParams.length > 0) {
+                    url += `?${queryParams.join('&')}`;
                 }
             }
 
@@ -661,8 +669,11 @@ class BookHunterApp {
             return;
         }
 
-        console.log('[renderBooks] Рендеринг', books.length, 'книг');
-        container.innerHTML = books.map(book => this.createBookCard(book)).join('');
+        // Сортируем книги по цене по возрастанию
+        const sortedBooks = [...books].sort((a, b) => (a.current_price || 0) - (b.current_price || 0));
+
+        console.log('[renderBooks] Рендеринг', sortedBooks.length, 'книг');
+        container.innerHTML = sortedBooks.map(book => this.createBookCard(book)).join('');
         console.log('[renderBooks] HTML обновлен');
 
         // Добавляем обработчики событий
