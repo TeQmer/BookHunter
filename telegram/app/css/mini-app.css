@@ -70,20 +70,6 @@ body {
         linear-gradient(45deg, rgba(139, 111, 71, 0.02) 0%, transparent 50%),
         radial-gradient(circle at 20% 30%, rgba(212, 175, 55, 0.05) 0%, transparent 30%),
         radial-gradient(circle at 80% 70%, rgba(160, 120, 90, 0.05) 0%, transparent 30%);
-    background-attachment: fixed;
-}
-
-/* Книжный фон для контейнера (работает в обеих темах) */
-.container {
-    max-width: 100%;
-    padding: 0 16px;
-    margin: 0 auto;
-    background-image:
-        linear-gradient(135deg, rgba(93, 64, 55, 0.04) 0%, transparent 60%),
-        linear-gradient(45deg, rgba(139, 111, 71, 0.03) 0%, transparent 60%),
-        radial-gradient(circle at 10% 20%, rgba(212, 175, 55, 0.06) 0%, transparent 40%),
-        radial-gradient(circle at 90% 80%, rgba(160, 120, 90, 0.06) 0%, transparent 40%);
-    background-attachment: fixed;
 }
 
 /* Reset & Base */
@@ -788,15 +774,6 @@ body {
         --border-light: #3E3428;
         --gradient-card: linear-gradient(145deg, #362C21 0%, #2C241B 100%);
     }
-
-    /* Фон для контейнера в тёмной теме */
-    .container {
-        background-image:
-            linear-gradient(135deg, rgba(239, 235, 233, 0.03) 0%, transparent 60%),
-            linear-gradient(45deg, rgba(215, 204, 200, 0.02) 0%, transparent 60%),
-            radial-gradient(circle at 10% 20%, rgba(212, 175, 55, 0.04) 0%, transparent 40%),
-            radial-gradient(circle at 90% 80%, rgba(160, 120, 90, 0.04) 0%, transparent 40%);
-    }
 }
 
 /* Адаптация под Telegram WebApp Theme */
@@ -815,16 +792,6 @@ body[data-theme="dark"] {
     --shadow-light: rgba(0, 0, 0, 0.15);
     --shadow-medium: rgba(0, 0, 0, 0.2);
     --shadow-strong: rgba(0, 0, 0, 0.3);
-}
-
-/* Фон для контейнера в тёмной теме (Telegram Theme) */
-html.theme-dark .container,
-body[data-theme="dark"] .container {
-    background-image:
-        linear-gradient(135deg, rgba(239, 235, 233, 0.03) 0%, transparent 60%),
-        linear-gradient(45deg, rgba(215, 204, 200, 0.02) 0%, transparent 60%),
-        radial-gradient(circle at 10% 20%, rgba(212, 175, 55, 0.04) 0%, transparent 40%),
-        radial-gradient(circle at 90% 80%, rgba(160, 120, 90, 0.04) 0%, transparent 40%);
 }
 
 /* Исправление цвета текста в формах для темной темы */
