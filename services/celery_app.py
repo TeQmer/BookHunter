@@ -68,9 +68,9 @@ def setup_celery() -> Celery:
                 'schedule': 10800.0,  # 3 часа в секундах
             },
         },
-        CELERY_BEAT_SCHEDULER='celery.beat.PersistentScheduler',
-        CELERY_BEAT_SCHEDULE_FILENAME=os.getenv('CELERY_BEAT_SCHEDULE_FILENAME', '/tmp/celerybeat-schedule'),
-        
+        # Используем встроенный scheduler вместо PersistentScheduler для избежания проблем с файлами
+        CELERY_BEAT_SCHEDULER='celery.beat.Scheduler',
+
         # Отключаем проблемные настройки
         CELERY_TASK_SEND_SENT_EVENT=False,
         CELERY_TASK_TRACK_STARTED=False,
