@@ -69,6 +69,7 @@ def setup_celery() -> Celery:
             },
         },
         CELERY_BEAT_SCHEDULER='celery.beat.PersistentScheduler',
+        CELERY_BEAT_SCHEDULE_FILENAME=os.getenv('CELERY_BEAT_SCHEDULE_FILENAME', '/tmp/celerybeat-schedule'),
         
         # Отключаем проблемные настройки
         CELERY_TASK_SEND_SENT_EVENT=False,
