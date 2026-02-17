@@ -162,6 +162,7 @@ services:
       - GOOGLE_CREDENTIALS_CLIENT_CERT_URL=${GOOGLE_CREDENTIALS_CLIENT_CERT_URL}
       - SECRET_KEY=${SECRET_KEY}
       - LOG_LEVEL=INFO
+      - CELERY_BEAT_SCHEDULE_FILENAME=/tmp/celerybeat-schedule
     volumes:
       - ./:/app
     networks:
