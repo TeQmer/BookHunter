@@ -6,11 +6,13 @@
 - Обновление токена при истечении
 - Проверку валидности токена
 - Триггер Celery задач для обновления
+- Отправка уведомлений в Telegram
 """
 
 import os
 import re
 import logging
+import requests
 from typing import Optional, Dict
 from dotenv import load_dotenv
 
@@ -207,6 +209,56 @@ class TokenManager:
         if self._redis_client:
             self._redis_client.close()
             self._redis_client = None
+
+    def send_token_notification(self, status: str, message: str, details: str = None):
+        """
+        Отправка уведомления о статусе токена в Telegram
+
+        Args:
+            status: Статус (success, error, warning)
+            message: Сообщение
+            details: Дополнительные детали (опционально)
+        """
+        try:
+            bot_token = os.getenv("TELEGRAM_NOTIFICATION_BOT_TOKEN")
+            chat_id = os.getenv("TELEGRAM_NOTIFICATION_CHAT_ID")
+
+            if not bot_token or not chat_id:
+                logger.warning("Не настроены переменные для Telegram уведомлений")
+                return
+
+            # Формируем сообщение
+            emoji_map = {
+                "success": "✅",
+                "error": "❌",
+                "warning": "⚠️",
+                "info": "ℹ️"
+            }
+
+            emoji = emoji_map.get(status, "📢")
+            telegram_message = f"{emoji} <b>Уведомление о токене Читай-город</b>\n\n"
+            telegram_message += f"{message}\n"
+
+            if details:
+                telegram_message += f"\n<code>{details}</code>"
+
+            # Отправляем сообщение
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            data = {
+                "chat_id": chat_id,
+                "text": telegram_message,
+                "parse_mode": "HTML"
+            }
+
+            response = requests.post(url, json=data, timeout=10)
+
+            if response.status_code == 200:
+                logger.info(f"Уведомление отправлено в Telegram: {status}")
+            else:
+                logger.error(f"Ошибка отправки уведомления: {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"Ошибка отправки уведомления в Telegram: {e}")
 
 
 # Глобальный экземпляр для использования в приложении

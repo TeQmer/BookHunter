@@ -1007,6 +1007,19 @@ async def _update_chitai_gorod_token_async():
                 cookie_name = cookie.get("name", "").lower()
                 if "token" in cookie_name or "bearer" in cookie_name:
                     celery_logger.info(f"Найден потенциальный токен: {cookie.get('name')} = {cookie.get('value')[:50]}...")
+
+            # Отправляем уведомление об ошибке
+            try:
+                from services.token_manager import get_token_manager
+                token_manager = get_token_manager()
+                token_manager.send_token_notification(
+                    "error",
+                    "❌ Токен не найден в cookies при обновлении через FlareSolverr",
+                    "FlareSolverr вернул cookies, но access-token не найден"
+                )
+            except Exception as notify_error:
+                celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
+
             return {"status": "error", "message": "Token not found in cookies"}
 
         celery_logger.info(f"Токен извлечен: {token[:20]}...")
@@ -1048,6 +1061,19 @@ async def _update_chitai_gorod_token_async():
 
         elif check_response.status_code == 401:
             celery_logger.error("Токен недействителен (401)")
+
+            # Отправляем уведомление об ошибке
+            try:
+                from services.token_manager import get_token_manager
+                token_manager = get_token_manager()
+                token_manager.send_token_notification(
+                    "error",
+                    "❌ Токен недействителен (401)",
+                    f"Токен: {token[:30]}...\nAPI вернул ошибку авторизации"
+                )
+            except Exception as notify_error:
+                celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
+
             return {"status": "error", "message": "Token is invalid (401)"}
 
         elif check_response.status_code == 403:
@@ -1095,6 +1121,19 @@ async def _update_chitai_gorod_token_async():
                 celery_logger.error(f"Ответ API: {error_data}")
             except:
                 celery_logger.error(f"Текст ответа: {check_response.text[:500]}")
+
+            # Отправляем уведомление об ошибке
+            try:
+                from services.token_manager import get_token_manager
+                token_manager = get_token_manager()
+                token_manager.send_token_notification(
+                    "error",
+                    f"❌ Неожиданный статус при проверке токена: {check_response.status_code}",
+                    f"Токен: {token[:30]}...\nAPI вернул неожиданный статус"
+                )
+            except Exception as notify_error:
+                celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
+
             return {"status": "error", "message": f"Unexpected status: {check_response.status_code}"}
 
         # Если запрос был успешным, сохраняем токен
@@ -1163,6 +1202,18 @@ async def _update_chitai_gorod_token_async():
             except Exception as env_error:
                 celery_logger.error(f"Ошибка обновления .env: {env_error}")
 
+            # Отправляем уведомление об успешном обновлении
+            try:
+                from services.token_manager import get_token_manager
+                token_manager = get_token_manager()
+                token_manager.send_token_notification(
+                    "success",
+                    "✅ Токен Читай-города успешно обновлён",
+                    f"Токен: {token[:30]}...\nСохранён в Redis на 24 часа"
+                )
+            except Exception as notify_error:
+                celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
+
             return {
                 "status": "success",
                 "message": "Token updated successfully",
@@ -1171,8 +1222,34 @@ async def _update_chitai_gorod_token_async():
 
     except requests.Timeout:
         celery_logger.error("Таймаут при запросе к FlareSolverr")
+
+        # Отправляем уведомление об ошибке
+        try:
+            from services.token_manager import get_token_manager
+            token_manager = get_token_manager()
+            token_manager.send_token_notification(
+                "error",
+                "❌ Таймаут при запросе к FlareSolverr",
+                "FlareSolverr не ответил вовремя (таймаут 90 сек)"
+            )
+        except Exception as notify_error:
+            celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
+
         return {"status": "error", "message": "FlareSolverr timeout"}
     except Exception as e:
         celery_logger.error(f"Ошибка при обновлении токена: {e}")
+
+        # Отправляем уведомление об ошибке
+        try:
+            from services.token_manager import get_token_manager
+            token_manager = get_token_manager()
+            token_manager.send_token_notification(
+                "error",
+                "❌ Ошибка при обновлении токена",
+                f"Ошибка: {str(e)}"
+            )
+        except Exception as notify_error:
+            celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
+
         return {"status": "error", "message": str(e)}
 
