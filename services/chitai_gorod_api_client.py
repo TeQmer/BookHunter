@@ -118,12 +118,16 @@ class ChitaiGorodAPIClient:
 
         logger.info(f"[ChitaiGorodAPI] Инициализирован: {self.api_url}, city_id={self.city_id}")
     
-    def _get_headers(self) -> Dict[str, str]:
-        """Получение заголовков запроса с реалистичным User-Agent"""
-        return {
+    def _get_headers(self, include_auth: bool = False) -> Dict[str, str]:
+        """
+        Получение заголовков запроса с реалистичным User-Agent
+
+        Args:
+            include_auth: Включать ли заголовок Authorization (False для FlareSolverr, True для прямых запросов)
+        """
+        headers = {
             "accept": "*/*",
             "accept-language": "ru,en;q=0.9",
-            "authorization": self.bearer_token,
             "initial-feature": "index",
             "platform": "desktop",
             "shop-brand": "chitaiGorod",
@@ -136,6 +140,13 @@ class ChitaiGorodAPIClient:
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "same-site",
         }
+
+        # Добавляем Authorization только если явно запрошено
+        # FlareSolverr не передаёт этот заголовок корректно, поэтому полагаемся на cookies
+        if include_auth:
+            headers["authorization"] = self.bearer_token
+
+        return headers
     
     async def _random_delay(self):
         """Случайная задержка между запросами"""
@@ -164,8 +175,10 @@ class ChitaiGorodAPIClient:
         import requests
         from urllib.parse import urlencode
 
-        headers = self._get_headers()
-        
+        # Не включаем Authorization в заголовки для FlareSolverr
+        # Токен уже есть в cookies (access-token)
+        headers = self._get_headers(include_auth=False)
+
         # Получаем cookies из Redis
         cookies_dict = None
         try:
@@ -301,7 +314,18 @@ class ChitaiGorodAPIClient:
 
                         # Повторяем запрос с новым токеном
                         logger.info("[ChitaiGorodAPI] Повторяем запрос с новым токеном...")
-                        headers = self._get_headers()  # Обновляем заголовки
+                        headers = self._get_headers(include_auth=False)  # Обновляем заголовки (без Authorization)
+
+                        # Обновляем cookies
+                        try:
+                            from services.token_manager import get_token_manager
+                            token_manager = get_token_manager()
+                            cookies_dict = token_manager.get_chitai_gorod_cookies()
+                            if cookies_dict:
+                                logger.debug(f"[ChitaiGorodAPI] Обновили cookies: {len(cookies_dict)} cookies")
+                        except Exception as e:
+                            logger.warning(f"[ChitaiGorodAPI] Не удалось обновить cookies: {e}")
+
                         continue  # Повторяем попытку
 
                     return None
