@@ -4,11 +4,13 @@
 API для работы с пользователями
 """
 
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from typing import Optional
+from pydantic import BaseModel
 
 from database.config import get_db, get_sync_db
 from models.user import User
@@ -16,7 +18,60 @@ from api.request_limits import RequestLimitChecker
 
 router = APIRouter()
 
+
+class CreateUserRequest(BaseModel):
+    """Модель запроса для создания пользователя"""
+    telegram_id: int
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+
 __all__ = ["router"]
+
+
+@router.post("/create")
+async def create_user(
+    user_data: CreateUserRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Создание нового пользователя"""
+    try:
+        # Проверяем, существует ли пользователь
+        result = await db.execute(select(User).filter(User.telegram_id == user_data.telegram_id))
+        existing_user = result.scalar_one_or_none()
+        
+        if existing_user:
+            return {
+                "success": True,
+                "message": "Пользователь уже существует",
+                "user": existing_user.to_dict()
+            }
+        
+        # Создаем нового пользователя
+        new_user = User(
+            telegram_id=user_data.telegram_id,
+            username=user_data.username,
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            is_active=True,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
+        
+        return {
+            "success": True,
+            "message": "Пользователь создан",
+            "user": new_user.to_dict()
+        }
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка создания пользователя: {str(e)}")
 
 
 @router.get("/stats")

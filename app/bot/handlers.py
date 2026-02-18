@@ -5,6 +5,7 @@
 import logging
 import os
 from typing import Dict, Any
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
 
@@ -14,11 +15,48 @@ logger = logging.getLogger(__name__)
 MINI_APP_URL = os.getenv("MINI_APP_URL", "http://localhost:8000/telegram")
 
 
+async def ensure_user_exists(telegram_id: int, username: str, first_name: str, last_name: str) -> None:
+    """Создает пользователя, если его нет в базе данных"""
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            # Проверяем, существует ли пользователь
+            response = await client.get(f"http://localhost:8000/api/users/info?telegram_id={telegram_id}")
+            
+            if response.status_code == 404:
+                # Пользователь не существует, создаем его
+                create_response = await client.post(
+                    "http://localhost:8000/api/users/create",
+                    json={
+                        "telegram_id": telegram_id,
+                        "username": username,
+                        "first_name": first_name,
+                        "last_name": last_name
+                    }
+                )
+                if create_response.status_code == 200:
+                    logger.info(f"Пользователь {telegram_id} создан")
+                else:
+                    logger.error(f"Ошибка создания пользователя {telegram_id}: {create_response.text}")
+            elif response.status_code == 200:
+                logger.info(f"Пользователь {telegram_id} уже существует")
+    except Exception as e:
+        logger.error(f"Ошибка при проверке/создании пользователя {telegram_id}: {e}")
+
+
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /start"""
     chat_id = update.effective_chat.id
     user = update.effective_user
     
+    # Создаем пользователя, если его нет
+    await ensure_user_exists(
+        telegram_id=user.id,
+        username=user.username or "",
+        first_name=user.first_name or "",
+        last_name=user.last_name or ""
+    )
+
     # Создаем клавиатуру с кнопкой Mini App
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📚 Открыть приложение", web_app=WebAppInfo(url=MINI_APP_URL))],
@@ -47,7 +85,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 2. Я буду отслеживать скидки в магазинах
 3. При появлении подходящих предложений вы получите уведомление
 
-<i>Время регистрации:</i> {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+<i>Время регистрации:</i> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     """.strip()
     
     await update.message.reply_text(welcome_text, parse_mode='HTML', reply_markup=keyboard)
