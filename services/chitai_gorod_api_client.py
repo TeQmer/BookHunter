@@ -12,7 +12,7 @@ import os
 import time
 import random
 import asyncio
-import aiohttp
+import json
 from typing import List, Dict, Optional
 from datetime import datetime
 import logging
@@ -90,6 +90,9 @@ class ChitaiGorodAPIClient:
         self.user_id = user_id or os.getenv("CHITAI_GOROD_USER_ID")
         self.city_id = city_id or int(os.getenv("CHITAI_GOROD_CITY_ID", "39"))
 
+        # FlareSolverr URL
+        self.flaresolverr_url = os.getenv("FLARESOLVERR_URL", "http://flaresolverr:8191/v1")
+
         # Настройки rate limiting
         self.delay_min = delay_min
         self.delay_max = delay_max
@@ -147,8 +150,8 @@ class ChitaiGorodAPIClient:
         method: str = "GET"
     ) -> Optional[Dict]:
         """
-        Выполнение HTTP запроса с retry mechanism
-        
+        Выполнение HTTP запроса через FlareSolverr с retry mechanism
+
         Args:
             url: URL для запроса
             params: Параметры запроса
@@ -157,16 +160,20 @@ class ChitaiGorodAPIClient:
         Returns:
             JSON ответ или None при ошибке
         """
+        # Импортируем requests для синхронных запросов к FlareSolverr
+        import requests
+        from urllib.parse import urlencode
+
         headers = self._get_headers()
         
         # Получаем cookies из Redis
-        cookies = None
+        cookies_dict = None
         try:
             from services.token_manager import get_token_manager
             token_manager = get_token_manager()
-            cookies = token_manager.get_chitai_gorod_cookies()
-            if cookies:
-                logger.debug(f"[ChitaiGorodAPI] Используем {len(cookies)} cookies из Redis")
+            cookies_dict = token_manager.get_chitai_gorod_cookies()
+            if cookies_dict:
+                logger.debug(f"[ChitaiGorodAPI] Используем {len(cookies_dict)} cookies из Redis")
         except Exception as e:
             logger.warning(f"[ChitaiGorodAPI] Не удалось получить cookies: {e}")
 
@@ -177,86 +184,141 @@ class ChitaiGorodAPIClient:
 
                 # Логируем запрос
                 self.request_count += 1
-                logger.info(f"[ChitaiGorodAPI] Запрос #{self.request_count}: {method} {url}")
+                logger.info(f"[ChitaiGorodAPI] Запрос #{self.request_count} через FlareSolverr: {method} {url}")
                 if params:
                     logger.debug(f"[ChitaiGorodAPI] Параметры: {params}")
 
-                # Выполняем запрос
-                async with aiohttp.ClientSession(
-                    timeout=aiohttp.ClientTimeout(total=self.timeout)
-                ) as session:
-                    async with session.request(
-                        method,
-                        url,
-                        params={k: v for k, v in (params or {}).items() if v is not None},
-                        headers=headers,
-                        cookies=cookies  # Добавляем cookies
-                    ) as response:
-                        self.last_request_time = datetime.now()
+                # Формируем полный URL с параметрами
+                full_url = url
+                if params:
+                    query_string = urlencode({k: v for k, v in params.items() if v is not None})
+                    full_url = f"{url}?{query_string}"
 
-                        # Обрабатываем ответ
-                        if response.status == 200:
-                            self.success_count += 1
-                            data = await response.json()
-                            logger.info(f"[ChitaiGorodAPI] Успех: {response.status}")
-                            return data
+                # Формируем запрос к FlareSolverr
+                flaresolverr_request = {
+                    "cmd": "request.get",
+                    "url": full_url,
+                    "maxTimeout": self.timeout * 1000,  # Конвертируем в миллисекунды
+                    "disableMedia": True  # Отключаем загрузку изображений
+                }
 
-                        elif response.status == 401:
-                            self.error_count += 1
-                            logger.error(f"[ChitaiGorodAPI] Ошибка авторизации (401)! Токен недействителен.")
+                # Добавляем заголовки
+                flaresolverr_request["headers"] = headers
 
-                            # Триггерим обновление токена (только один раз)
-                            if not self._token_update_triggered:
-                                logger.info("[ChitaiGorodAPI] Триггер обновления токена...")
-                                await self._handle_token_expired()
-                                self._token_update_triggered = True
+                # Добавляем cookies если есть
+                if cookies_dict:
+                    # Конвертируем словарь cookies в формат FlareSolverr
+                    flaresolverr_cookies = []
+                    for name, value in cookies_dict.items():
+                        flaresolverr_cookies.append({
+                            "name": name,
+                            "value": value,
+                            "domain": ".chitai-gorod.ru"
+                        })
+                    flaresolverr_request["cookies"] = flaresolverr_cookies
 
-                                # Ждем обновления токена (до 60 секунд)
-                                await self._wait_for_token_update()
+                # Выполняем запрос через FlareSolverr
+                response = requests.post(
+                    self.flaresolverr_url,
+                    json=flaresolverr_request,
+                    timeout=self.timeout + 10
+                )
 
-                                # Обновляем токен и cookies в текущем экземпляре
-                                await self._refresh_token()
-                                await self._refresh_cookies()
+                if response.status_code != 200:
+                    logger.error(f"[ChitaiGorodAPI] FlareSolverr вернул ошибку: {response.status_code}")
+                    if attempt < self.max_retries - 1:
+                        await asyncio.sleep(2 ** attempt)
+                    continue
 
-                                # Повторяем запрос с новым токеном
-                                logger.info("[ChitaiGorodAPI] Повторяем запрос с новым токеном...")
-                                headers = self._get_headers()  # Обновляем заголовки
-                                continue  # Повторяем попытку
+                data = response.json()
 
-                            return None
+                if data.get("status") != "ok":
+                    logger.error(f"[ChitaiGorodAPI] FlareSolverr вернул неуспешный статус: {data}")
+                    if attempt < self.max_retries - 1:
+                        await asyncio.sleep(2 ** attempt)
+                    continue
 
-                        elif response.status == 429:
-                            self.error_count += 1
-                            retry_after = int(response.headers.get('Retry-After', 10))
-                            logger.warning(
-                                f"[ChitaiGorodAPI] Rate limit (429). "
-                                f"Ждем {retry_after} сек перед попыткой {attempt + 1}/{self.max_retries}"
-                            )
-                            await asyncio.sleep(retry_after)
-                            continue
+                solution = data.get("solution", {})
+                solution_status = solution.get("status", 0)
+                solution_response = solution.get("response", {})
 
+                self.last_request_time = datetime.now()
+
+                # Обрабатываем статус ответа
+                if solution_status == 200:
+                    self.success_count += 1
+
+                    # Получаем данные из ответа
+                    try:
+                        # FlareSolverr возвращает текст ответа, парсим JSON
+                        response_text = solution_response.get("text", "")
+                        if not response_text:
+                            # Иногда данные в другом формате
+                            response_data = solution_response
                         else:
-                            self.error_count += 1
-                            error_text = await response.text()
-                            logger.error(
-                                f"[ChitaiGorodAPI] HTTP {response.status}: {error_text[:200]}"
-                            )
-                            return None
+                            response_data = json.loads(response_text)
 
-            except asyncio.TimeoutError:
+                        logger.info(f"[ChitaiGorodAPI] Успех: {solution_status}")
+                        return response_data
+                    except json.JSONDecodeError as e:
+                        logger.error(f"[ChitaiGorodAPI] Ошибка парсинга JSON: {e}")
+                        logger.debug(f"[ChitaiGorodAPI] Текст ответа: {solution_response.get('text', '')[:500]}")
+                        return None
+
+                elif solution_status == 401:
+                    self.error_count += 1
+                    logger.error(f"[ChitaiGorodAPI] Ошибка авторизации (401)! Токен недействителен.")
+
+                    # Триггерим обновление токена (только один раз)
+                    if not self._token_update_triggered:
+                        logger.info("[ChitaiGorodAPI] Триггер обновления токена...")
+                        await self._handle_token_expired()
+                        self._token_update_triggered = True
+
+                        # Ждем обновления токена (до 60 секунд)
+                        await self._wait_for_token_update()
+
+                        # Обновляем токен и cookies в текущем экземпляре
+                        await self._refresh_token()
+                        await self._refresh_cookies()
+
+                        # Повторяем запрос с новым токеном
+                        logger.info("[ChitaiGorodAPI] Повторяем запрос с новым токеном...")
+                        headers = self._get_headers()  # Обновляем заголовки
+                        continue  # Повторяем попытку
+
+                    return None
+
+                elif solution_status == 429:
+                    self.error_count += 1
+                    retry_after = 10  # Дефолтное значение
+                    logger.warning(
+                        f"[ChitaiGorodAPI] Rate limit (429). "
+                        f"Ждем {retry_after} сек перед попыткой {attempt + 1}/{self.max_retries}"
+                    )
+                    await asyncio.sleep(retry_after)
+                    continue
+
+                else:
+                    self.error_count += 1
+                    logger.error(
+                        f"[ChitaiGorodAPI] HTTP {solution_status}: {solution_response.get('text', '')[:200]}"
+                    )
+                    return None
+
+            except requests.Timeout:
                 self.error_count += 1
                 logger.warning(
                     f"[ChitaiGorodAPI] Timeout (попытка {attempt + 1}/{self.max_retries})"
                 )
 
-                # Экспоненциальная задержка
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
 
-            except aiohttp.ClientError as e:
+            except requests.RequestException as e:
                 self.error_count += 1
                 logger.error(
-                    f"[ChitaiGorodAPI] Ошибка соединения: {e} (попытка {attempt + 1}/{self.max_retries})"
+                    f"[ChitaiGorodAPI] Ошибка соединения с FlareSolverr: {e} (попытка {attempt + 1}/{self.max_retries})"
                 )
 
                 if attempt < self.max_retries - 1:
