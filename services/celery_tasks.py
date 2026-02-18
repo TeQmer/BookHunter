@@ -892,3 +892,199 @@ async def _update_popular_books_async():
             celery_logger.error(f"Ошибка обновления популярных книг: {e}")
             return 0
 
+
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 300})
+def update_chitai_gorod_token(self):
+    """Обновление токена авторизации Читай-города через FlareSolverr
+
+    Эта задача:
+    1. Запрашивает страницу Читай-города через FlareSolverr
+    2. Извлекает токен из cookies
+    3. Сохраняет токен в Redis
+    4. Проверяет работоспособность токена
+
+    Запускается:
+    - По расписанию (каждые 3 часа)
+    - При обнаружении 401 ошибки в парсере
+    """
+    import requests
+    import re
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    def run_async_task():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(_update_chitai_gorod_token_async())
+        finally:
+            loop.close()
+
+    try:
+        celery_logger.info("Начинаем обновление токена Читай-города через FlareSolverr")
+        result = run_async_task()
+        celery_logger.info(f"Обновление токена завершено: {result}")
+        return result
+    except Exception as e:
+        celery_logger.error(f"Ошибка при обновлении токена Читай-города: {e}")
+        raise self.retry(countdown=600, exc=e)
+
+
+async def _update_chitai_gorod_token_async():
+    """Асинхронное обновление токена Читай-города"""
+
+    import requests
+    import re
+    import json
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    try:
+        # Получаем URL FlareSolverr из переменных окружения
+        flaresolverr_url = os.getenv("FLARESOLVERR_URL", "http://flaresolverr:8191/v1")
+        celery_logger.info(f"Используем FlareSolverr: {flaresolverr_url}")
+
+        # Формируем запрос к FlareSolverr
+        flaresolverr_request = {
+            "cmd": "request.get",
+            "url": "https://www.chitai-gorod.ru",
+            "maxTimeout": 60000,  # 60 секунд
+            "disableMedia": True  # Отключаем загрузку изображений и медиа
+        }
+
+        celery_logger.info("Отправляем запрос к FlareSolverr...")
+        response = requests.post(
+            flaresolverr_url,
+            json=flaresolverr_request,
+            timeout=90  # Увеличиваем таймаут
+        )
+
+        if response.status_code != 200:
+            celery_logger.error(f"FlareSolverr вернул ошибку: {response.status_code}")
+            return {"status": "error", "message": f"FlareSolverr error: {response.status_code}"}
+
+        data = response.json()
+
+        if data.get("status") != "ok":
+            celery_logger.error(f"FlareSolverr вернул неуспешный статус: {data}")
+            return {"status": "error", "message": f"FlareSolverr status: {data.get('status')}"}
+
+        # Извлекаем токен из cookies
+        solution = data.get("solution", {})
+        cookies = solution.get("cookies", [])
+
+        token = None
+        for cookie in cookies:
+            if cookie.get("name") == "bearer_token":
+                token = cookie.get("value")
+                break
+
+        if not token:
+            celery_logger.error("Токен не найден в cookies")
+            return {"status": "error", "message": "Token not found in cookies"}
+
+        celery_logger.info(f"Токен извлечен: {token[:20]}...")
+
+        # Проверяем работоспособность токена
+        celery_logger.info("Проверяем работоспособность токена...")
+
+        user_id = os.getenv("CHITAI_GOROD_USER_ID")
+        if not user_id:
+            celery_logger.warning("CHITAI_GOROD_USER_ID не задан, используем дефолтный")
+            user_id = "00000000-0000-0000-0000-000000000000"
+
+        api_url = "https://web-agr.chitai-gorod.ru/web/api/v2/search/product"
+        headers = {
+            "accept": "*/*",
+            "accept-language": "ru,en;q=0.9",
+            "authorization": f"Bearer {token}",
+            "initial-feature": "index",
+            "platform": "desktop",
+            "shop-brand": "chitaiGorod",
+            "user-id": user_id,
+        }
+        params = {
+            "customerCityId": "39",
+            "products[page]": "1",
+            "products[per-page]": "1",
+            "phrase": "python"
+        }
+
+        check_response = requests.get(api_url, headers=headers, params=params, timeout=30)
+
+        if check_response.status_code == 401:
+            celery_logger.error("Токен недействителен (401)")
+            return {"status": "error", "message": "Token is invalid (401)"}
+
+        elif check_response.status_code == 200:
+            celery_logger.info("Токен работает корректно!")
+
+            # Сохраняем токен в Redis
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            redis_password = os.getenv("REDIS_PASSWORD")
+
+            if redis_url and redis_password:
+                # Формируем URL с паролем
+                import re
+                redis_pattern = r'redis://:(?P<password>[^@]+)@(?P<host>[^:]+):(?P<port>\d+)/\d+'
+                match = re.match(redis_pattern, redis_url)
+                if not match:
+                    # Формируем правильный URL
+                    host = redis_url.split("://")[1].split(":")[0]
+                    port = redis_url.split(":")[-1].split("/")[0]
+                    redis_url = f"redis://:{redis_password}@{host}:{port}/0"
+
+                try:
+                    import redis
+                    redis_client = redis.from_url(redis_url, decode_responses=True)
+                    redis_client.setex(
+                        "chitai_gorod_token",
+                        86400,  # 24 часа TTL
+                        token
+                    )
+                    redis_client.close()
+                    celery_logger.info("Токен сохранен в Redis (TTL: 24 часа)")
+                except Exception as redis_error:
+                    celery_logger.error(f"Ошибка сохранения в Redis: {redis_error}")
+                    # Продолжаем даже если Redis недоступен
+
+            # Также обновляем .env файл
+            env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+            try:
+                with open(env_file, "r") as f:
+                    env_lines = f.readlines()
+
+                # Обновляем токен в .env
+                with open(env_file, "w") as f:
+                    for line in env_lines:
+                        if line.startswith("CHITAI_GOROD_BEARER_TOKEN="):
+                            f.write(f'CHITAI_GOROD_BEARER_TOKEN="{token}"\n')
+                        else:
+                            f.write(line)
+
+                celery_logger.info("Токен обновлен в .env файле")
+            except Exception as env_error:
+                celery_logger.error(f"Ошибка обновления .env: {env_error}")
+
+            return {
+                "status": "success",
+                "message": "Token updated successfully",
+                "token_preview": f"{token[:20]}..."
+            }
+
+        else:
+            celery_logger.error(f"Неожиданный статус при проверке токена: {check_response.status_code}")
+            return {
+                "status": "error",
+                "message": f"Unexpected status: {check_response.status_code}"
+            }
+
+    except requests.Timeout:
+        celery_logger.error("Таймаут при запросе к FlareSolverr")
+        return {"status": "error", "message": "FlareSolverr timeout"}
+    except Exception as e:
+        celery_logger.error(f"Ошибка при обновлении токена: {e}")
+        return {"status": "error", "message": str(e)}
+

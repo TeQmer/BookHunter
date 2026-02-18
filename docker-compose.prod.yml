@@ -45,6 +45,29 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: bookhunter_flaresolverr
+    restart: always
+    environment:
+      - LOG_LEVEL=info
+      - TZ=Europe/Moscow
+      - HEADLESS=true
+      - DISABLE_MEDIA=true
+    networks:
+      - bookhunter_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8191"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   app:
     build:
       context: .

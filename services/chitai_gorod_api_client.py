@@ -64,7 +64,7 @@ class ChitaiGorodAPIClient:
         
         Args:
             api_url: URL API (по умолчанию из env)
-            bearer_token: Bearer токен авторизации (по умолчанию из env)
+            bearer_token: Bearer токен авторизации (по умолчанию из env или Redis)
             user_id: ID пользователя (по умолчанию из env)
             city_id: ID города (по умолчанию 39 - Москва)
             delay_min: Минимальная задержка между запросами (сек)
@@ -73,30 +73,46 @@ class ChitaiGorodAPIClient:
             timeout: Таймаут запроса (сек)
         """
         self.api_url = api_url or os.getenv("CHITAI_GOROD_API_URL", "https://web-agr.chitai-gorod.ru/web/api/v2")
-        self.bearer_token = bearer_token or os.getenv("CHITAI_GOROD_BEARER_TOKEN")
+
+        # Токен: сначала переданный, затем из Redis/env через TokenManager
+        if bearer_token:
+            self.bearer_token = bearer_token
+        else:
+            # Пробуем получить токен через TokenManager
+            try:
+                from services.token_manager import get_token_manager
+                token_manager = get_token_manager()
+                self.bearer_token = token_manager.get_chitai_gorod_token_fallback()
+            except Exception as e:
+                logger.warning(f"[ChitaiGorodAPI] Не удалось использовать TokenManager: {e}")
+                self.bearer_token = os.getenv("CHITAI_GOROD_BEARER_TOKEN")
+
         self.user_id = user_id or os.getenv("CHITAI_GOROD_USER_ID")
         self.city_id = city_id or int(os.getenv("CHITAI_GOROD_CITY_ID", "39"))
-        
+
         # Настройки rate limiting
         self.delay_min = delay_min
         self.delay_max = delay_max
-        
+
         # Настройки retry
         self.max_retries = max_retries
         self.timeout = timeout
-        
+
         # Статистика
         self.request_count = 0
         self.success_count = 0
         self.error_count = 0
         self.last_request_time = None
-        
+
+        # Флаг для отслеживания обновления токена
+        self._token_update_triggered = False
+
         # Проверка конфигурации
         if not self.bearer_token:
             logger.warning("[ChitaiGorodAPI] Bearer token не задан! API может не работать.")
         if not self.user_id:
             logger.warning("[ChitaiGorodAPI] User ID не задан!")
-        
+
         logger.info(f"[ChitaiGorodAPI] Инициализирован: {self.api_url}, city_id={self.city_id}")
     
     def _get_headers(self) -> Dict[str, str]:
@@ -175,6 +191,24 @@ class ChitaiGorodAPIClient:
                         elif response.status == 401:
                             self.error_count += 1
                             logger.error(f"[ChitaiGorodAPI] Ошибка авторизации (401)! Токен недействителен.")
+
+                            # Триггерим обновление токена (только один раз)
+                            if not self._token_update_triggered:
+                                logger.info("[ChitaiGorodAPI] Триггер обновления токена...")
+                                await self._handle_token_expired()
+                                self._token_update_triggered = True
+
+                                # Ждем обновления токена (до 60 секунд)
+                                await self._wait_for_token_update()
+
+                                # Обновляем токен в текущем экземпляре
+                                await self._refresh_token()
+
+                                # Повторяем запрос с новым токеном
+                                logger.info("[ChitaiGorodAPI] Повторяем запрос с новым токеном...")
+                                headers = self._get_headers()  # Обновляем заголовки
+                                continue  # Повторяем попытку
+
                             return None
                         
                         elif response.status == 429:
@@ -225,6 +259,52 @@ class ChitaiGorodAPIClient:
         
         logger.error(f"[ChitaiGorodAPI] Не удалось выполнить запрос после {self.max_retries} попыток")
         return None
+    
+    async def _handle_token_expired(self):
+        """Обработка истекшего токена - триггер обновления"""
+        try:
+            from services.token_manager import get_token_manager
+            token_manager = get_token_manager()
+            token_manager.trigger_token_update()
+        except Exception as e:
+            logger.error(f"[ChitaiGorodAPI] Ошибка триггера обновления токена: {e}")
+
+    async def _wait_for_token_update(self, max_wait: int = 60, check_interval: int = 2):
+        """Ожидание обновления токена в Redis"""
+        try:
+            from services.token_manager import get_token_manager
+            token_manager = get_token_manager()
+
+            waited = 0
+            while waited < max_wait:
+                token = token_manager.get_chitai_gorod_token()
+                if token and token != self.bearer_token:
+                    logger.info(f"[ChitaiGorodAPI] Токен обновлен в Redis!")
+                    return
+
+                await asyncio.sleep(check_interval)
+                waited += check_interval
+
+            logger.warning(f"[ChitaiGorodAPI] Токен не обновлен за {max_wait} сек")
+
+        except Exception as e:
+            logger.error(f"[ChitaiGorodAPI] Ошибка ожидания обновления токена: {e}")
+
+    async def _refresh_token(self):
+        """Обновление токена в текущем экземпляре клиента"""
+        try:
+            from services.token_manager import get_token_manager
+            token_manager = get_token_manager()
+
+            new_token = token_manager.get_chitai_gorod_token_fallback()
+            if new_token:
+                self.bearer_token = new_token
+                logger.info(f"[ChitaiGorodAPI] Токен обновлен: {new_token[:20]}...")
+            else:
+                logger.warning("[ChitaiGorodAPI] Не удалось получить новый токен")
+
+        except Exception as e:
+            logger.error(f"[ChitaiGorodAPI] Ошибка обновления токена: {e}")
     
     async def search_products(
         self,
