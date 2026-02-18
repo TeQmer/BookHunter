@@ -987,8 +987,17 @@ async def _update_chitai_gorod_token_async():
 
         token = None
         for cookie in cookies:
-            if cookie.get("name") == "bearer_token":
+            # Ищем access-token (или bearer_token как fallback)
+            cookie_name = cookie.get("name", "")
+            if cookie_name == "access-token" or cookie_name == "bearer_token":
                 token = cookie.get("value")
+                # Декодируем URL-encoded значение (например, %20 -> пробел)
+                from urllib.parse import unquote
+                token = unquote(token)
+                # Убираем префикс "Bearer " если он есть
+                if token.startswith("Bearer "):
+                    token = token[7:]  # Убираем "Bearer "
+                celery_logger.info(f"Токен найден в cookie '{cookie_name}'")
                 break
 
         if not token:
