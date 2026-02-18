@@ -232,6 +232,8 @@ class ChitaiGorodAPIClient:
 
                 data = response.json()
 
+                logger.debug(f"[ChitaiGorodAPI] Ответ от FlareSolverr: {str(data)[:500]}")
+
                 if data.get("status") != "ok":
                     logger.error(f"[ChitaiGorodAPI] FlareSolverr вернул неуспешный статус: {data}")
                     if attempt < self.max_retries - 1:
@@ -239,6 +241,14 @@ class ChitaiGorodAPIClient:
                     continue
 
                 solution = data.get("solution", {})
+
+                # Проверяем тип solution
+                if not isinstance(solution, dict):
+                    logger.error(f"[ChitaiGorodAPI] solution не словарь: {type(solution)} = {str(solution)[:500]}")
+                    if attempt < self.max_retries - 1:
+                        await asyncio.sleep(2 ** attempt)
+                    continue
+
                 solution_status = solution.get("status", 0)
                 solution_response = solution.get("response", {})
 
@@ -247,6 +257,13 @@ class ChitaiGorodAPIClient:
                 # Обрабатываем статус ответа
                 if solution_status == 200:
                     self.success_count += 1
+
+                    # Проверяем тип solution_response
+                    if not isinstance(solution_response, dict):
+                        logger.error(f"[ChitaiGorodAPI] solution_response не словарь: {type(solution_response)} = {str(solution_response)[:500]}")
+                        if attempt < self.max_retries - 1:
+                            await asyncio.sleep(2 ** attempt)
+                        continue
 
                     # Получаем данные из ответа
                     try:
