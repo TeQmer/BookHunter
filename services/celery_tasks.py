@@ -975,6 +975,16 @@ async def _update_chitai_gorod_token_async():
         solution = data.get("solution", {})
         cookies = solution.get("cookies", [])
 
+        # Отладка: логируем все cookies
+        celery_logger.info(f"Получено {len(cookies)} cookies:")
+        for cookie in cookies:
+            cookie_name = cookie.get("name", "")
+            cookie_value = cookie.get("value", "")
+            # Логируем имя и первые 50 символов значения
+            if len(cookie_value) > 50:
+                cookie_value = cookie_value[:50] + "..."
+            celery_logger.info(f"  - {cookie_name}: {cookie_value}")
+
         token = None
         for cookie in cookies:
             if cookie.get("name") == "bearer_token":
@@ -983,6 +993,11 @@ async def _update_chitai_gorod_token_async():
 
         if not token:
             celery_logger.error("Токен не найден в cookies")
+            # Попробуем найти токен с другими именами
+            for cookie in cookies:
+                cookie_name = cookie.get("name", "").lower()
+                if "token" in cookie_name or "bearer" in cookie_name:
+                    celery_logger.info(f"Найден потенциальный токен: {cookie.get('name')} = {cookie.get('value')[:50]}...")
             return {"status": "error", "message": "Token not found in cookies"}
 
         celery_logger.info(f"Токен извлечен: {token[:20]}...")
