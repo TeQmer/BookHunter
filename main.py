@@ -13,6 +13,7 @@ from api.health import router as health_router
 from api.alerts import router as alerts_router
 from api.stats import router as stats_router
 from api.parser import router as parser_router
+from api.users import router as users_router
 # Веб-интерфейс
 from web.main import router as web_router
 from web.books import router as books_router
@@ -130,6 +131,7 @@ app.include_router(health_router, prefix="/api/health", tags=["health"])
 app.include_router(alerts_router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(stats_router, prefix="/api/stats", tags=["stats"])
 app.include_router(parser_router, prefix="/api/parser", tags=["parser"])
+app.include_router(users_router, prefix="/api/users", tags=["users"])
 
 # Регистрация веб-роутеров
 app.include_router(web_router, prefix="/web", tags=["web"])

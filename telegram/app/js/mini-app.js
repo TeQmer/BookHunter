@@ -15,6 +15,7 @@ class BookHunterApp {
         };
         this.recentBooksPage = 1; // Текущая страница недавних книг на главной
         this.recentBooksTotal = 0; // Общее количество недавних книг
+        this.savedScrollPosition = 0; // Сохраненная позиция скролла (задача #3)
         this.init();
     }
 
@@ -147,7 +148,7 @@ class BookHunterApp {
         if (profilePage) profilePage.style.display = 'none';
 
         // Скрываем элементы домашней страницы
-        const heroSection = mainContent.querySelector('.card[style*="gradient-primary"]');
+        const heroSection = document.getElementById('hero-section'); // (задача #8)
         const statsSection = mainContent.querySelector('.stats');
         const quickActionsSection = mainContent.querySelectorAll('.card')[1]; // Второй блок card
         const recentBooksSection = document.getElementById('recent-books-container');
@@ -180,7 +181,7 @@ class BookHunterApp {
         const mainContent = document.getElementById('main-content');
 
         // Показываем элементы домашней страницы
-        const heroSection = mainContent.querySelector('.card[style*="gradient-primary"]');
+        const heroSection = document.getElementById('hero-section'); // (задача #8)
         const statsSection = mainContent.querySelector('.stats');
         const quickActionsSection = mainContent.querySelectorAll('.card')[1]; // Второй блок card
         const recentBooksSection = document.getElementById('recent-books-container');
@@ -260,10 +261,14 @@ class BookHunterApp {
         if (bookDetailPage) {
             bookDetailPage.style.display = 'block';
 
+            // Удаляем старые обработчики клика перед добавлением нового (задача #4)
+            const newBookDetailPage = bookDetailPage.cloneNode(true);
+            bookDetailPage.parentNode.replaceChild(newBookDetailPage, bookDetailPage);
+
             // Добавляем обработчик клика на страницу деталей для закрытия
-            bookDetailPage.onclick = (e) => {
+            newBookDetailPage.onclick = (e) => {
                 // Закрываем только если клик не на интерактивные элементы
-                if (e.target === bookDetailPage) {
+                if (e.target === newBookDetailPage) {
                     this.closeBookDetail();
                 }
             };
@@ -291,7 +296,8 @@ class BookHunterApp {
                 await this.loadAlerts();
                 break;
             case 'profile':
-                // Профиль - заглушка
+                // Загружаем профиль пользователя (задача #7)
+                await this.loadUserProfile();
                 break;
             case 'search':
                 // Поиск
@@ -423,11 +429,11 @@ class BookHunterApp {
                     pagination.style.display = 'block';
                 }
 
-                // Прокручиваем к началу блока недавних книг
-                const recentHeader = document.querySelector('h3:has(i.fa-clock)');
-                if (recentHeader) {
-                    recentHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
+                // Прокрутка к началу блока недавних книг отключена (задача #2)
+                // const recentHeader = document.querySelector('h3:has(i.fa-clock)');
+                // if (recentHeader) {
+                //     recentHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // }
             }
         } catch (error) {
             console.error('Ошибка загрузки недавних книг:', error);
@@ -520,13 +526,25 @@ class BookHunterApp {
 
             console.log('[loadBooks] URL запроса:', url);
 
-            const response = await fetch(url);
+            // Добавляем таймаут для запроса (задача #5)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+            const response = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
             console.log('[loadBooks] Статус ответа:', response.status, response.statusText);
 
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('[loadBooks] Текст ошибки:', errorText);
-                throw new Error('Ошибка загрузки книг');
+                let errorMessage = 'Ошибка загрузки книг';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.detail || errorData.message || errorMessage;
+                } catch (e) {
+                    const errorText = await response.text();
+                    console.error('[loadBooks] Текст ошибки:', errorText);
+                }
+                throw new Error(errorMessage);
             }
 
             const data = await response.json();
@@ -555,7 +573,18 @@ class BookHunterApp {
             this.renderBooks(this.data.books);
         } catch (error) {
             console.error('[loadBooks] Ошибка загрузки книг:', error);
-            this.showError('Не удалось загрузить книги');
+
+            if (error.name === 'AbortError') {
+                this.showError('Превышено время ожидания запроса');
+            } else {
+                this.showError(error.message || 'Не удалось загрузить книги');
+            }
+
+            // Показываем пустое состояние при ошибке
+            const container = document.getElementById('books-container');
+            if (container) {
+                container.innerHTML = this.getEmptyState('Ошибка загрузки', error.message || 'Попробуйте изменить параметры поиска');
+            }
         }
     }
 
@@ -566,12 +595,29 @@ class BookHunterApp {
         try {
             console.log('[startParsing] Запускаем парсинг для:', query);
 
+            // Получаем telegram_id для проверки лимитов (задача #6)
+            let telegramId = window.tg.getChatId();
+            if (!telegramId) {
+                telegramId = window.tg.getQueryId();
+            }
+
+            const requestBody = {
+                query,
+                source,
+                fetch_details: false
+            };
+
+            // Добавляем telegram_id если есть
+            if (telegramId) {
+                requestBody.telegram_id = telegramId;
+            }
+
             const response = await fetch(`${this.apiBaseUrl}/api/parser/parse-body`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ query, source, fetch_details: false })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
@@ -590,7 +636,7 @@ class BookHunterApp {
             }
         } catch (error) {
             console.error('[startParsing] Ошибка:', error);
-            this.showError('Не удалось запустить поиск книг');
+            this.showError(error.message || 'Не удалось запустить поиск книг');
         }
     }
 
@@ -721,6 +767,146 @@ class BookHunterApp {
     }
 
     /**
+     * Загрузка профиля пользователя (задача #7)
+     */
+    async loadUserProfile() {
+        try {
+            console.log('[loadUserProfile] Загрузка профиля пользователя');
+
+            // Получаем telegram_id
+            let telegramId = window.tg.getChatId();
+            if (!telegramId) {
+                telegramId = window.tg.getQueryId();
+            }
+
+            if (!telegramId) {
+                console.error('[loadUserProfile] Не удалось получить ID пользователя');
+                this.showError('Не удалось получить информацию о пользователе');
+                return;
+            }
+
+            // Загружаем статистику пользователя
+            const response = await fetch(`${this.apiBaseUrl}/api/users/stats?telegram_id=${telegramId}`);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка загрузки профиля');
+            }
+
+            const data = await response.json();
+            console.log('[loadUserProfile] Получены данные:', data);
+
+            if (data.success && data.stats) {
+                this.renderUserProfile(data.stats);
+            }
+        } catch (error) {
+            console.error('[loadUserProfile] Ошибка:', error);
+            this.showError(error.message || 'Не удалось загрузить профиль');
+        }
+    }
+
+    /**
+     * Отрисовка профиля пользователя (задача #7)
+     */
+    renderUserProfile(stats) {
+        const container = document.getElementById('profile-content');
+        if (!container) {
+            console.error('[renderUserProfile] Контейнер профиля не найден');
+            return;
+        }
+
+        const requestsUsed = stats.daily_requests_used || 0;
+        const requestsLimit = stats.daily_requests_limit || 15;
+        const requestsRemaining = Math.max(0, requestsLimit - requestsUsed);
+        const requestsPercentage = (requestsUsed / requestsLimit) * 100;
+
+        // Форматируем дату обновления
+        let updatedAtText = 'Нет данных';
+        if (stats.requests_updated_at) {
+            try {
+                const updatedAt = new Date(stats.requests_updated_at);
+                updatedAtText = updatedAt.toLocaleString('ru-RU');
+            } catch (e) {
+                updatedAtText = stats.requests_updated_at;
+            }
+        }
+
+        container.innerHTML = `
+            <div class="profile__info">
+                ${stats.display_name || stats.username ? `
+                    <h2 class="profile__name">${this.escapeHtml(stats.display_name || stats.username)}</h2>
+                ` : ''}
+
+                <div class="card">
+                    <h3 style="margin-bottom: 16px;">📊 Статистика</h3>
+
+                    <div class="profile__stat">
+                        <div class="profile__stat-label">Книг в подписках</div>
+                        <div class="profile__stat-value">${stats.total_alerts || 0}</div>
+                    </div>
+
+                    <div class="profile__stat">
+                        <div class="profile__stat-label">Отправлено уведомлений</div>
+                        <div class="profile__stat-value">${stats.notifications_sent || 0}</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 style="margin-bottom: 16px;">🔍 Лимиты запросов</h3>
+
+                    <div class="profile__stat">
+                        <div class="profile__stat-label">Использовано сегодня</div>
+                        <div class="profile__stat-value">${requestsUsed} / ${requestsLimit}</div>
+                    </div>
+
+                    <div class="profile__stat">
+                        <div class="profile__stat-label">Осталось сегодня</div>
+                        <div class="profile__stat-value" style="color: ${requestsRemaining <= 3 ? 'var(--danger)' : 'var(--success)'};">
+                            ${requestsRemaining}
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 16px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem;">
+                            <span style="color: var(--text-secondary);">Прогресс</span>
+                            <span style="font-weight: 600;">${requestsPercentage.toFixed(0)}%</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden;">
+                            <div style="width: ${requestsPercentage}%; height: 100%; background: ${requestsPercentage >= 90 ? 'var(--danger)' : requestsPercentage >= 70 ? 'var(--warning)' : 'var(--success)'}; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+
+                    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 16px;">
+                        Обновлено: ${updatedAtText}
+                    </p>
+                </div>
+
+                <div class="card">
+                    <h3 style="margin-bottom: 16px;">ℹ️ Информация</h3>
+
+                    ${stats.username ? `
+                        <div class="profile__stat">
+                            <div class="profile__stat-label">Никнейм</div>
+                            <div class="profile__stat-value">@${this.escapeHtml(stats.username)}</div>
+                        </div>
+                    ` : ''}
+
+                    ${stats.first_name ? `
+                        <div class="profile__stat">
+                            <div class="profile__stat-label">Имя</div>
+                            <div class="profile__stat-value">${this.escapeHtml(stats.first_name)}</div>
+                        </div>
+                    ` : ''}
+
+                    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 16px;">
+                        Зарегистрирован: ${stats.created_at ? new Date(stats.created_at).toLocaleDateString('ru-RU') : 'Нет данных'}
+                    </p>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
      * Загрузка подписок
      */
     async loadAlerts() {
@@ -842,15 +1028,45 @@ class BookHunterApp {
      * Применение фильтров
      */
     async applyFilters() {
-        const source = document.getElementById('filter-source').value;
-        const discount = document.getElementById('filter-discount').value;
-        const price = document.getElementById('filter-price').value;
-        const query = document.getElementById('search-input').value;
+        console.log('[applyFilters] Применение фильтров');
+
+        const source = document.getElementById('filter-source');
+        const discount = document.getElementById('filter-discount');
+        const price = document.getElementById('filter-price');
+        const searchInput = document.getElementById('search-input');
+
+        if (!source || !discount || !price || !searchInput) {
+            console.error('[applyFilters] Не все элементы фильтров найдены');
+            this.showError('Ошибка применения фильтров');
+            return;
+        }
+
+        const sourceValue = source.value;
+        const discountValue = discount.value;
+        const priceValue = price.value;
+        const queryValue = searchInput.value;
+
+        console.log('[applyFilters] Параметры фильтров:', {
+            source: sourceValue,
+            discount: discountValue,
+            price: priceValue,
+            query: queryValue
+        });
 
         this.showLoading('Применение фильтров...');
 
-        // Загружаем книги с фильтрацией
-        await this.loadBooks({ query, source, discount, price });
+        try {
+            // Загружаем книги с фильтрацией с таймаутом (задача #5)
+            await Promise.race([
+                this.loadBooks({ query: queryValue, source: sourceValue, discount: discountValue, price: priceValue }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Таймаут загрузки')), 30000)
+                )
+            ]);
+        } catch (error) {
+            console.error('[applyFilters] Ошибка:', error);
+            this.showError(error.message || 'Не удалось применить фильтры');
+        }
     }
 
     /**
@@ -945,6 +1161,10 @@ class BookHunterApp {
     async showBookDetails(bookId) {
         console.log('[showBookDetails] Показ деталей книги:', bookId);
         window.tg.hapticClick();
+
+        // Сохраняем текущую позицию скролла (задача #3)
+        this.savedScrollPosition = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+        console.log('[showBookDetails] Сохранена позиция скролла:', this.savedScrollPosition);
 
         // Переключаемся на страницу деталей
         this.hideAllPages();
@@ -1150,11 +1370,44 @@ class BookHunterApp {
         console.log('[closeBookDetail] Закрытие деталей книги');
         window.tg.hapticClick();
 
+        // Полностью скрываем и очищаем модальное окно (задача #4)
+        const bookDetailPage = document.getElementById('book-detail-page');
+        if (bookDetailPage) {
+            bookDetailPage.style.display = 'none';
+
+            // Очищаем контент
+            const content = document.getElementById('book-detail-content');
+            if (content) {
+                content.innerHTML = '';
+            }
+
+            // Удаляем все обработчики событий
+            const newBookDetailPage = bookDetailPage.cloneNode(true);
+            bookDetailPage.parentNode.replaceChild(newBookDetailPage, bookDetailPage);
+        }
+
+        // Очищаем текущую книгу
+        this.currentBook = null;
+
+        // Скрываем кнопку назад
+        window.tg.hideBackButton();
+
         // Возвращаемся на предыдущую страницу
         if (this.currentRoute === 'book-detail') {
             this.navigate('books');
         } else {
             this.navigate('home');
+        }
+
+        // Восстанавливаем позицию скролла (задача #3)
+        if (this.savedScrollPosition > 0) {
+            console.log('[closeBookDetail] Восстанавливаем позицию скролла:', this.savedScrollPosition);
+            setTimeout(() => {
+                window.scrollTo({
+                    top: this.savedScrollPosition,
+                    behavior: 'smooth'
+                });
+            }, 100); // Небольшая задержка для корректного рендеринга
         }
     }
 

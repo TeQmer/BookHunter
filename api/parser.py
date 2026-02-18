@@ -9,6 +9,7 @@ import re
 from database.config import get_db
 from services.celery_tasks import parse_books
 from services.logger import logger
+from api.request_limits import RequestLimitChecker
 
 router = APIRouter()
 
@@ -64,16 +65,42 @@ async def parse_books_from_body(
     - query: Поисковый запрос (обязательно)
     - source: Источник парсинга (по умолчанию chitai-gorod)
     - fetch_details: Загружать ли детальную страницу для извлечения характеристик (издательство, переплёт, жанры) - по умолчанию False
+    - telegram_id: ID пользователя в Telegram (для проверки лимитов)
     """
 
     try:
         query = data.get("query")
         source = data.get("source", "chitai-gorod")
         fetch_details = data.get("fetch_details", False)
+        telegram_id = data.get("telegram_id")
         
         if not query:
             raise HTTPException(status_code=400, detail="Поле 'query' обязательно")
         
+        # Проверяем лимиты запросов пользователя (задача #6)
+        if telegram_id:
+            try:
+                from sqlalchemy import select
+                from models.user import User
+
+                # Получаем синхронную сессию для проверки лимитов
+                from database.config import SessionLocal
+                sync_db = SessionLocal()
+
+                try:
+                    user = RequestLimitChecker.check_and_increment_request(sync_db, telegram_id)
+                    logger.info(f"Пользователь {telegram_id} использует запрос ({user.daily_requests_used}/{user.daily_requests_limit})")
+                finally:
+                    sync_db.close()
+            except HTTPException as limit_error:
+                # Если превышен лимит, возвращаем ошибку
+                logger.warning(f"Превышен лимит запросов для пользователя {telegram_id}")
+                raise limit_error
+            except Exception as e:
+                logger.error(f"Ошибка проверки лимитов: {e}")
+                # Продолжаем без проверки лимитов при ошибке
+                pass
+
         # Запускаем фоновую задачу парсинга с использованием ключевых слов
         task = parse_books.delay(query=query, source=source, fetch_details=fetch_details)
 
@@ -88,6 +115,8 @@ async def parse_books_from_body(
             "fetch_details": fetch_details
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Ошибка запуска парсинга: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка запуска парсинга: {str(e)}")

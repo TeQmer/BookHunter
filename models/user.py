@@ -31,6 +31,11 @@ class User(Base):
     total_alerts = Column(Integer, default=0, comment="Всего созданных уведомлений")
     notifications_sent = Column(Integer, default=0, comment="Отправлено уведомлений")
     
+    # Лимиты запросов (задача #6)
+    daily_requests_used = Column(Integer, default=0, comment="Количество запросов за текущий день")
+    daily_requests_limit = Column(Integer, default=15, comment="Лимит запросов в день")
+    requests_updated_at = Column(DateTime, default=datetime.utcnow, comment="Дата обновления счетчика запросов")
+    
     # Временные метки
     created_at = Column(DateTime, default=datetime.utcnow, comment="Дата регистрации")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="Дата последнего обновления")
@@ -69,6 +74,10 @@ class User(Base):
             "timezone": self.timezone,
             "total_alerts": self.total_alerts,
             "notifications_sent": self.notifications_sent,
+            "daily_requests_used": self.daily_requests_used,
+            "daily_requests_limit": self.daily_requests_limit,
+            "requests_remaining": max(0, self.daily_requests_limit - self.daily_requests_used),
+            "requests_updated_at": self.requests_updated_at.isoformat() if self.requests_updated_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "last_activity": self.last_activity.isoformat() if self.last_activity else None
