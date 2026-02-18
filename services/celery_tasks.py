@@ -1038,13 +1038,66 @@ async def _update_chitai_gorod_token_async():
 
         check_response = requests.get(api_url, headers=headers, params=params, timeout=30)
 
-        if check_response.status_code == 401:
+        # Определяем, был ли запрос успешным
+        success_response = None
+
+        if check_response.status_code == 200:
+            celery_logger.info("Токен работает корректно!")
+            success_response = check_response
+
+        elif check_response.status_code == 401:
             celery_logger.error("Токен недействителен (401)")
             return {"status": "error", "message": "Token is invalid (401)"}
 
-        elif check_response.status_code == 200:
-            celery_logger.info("Токен работает корректно!")
+        elif check_response.status_code == 403:
+            # 403 - возможно, нужны дополнительные cookies
+            celery_logger.error("Ошибка 403 Forbidden")
+            try:
+                error_data = check_response.json()
+                celery_logger.error(f"Ответ API: {error_data}")
+            except:
+                celery_logger.error(f"Текст ответа: {check_response.text[:500]}")
 
+            # Попробуем передать все cookies вместе с токеном
+            celery_logger.info("Пробуем передать все cookies вместе с токеном...")
+
+            # Создаем словарь cookies
+            cookies_dict = {}
+            for cookie in cookies:
+                cookies_dict[cookie.get("name")] = cookie.get("value")
+
+            # Повторяем запрос с cookies
+            check_response_with_cookies = requests.get(
+                api_url,
+                headers=headers,
+                params=params,
+                cookies=cookies_dict,
+                timeout=30
+            )
+
+            if check_response_with_cookies.status_code == 200:
+                celery_logger.info("Токен работает с cookies!")
+                success_response = check_response_with_cookies
+            else:
+                celery_logger.error(f"С cookies тоже не работает: {check_response_with_cookies.status_code}")
+                try:
+                    error_data = check_response_with_cookies.json()
+                    celery_logger.error(f"Ответ API с cookies: {error_data}")
+                except:
+                    celery_logger.error(f"Текст ответа с cookies: {check_response_with_cookies.text[:500]}")
+                return {"status": "error", "message": f"403 even with cookies"}
+
+        else:
+            celery_logger.error(f"Неожиданный статус при проверке токена: {check_response.status_code}")
+            try:
+                error_data = check_response.json()
+                celery_logger.error(f"Ответ API: {error_data}")
+            except:
+                celery_logger.error(f"Текст ответа: {check_response.text[:500]}")
+            return {"status": "error", "message": f"Unexpected status: {check_response.status_code}"}
+
+        # Если запрос был успешным, сохраняем токен
+        if success_response and success_response.status_code == 200:
             # Сохраняем токен в Redis
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
             redis_password = os.getenv("REDIS_PASSWORD")
@@ -1096,13 +1149,6 @@ async def _update_chitai_gorod_token_async():
                 "status": "success",
                 "message": "Token updated successfully",
                 "token_preview": f"{token[:20]}..."
-            }
-
-        else:
-            celery_logger.error(f"Неожиданный статус при проверке токена: {check_response.status_code}")
-            return {
-                "status": "error",
-                "message": f"Unexpected status: {check_response.status_code}"
             }
 
     except requests.Timeout:
