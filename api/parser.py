@@ -1,12 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from typing import Optional, List
 from celery.result import AsyncResult
 import uuid
 import string
 import re
 
-from database.config import get_db
+from database.config import get_db, get_sync_db
 from services.celery_tasks import parse_books
 from services.logger import logger
 from api.request_limits import RequestLimitChecker
@@ -57,7 +58,8 @@ async def parse_books_on_demand(
 @router.post("/parse-body")
 async def parse_books_from_body(
     data: dict,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    sync_db: Session = Depends(get_sync_db)
 ):
     """Запуск парсинга книг по запросу в реальном времени (через тело запроса)
 
@@ -80,18 +82,8 @@ async def parse_books_from_body(
         # Проверяем лимиты запросов пользователя (задача #6)
         if telegram_id:
             try:
-                from sqlalchemy import select
-                from models.user import User
-
-                # Получаем синхронную сессию для проверки лимитов
-                from database.config import SessionLocal
-                sync_db = SessionLocal()
-
-                try:
-                    user = RequestLimitChecker.check_and_increment_request(sync_db, telegram_id)
-                    logger.info(f"Пользователь {telegram_id} использует запрос ({user.daily_requests_used}/{user.daily_requests_limit})")
-                finally:
-                    sync_db.close()
+                user = RequestLimitChecker.check_and_increment_request(sync_db, telegram_id)
+                logger.info(f"Пользователь {telegram_id} использует запрос ({user.daily_requests_used}/{user.daily_requests_limit})")
             except HTTPException as limit_error:
                 # Если превышен лимит, возвращаем ошибку
                 logger.warning(f"Превышен лимит запросов для пользователя {telegram_id}")

@@ -6,10 +6,11 @@ API для работы с пользователями
 
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from sqlalchemy import select
 from typing import Optional
 
-from database.config import get_db, get_session_factory
+from database.config import get_db, get_sync_db
 from models.user import User
 from api.request_limits import RequestLimitChecker
 
@@ -21,18 +22,13 @@ __all__ = ["router"]
 @router.get("/stats")
 async def get_user_stats(
     telegram_id: int = Query(..., description="ID пользователя в Telegram"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    sync_db: Session = Depends(get_sync_db)
 ):
     """Получение статистики пользователя (задача #7)"""
     try:
         # Используем синхронную сессию для RequestLimitChecker
-        SessionLocal = get_session_factory()
-        sync_db = SessionLocal()
-
-        try:
-            stats = RequestLimitChecker.get_user_stats(sync_db, telegram_id)
-        finally:
-            sync_db.close()
+        stats = RequestLimitChecker.get_user_stats(sync_db, telegram_id)
 
         # Получаем дополнительную информацию о пользователе асинхронно
         result = await db.execute(select(User).filter(User.telegram_id == telegram_id))
