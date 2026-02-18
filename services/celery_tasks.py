@@ -1028,6 +1028,7 @@ async def _update_chitai_gorod_token_async():
             "platform": "desktop",
             "shop-brand": "chitaiGorod",
             "user-id": user_id,
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 YaBrowser/25.12.0.0 Yowser/2.5",
         }
         params = {
             "customerCityId": "39",

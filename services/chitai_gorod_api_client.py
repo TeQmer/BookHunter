@@ -116,7 +116,7 @@ class ChitaiGorodAPIClient:
         logger.info(f"[ChitaiGorodAPI] Инициализирован: {self.api_url}, city_id={self.city_id}")
     
     def _get_headers(self) -> Dict[str, str]:
-        """Получение заголовков запроса"""
+        """Получение заголовков запроса с реалистичным User-Agent"""
         return {
             "accept": "*/*",
             "accept-language": "ru,en;q=0.9",
@@ -125,6 +125,7 @@ class ChitaiGorodAPIClient:
             "platform": "desktop",
             "shop-brand": "chitaiGorod",
             "user-id": self.user_id,
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 YaBrowser/25.12.0.0 Yowser/2.5",
             "sec-ch-ua": '"Chromium";v="142", "YaBrowser";v="25.12", "Not_A Brand";v="99", "Yowser";v="2.5"',
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": '"Windows"',
