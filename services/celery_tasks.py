@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict, Optional
 from celery import current_app
 from services.logger import celery_logger
 from database.config import get_session_factory, AsyncSession
