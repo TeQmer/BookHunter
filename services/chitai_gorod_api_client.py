@@ -187,6 +187,11 @@ class ChitaiGorodAPIClient:
             cookies_dict = token_manager.get_chitai_gorod_cookies()
             if cookies_dict:
                 logger.debug(f"[ChitaiGorodAPI] Используем {len(cookies_dict)} cookies из Redis")
+                # Проверяем наличие access-token
+                if 'access-token' in cookies_dict:
+                    logger.debug(f"[ChitaiGorodAPI] access-token найден: {cookies_dict['access-token'][:50]}...")
+                else:
+                    logger.warning(f"[ChitaiGorodAPI] access-token НЕ найден в cookies! Доступные ключи: {list(cookies_dict.keys())[:10]}")
         except Exception as e:
             logger.warning(f"[ChitaiGorodAPI] Не удалось получить cookies: {e}")
 
@@ -229,6 +234,13 @@ class ChitaiGorodAPIClient:
                             "domain": ".chitai-gorod.ru"
                         })
                     flaresolverr_request["cookies"] = flaresolverr_cookies
+                    logger.debug(f"[ChitaiGorodAPI] Отправляем {len(flaresolverr_cookies)} cookies в FlareSolverr")
+                    # Логируем access-token cookie отдельно
+                    for cookie in flaresolverr_cookies:
+                        if cookie['name'] == 'access-token':
+                            logger.debug(f"[ChitaiGorodAPI] access-token cookie: {cookie['value'][:50]}...")
+                else:
+                    logger.warning("[ChitaiGorodAPI] Cookies не получены из Redis!")
 
                 # Выполняем запрос через FlareSolverr
                 response = requests.post(
