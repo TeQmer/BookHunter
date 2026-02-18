@@ -11,7 +11,7 @@
 import os
 import re
 import logging
-from typing import Optional
+from typing import Optional, Dict
 from dotenv import load_dotenv
 
 load_dotenv()
