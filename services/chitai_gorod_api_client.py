@@ -159,17 +159,28 @@ class ChitaiGorodAPIClient:
         """
         headers = self._get_headers()
         
+        # Получаем cookies из Redis
+        cookies = None
+        try:
+            from services.token_manager import get_token_manager
+            token_manager = get_token_manager()
+            cookies = token_manager.get_chitai_gorod_cookies()
+            if cookies:
+                logger.debug(f"[ChitaiGorodAPI] Используем {len(cookies)} cookies из Redis")
+        except Exception as e:
+            logger.warning(f"[ChitaiGorodAPI] Не удалось получить cookies: {e}")
+
         for attempt in range(self.max_retries):
             try:
                 # Rate limiting
                 await self._random_delay()
-                
+
                 # Логируем запрос
                 self.request_count += 1
                 logger.info(f"[ChitaiGorodAPI] Запрос #{self.request_count}: {method} {url}")
                 if params:
                     logger.debug(f"[ChitaiGorodAPI] Параметры: {params}")
-                
+
                 # Выполняем запрос
                 async with aiohttp.ClientSession(
                     timeout=aiohttp.ClientTimeout(total=self.timeout)
@@ -178,17 +189,18 @@ class ChitaiGorodAPIClient:
                         method,
                         url,
                         params={k: v for k, v in (params or {}).items() if v is not None},
-                        headers=headers
+                        headers=headers,
+                        cookies=cookies  # Добавляем cookies
                     ) as response:
                         self.last_request_time = datetime.now()
-                        
+
                         # Обрабатываем ответ
                         if response.status == 200:
                             self.success_count += 1
                             data = await response.json()
                             logger.info(f"[ChitaiGorodAPI] Успех: {response.status}")
                             return data
-                        
+
                         elif response.status == 401:
                             self.error_count += 1
                             logger.error(f"[ChitaiGorodAPI] Ошибка авторизации (401)! Токен недействителен.")
@@ -202,8 +214,9 @@ class ChitaiGorodAPIClient:
                                 # Ждем обновления токена (до 60 секунд)
                                 await self._wait_for_token_update()
 
-                                # Обновляем токен в текущем экземпляре
+                                # Обновляем токен и cookies в текущем экземпляре
                                 await self._refresh_token()
+                                await self._refresh_cookies()
 
                                 # Повторяем запрос с новым токеном
                                 logger.info("[ChitaiGorodAPI] Повторяем запрос с новым токеном...")
@@ -211,7 +224,7 @@ class ChitaiGorodAPIClient:
                                 continue  # Повторяем попытку
 
                             return None
-                        
+
                         elif response.status == 429:
                             self.error_count += 1
                             retry_after = int(response.headers.get('Retry-After', 10))
@@ -221,7 +234,7 @@ class ChitaiGorodAPIClient:
                             )
                             await asyncio.sleep(retry_after)
                             continue
-                        
+
                         else:
                             self.error_count += 1
                             error_text = await response.text()
@@ -229,35 +242,35 @@ class ChitaiGorodAPIClient:
                                 f"[ChitaiGorodAPI] HTTP {response.status}: {error_text[:200]}"
                             )
                             return None
-                
+
             except asyncio.TimeoutError:
                 self.error_count += 1
                 logger.warning(
                     f"[ChitaiGorodAPI] Timeout (попытка {attempt + 1}/{self.max_retries})"
                 )
-                
+
                 # Экспоненциальная задержка
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
-                
+
             except aiohttp.ClientError as e:
                 self.error_count += 1
                 logger.error(
                     f"[ChitaiGorodAPI] Ошибка соединения: {e} (попытка {attempt + 1}/{self.max_retries})"
                 )
-                
+
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
-                
+
             except Exception as e:
                 self.error_count += 1
                 logger.error(
                     f"[ChitaiGorodAPI] Неожиданная ошибка: {e} (попытка {attempt + 1}/{self.max_retries})"
                 )
-                
+
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
-        
+
         logger.error(f"[ChitaiGorodAPI] Не удалось выполнить запрос после {self.max_retries} попыток")
         return None
     
@@ -306,6 +319,21 @@ class ChitaiGorodAPIClient:
 
         except Exception as e:
             logger.error(f"[ChitaiGorodAPI] Ошибка обновления токена: {e}")
+    
+    async def _refresh_cookies(self):
+        """Обновление cookies в текущем экземпляре клиента"""
+        try:
+            from services.token_manager import get_token_manager
+            token_manager = get_token_manager()
+
+            cookies = token_manager.get_chitai_gorod_cookies()
+            if cookies:
+                logger.info(f"[ChitaiGorodAPI] Cookies обновлены: {len(cookies)} cookies")
+            else:
+                logger.warning("[ChitaiGorodAPI] Не удалось получить cookies")
+
+        except Exception as e:
+            logger.error(f"[ChitaiGorodAPI] Ошибка обновления cookies: {e}")
     
     async def search_products(
         self,

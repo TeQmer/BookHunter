@@ -1128,6 +1128,23 @@ async def _update_chitai_gorod_token_async():
                     celery_logger.error(f"Ошибка сохранения в Redis: {redis_error}")
                     # Продолжаем даже если Redis недоступен
 
+            # Сохраняем cookies в Redis (если запрос был успешен с cookies)
+            if success_response and success_response.status_code == 200:
+                try:
+                    from services.token_manager import get_token_manager
+                    token_manager = get_token_manager()
+
+                    # Создаем словарь cookies
+                    cookies_dict = {}
+                    for cookie in cookies:
+                        cookies_dict[cookie.get("name")] = cookie.get("value")
+
+                    # Сохраняем cookies
+                    token_manager.save_chitai_gorod_cookies(cookies_dict, ttl=86400)
+                    celery_logger.info(f"Cookies сохранены в Redis: {len(cookies_dict)} cookies")
+                except Exception as cookies_error:
+                    celery_logger.error(f"Ошибка сохранения cookies: {cookies_error}")
+
             # Также обновляем .env файл
             env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
             try:

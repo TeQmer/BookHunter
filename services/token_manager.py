@@ -117,6 +117,7 @@ class TokenManager:
         # Сначала пробуем Redis
         token = self.get_chitai_gorod_token()
         if token:
+            logger.info("Токен получен из переменных окружения")
             return token
 
         # Если в Redis нет, пробуем env
@@ -127,6 +128,53 @@ class TokenManager:
 
         logger.error("Токен не найден ни в Redis, ни в переменных окружения")
         return ""
+
+    def get_chitai_gorod_cookies(self) -> Optional[Dict[str, str]]:
+        """
+        Получение cookies Читай-города из Redis
+
+        Returns:
+            Словарь cookies или None
+        """
+        try:
+            redis_client = self._get_redis_client()
+            cookies_json = redis_client.get("chitai_gorod_cookies")
+
+            if cookies_json:
+                import json
+                cookies = json.loads(cookies_json)
+                logger.info(f"Cookies получены из Redis: {len(cookies)} cookies")
+                return cookies
+            else:
+                logger.warning("Cookies не найдены в Redis")
+                return None
+
+        except Exception as e:
+            logger.error(f"Ошибка получения cookies из Redis: {e}")
+            return None
+
+    def save_chitai_gorod_cookies(self, cookies: Dict[str, str], ttl: int = 86400) -> bool:
+        """
+        Сохранение cookies Читай-города в Redis
+
+        Args:
+            cookies: Словарь cookies
+            ttl: Время жизни в секундах (по умолчанию 24 часа)
+
+        Returns:
+            True при успехе, False при ошибке
+        """
+        try:
+            redis_client = self._get_redis_client()
+            import json
+            cookies_json = json.dumps(cookies)
+            redis_client.setex("chitai_gorod_cookies", ttl, cookies_json)
+            logger.info(f"Cookies сохранены в Redis (TTL: {ttl} сек)")
+            return True
+
+        except Exception as e:
+            logger.error(f"Ошибка сохранения cookies в Redis: {e}")
+            return False
 
     def trigger_token_update(self) -> bool:
         """
