@@ -5,10 +5,11 @@ API для работы с пользователями
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import Optional
 
-from database.config import get_db
+from database.config import get_db, get_session_factory
 from models.user import User
 from api.request_limits import RequestLimitChecker
 
@@ -20,14 +21,22 @@ __all__ = ["router"]
 @router.get("/stats")
 async def get_user_stats(
     telegram_id: int = Query(..., description="ID пользователя в Telegram"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Получение статистики пользователя (задача #7)"""
     try:
-        stats = RequestLimitChecker.get_user_stats(db, telegram_id)
+        # Используем синхронную сессию для RequestLimitChecker
+        SessionLocal = get_session_factory()
+        sync_db = SessionLocal()
 
-        # Получаем дополнительную информацию о пользователе
-        user = db.query(User).filter(User.telegram_id == telegram_id).first()
+        try:
+            stats = RequestLimitChecker.get_user_stats(sync_db, telegram_id)
+        finally:
+            sync_db.close()
+
+        # Получаем дополнительную информацию о пользователе асинхронно
+        result = await db.execute(select(User).filter(User.telegram_id == telegram_id))
+        user = result.scalar_one_or_none()
 
         if user:
             stats.update({
@@ -55,11 +64,12 @@ async def get_user_stats(
 @router.get("/info")
 async def get_user_info(
     telegram_id: int = Query(..., description="ID пользователя в Telegram"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Получение информации о пользователе"""
     try:
-        user = db.query(User).filter(User.telegram_id == telegram_id).first()
+        result = await db.execute(select(User).filter(User.telegram_id == telegram_id))
+        user = result.scalar_one_or_none()
 
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
