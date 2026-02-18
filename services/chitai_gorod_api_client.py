@@ -221,11 +221,25 @@ class ChitaiGorodAPIClient:
                 }
 
                 # Добавляем заголовки
-                flaresolverr_request["headers"] = headers
+                flaresolverr_request["headers"] = headers.copy()
+
+                # Добавляем Authorization из cookies если есть access-token
+                # Токен в cookies имеет формат "Bearer eyJ...", а в заголовке нужен только JWT
+                if cookies_dict and 'access-token' in cookies_dict:
+                    access_token = cookies_dict['access-token']
+                    # Убираем "Bearer " если есть
+                    if access_token.startswith('Bearer%20'):
+                        jwt_token = access_token.replace('Bearer%20', '')
+                    elif access_token.startswith('Bearer '):
+                        jwt_token = access_token.replace('Bearer ', '')
+                    else:
+                        jwt_token = access_token
+                    flaresolverr_request["headers"]["Authorization"] = f"Bearer {jwt_token}"
+                    logger.debug(f"[ChitaiGorodAPI] Authorization header добавлен из cookies")
 
                 # Добавляем cookies если есть
                 if cookies_dict:
-                    # Конвертируем словарь cookies в формат FlareSolverr
+                    # Способ 1: Передаём cookies через поле cookies FlareSolverr
                     flaresolverr_cookies = []
                     for name, value in cookies_dict.items():
                         flaresolverr_cookies.append({
@@ -235,10 +249,15 @@ class ChitaiGorodAPIClient:
                         })
                     flaresolverr_request["cookies"] = flaresolverr_cookies
                     logger.debug(f"[ChitaiGorodAPI] Отправляем {len(flaresolverr_cookies)} cookies в FlareSolverr")
+
+                    # Способ 2: Также добавляем cookies в заголовок Cookie (дублируем)
+                    cookie_string = "; ".join([f"{k}={v}" for k, v in cookies_dict.items()])
+                    flaresolverr_request["headers"]["Cookie"] = cookie_string
+                    logger.debug(f"[ChitaiGorodAPI] Cookie header length: {len(cookie_string)} chars")
+
                     # Логируем access-token cookie отдельно
-                    for cookie in flaresolverr_cookies:
-                        if cookie['name'] == 'access-token':
-                            logger.debug(f"[ChitaiGorodAPI] access-token cookie: {cookie['value'][:50]}...")
+                    if 'access-token' in cookies_dict:
+                        logger.debug(f"[ChitaiGorodAPI] access-token cookie: {cookies_dict['access-token'][:50]}...")
                 else:
                     logger.warning("[ChitaiGorodAPI] Cookies не получены из Redis!")
 
