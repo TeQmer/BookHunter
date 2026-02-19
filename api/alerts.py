@@ -272,9 +272,10 @@ async def delete_alert(
     alert_id: int,
     db: AsyncSession = Depends(get_db)
 ):
-    """Удаление подписки (мягкое удаление)"""
-    
+    """Полное удаление подписки из базы данных"""
+
     try:
+        # Получаем подписку
         result = await db.execute(
             select(Alert).where(Alert.id == alert_id)
         )
@@ -283,14 +284,25 @@ async def delete_alert(
         if not alert:
             raise HTTPException(status_code=404, detail="Подписка не найдена")
         
-        # Мягкое удаление - деактивация
-        alert.is_active = False
-        alert.updated_at = datetime.utcnow()
+        # Удаляем связанные уведомления
+        await db.execute(
+            select(Notification).where(Notification.alert_id == alert_id)
+        )
+        notifications_result = await db.execute(
+            select(Notification).where(Notification.alert_id == alert_id)
+        )
+        notifications = notifications_result.scalars().all()
         
+        for notification in notifications:
+            await db.delete(notification)
+
+        # Удаляем саму подписку
+        await db.delete(alert)
+
         await db.commit()
-        
-        logger.info(f"Подписка деактивирована: {alert.book_title}")
-        
+
+        logger.info(f"Подписка полностью удалена: {alert.book_title}")
+
         return {
             "id": alert.id,
             "message": "Подписка удалена успешно"
@@ -339,7 +351,7 @@ async def create_alert_from_book(
         # Проверяем, что указана хотя бы цена или скидка
         if target_price is None and min_discount is None:
             raise HTTPException(status_code=400, detail="Необходимо указать целевую цену или минимальную скидку")
-        
+
         # Получаем информацию о книге
         from models import Book
         result = await db.execute(select(Book).where(Book.id == book_id))
