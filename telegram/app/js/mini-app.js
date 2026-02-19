@@ -1103,7 +1103,7 @@ class BookHunterApp {
                 throw new Error('Не удалось получить Telegram ID пользователя. Убедитесь, что вы открыли приложение через Telegram.');
             }
 
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts/`, {
+            const response = await fetch(`${this.apiBaseUrl}/api/alerts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
