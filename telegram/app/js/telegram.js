@@ -81,8 +81,97 @@ class TelegramWebApp {
                 html.style.removeProperty('color');
             }
 
+            // Запускаем наблюдатель для перезаписи стилей Telegram
+            this.forceDarkTheme();
+
             console.log('Принудительно применена тёмная тема (стили Telegram перезаписаны)');
         }, 100);
+    }
+
+    /**
+     * Принудительное применение темной темы с MutationObserver
+     * Следит за изменениями стилей от Telegram и перезаписывает их
+     */
+    forceDarkTheme() {
+        const forceDarkColors = () => {
+            // Применяем к html
+            const html = document.documentElement;
+            if (html) {
+                html.style.setProperty('background-color', '#2C241B', 'important');
+                html.style.setProperty('--tg-theme-bg-color', '#2C241B', 'important');
+                html.style.setProperty('--tg-theme-text-color', '#EFEBE9', 'important');
+            }
+
+            // Применяем к body
+            const body = document.body;
+            if (body) {
+                body.style.setProperty('background-color', '#2C241B', 'important');
+                body.style.setProperty('color', '#EFEBE9', 'important');
+                body.style.setProperty('--tg-theme-bg-color', '#2C241B', 'important');
+                body.style.setProperty('--tg-theme-text-color', '#EFEBE9', 'important');
+                body.classList.add('force-dark-theme');
+            }
+
+            // Применяем ко всем элементам с инлайн-стилями
+            const allElements = document.querySelectorAll('[style*="background"], [style*="color"]');
+            allElements.forEach(el => {
+                const style = el.getAttribute('style') || '';
+                if (style.includes('background') && !style.includes('#2C241B')) {
+                    el.style.setProperty('background-color', '#2C241B', 'important');
+                }
+                if (style.includes('color') && !style.includes('#EFEBE9') && !style.includes('#A0785A')) {
+                    el.style.setProperty('color', '#EFEBE9', 'important');
+                }
+            });
+        };
+
+        // Применяем сразу
+        forceDarkColors();
+
+        // Создаем MutationObserver для отслеживания изменений
+        const observer = new MutationObserver((mutations) => {
+            let needsUpdate = false;
+
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                    const target = mutation.target;
+                    const style = target.getAttribute('style') || '';
+
+                    // Если Telegram изменил фон или цвет
+                    if ((style.includes('background') && !style.includes('#2C241B')) ||
+                        (style.includes('color') && !style.includes('#EFEBE9') && !style.includes('#A0785A'))) {
+                        needsUpdate = true;
+                    }
+                }
+            });
+
+            if (needsUpdate) {
+                forceDarkColors();
+            }
+        });
+
+        // Наблюдаем за body и html
+        const body = document.body;
+        const html = document.documentElement;
+
+        if (body) {
+            observer.observe(body, {
+                attributes: true,
+                attributeFilter: ['style']
+            });
+        }
+
+        if (html) {
+            observer.observe(html, {
+                attributes: true,
+                attributeFilter: ['style']
+            });
+        }
+
+        // Периодически применяем стили (на всякий случай)
+        setInterval(forceDarkColors, 1000);
+
+        console.log('MutationObserver запущен для перезаписи стилей Telegram');
     }
 
     /**
