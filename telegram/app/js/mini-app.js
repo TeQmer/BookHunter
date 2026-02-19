@@ -1680,7 +1680,9 @@ class BookHunterApp {
                     return;
                 }
 
-                if (result.button_id === 'delete') {
+                // Telegram WebApp может возвращать 'ok' вместо указанного button_id
+                // 'ok' означает нажатие на первую кнопку (Удалить в нашем случае)
+                if (result.button_id === 'delete' || result.button_id === 'ok') {
                     console.log('[toggleAlertForBook] Deleting alert with ID:', checkData.alert.id);
                     // Удаляем подписку
                     const deleteResponse = await fetch(`${this.apiBaseUrl}/api/alerts/${checkData.alert.id}`, {
