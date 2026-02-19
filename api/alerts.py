@@ -208,7 +208,7 @@ async def create_alert(
         logger.error(f"Ошибка создания подписки: {e}")
         raise HTTPException(status_code=500, detail="Ошибка создания подписки")
 
-@router.put("/{alert_id}/")
+@router.put("/{alert_id}")
 async def update_alert(
     alert_id: int,
     alert_data: dict,
@@ -267,7 +267,7 @@ async def update_alert(
         logger.error(f"Ошибка обновления подписки: {e}")
         raise HTTPException(status_code=500, detail="Ошибка обновления подписки")
 
-@router.delete("/{alert_id}/")
+@router.delete("/{alert_id}")
 async def delete_alert(
     alert_id: int,
     db: AsyncSession = Depends(get_db)
@@ -410,7 +410,7 @@ async def create_alert_from_book(
         logger.error(f"Ошибка создания подписки из книги: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка создания подписки: {str(e)}")
 
-@router.post("/{alert_id}/toggle/")
+@router.post("/{alert_id}/toggle")
 async def toggle_alert(
     alert_id: int,
     db: AsyncSession = Depends(get_db)
@@ -447,7 +447,7 @@ async def toggle_alert(
         logger.error(f"Ошибка переключения подписки: {e}")
         raise HTTPException(status_code=500, detail="Ошибка переключения подписки")
 
-@router.get("/{alert_id}/notifications/")
+@router.get("/{alert_id}/notifications")
 async def get_alert_notifications(
     alert_id: int,
     limit: int = Query(10, description="Количество уведомлений"),
@@ -490,7 +490,7 @@ async def get_alert_notifications(
         logger.error(f"Ошибка получения уведомлений: {e}")
         raise HTTPException(status_code=500, detail="Ошибка получения уведомлений")
 
-@router.get("/book/{book_id}/")
+@router.get("/book/{book_id}")
 async def get_user_alert_for_book(
     book_id: int,
     telegram_id: Optional[int] = Query(None, description="Telegram ID пользователя"),
@@ -541,7 +541,7 @@ async def get_user_alert_for_book(
         logger.error(f"Ошибка получения подписки для книги: {e}")
         raise HTTPException(status_code=500, detail="Ошибка получения подписки")
 
-@router.put("/book/{book_id}/")
+@router.put("/book/{book_id}")
 async def update_user_alert_for_book(
     book_id: int,
     data: dict,
