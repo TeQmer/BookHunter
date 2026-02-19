@@ -6,6 +6,9 @@
 class BookHunterApp {
     constructor() {
         this.apiBaseUrl = typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : window.location.origin;
+        console.log('[BookHunterApp] Инициализация с apiBaseUrl:', this.apiBaseUrl);
+        console.log('[BookHunterApp] window.location.origin:', window.location.origin);
+        console.log('[BookHunterApp] API_BASE_URL из config:', typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : 'НЕ ОПРЕДЕЛЕН');
         this.currentRoute = 'home';
         this.user = null;
         this.data = {
@@ -1140,6 +1143,9 @@ class BookHunterApp {
      */
     async deleteAlert(alertId) {
         try {
+            console.log('[deleteAlert] Удаление подписки:', alertId);
+            console.log('[deleteAlert] Текущий apiBaseUrl:', this.apiBaseUrl);
+
             // Используем showPopup вместо showConfirm для лучшей работы в Telegram
             const result = await window.tg.showPopup({
                 title: 'Подтверждение',
@@ -1152,12 +1158,18 @@ class BookHunterApp {
 
             // Проверяем, что нажата кнопка 'ok'
             if (!result || result.button_id !== 'ok') {
+                console.log('[deleteAlert] Пользователь отменил удаление');
                 return;
             }
 
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts/${alertId}/`, {
+            const url = `${this.apiBaseUrl}/api/alerts/${alertId}/`;
+            console.log('[deleteAlert] URL запроса (DELETE):', url);
+
+            const response = await fetch(url, {
                 method: 'DELETE'
             });
+
+            console.log('[deleteAlert] Статус ответа:', response.status);
 
             if (!response.ok) throw new Error('Ошибка удаления подписки');
 
@@ -1167,7 +1179,7 @@ class BookHunterApp {
             // Обновляем список
             await this.loadAlerts();
         } catch (error) {
-            console.error('Ошибка удаления подписки:', error);
+            console.error('[deleteAlert] Ошибка удаления подписки:', error);
             window.tg.hapticError();
             this.showError('Не удалось удалить подписку');
         }
@@ -1247,6 +1259,7 @@ class BookHunterApp {
     async saveAlert() {
         try {
             console.log('[saveAlert] Сохранение подписки');
+            console.log('[saveAlert] Текущий apiBaseUrl:', this.apiBaseUrl);
 
             const maxPrice = document.getElementById('alert-modal-max-price').value;
             const minDiscount = document.getElementById('alert-modal-min-discount').value;
@@ -1258,10 +1271,14 @@ class BookHunterApp {
             }
 
             let response;
+            let url;
 
             if (this.currentAlert) {
                 // Редактирование существующей подписки
-                response = await fetch(`${this.apiBaseUrl}/api/alerts/${this.currentAlert.id}/`, {
+                url = `${this.apiBaseUrl}/api/alerts/${this.currentAlert.id}/`;
+                console.log('[saveAlert] URL запроса (PUT):', url);
+
+                response = await fetch(url, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
@@ -1280,7 +1297,10 @@ class BookHunterApp {
                     throw new Error('Информация о книге не найдена');
                 }
 
-                response = await fetch(`${this.apiBaseUrl}/api/alerts/`, {
+                url = `${this.apiBaseUrl}/api/alerts/`;
+                console.log('[saveAlert] URL запроса (POST):', url);
+
+                response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -1297,6 +1317,8 @@ class BookHunterApp {
                     })
                 });
             }
+
+            console.log('[saveAlert] Статус ответа:', response.status);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
