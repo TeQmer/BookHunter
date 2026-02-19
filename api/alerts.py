@@ -121,7 +121,6 @@ async def get_alerts(
                 "expires_at": alert.expires_at.isoformat() if alert.expires_at else None,
                 "notes": alert.notes,
                 "search_query": alert.search_query,
-                "book_url": alert.book_url,
                 "last_notification": alert.last_notification.isoformat() if alert.last_notification else None
             }
             for alert in alerts
