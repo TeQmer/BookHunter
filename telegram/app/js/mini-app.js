@@ -1146,8 +1146,8 @@ class BookHunterApp {
             console.log('[deleteAlert] Удаление подписки:', alertId);
             console.log('[deleteAlert] Текущий apiBaseUrl:', this.apiBaseUrl);
 
-            // Используем showConfirm вместо showPopup для простого подтверждения
-            const confirmed = await window.tg.showConfirm('Удалить эту подписку?');
+            // Используем нативный confirm для надежности
+            const confirmed = confirm('Удалить эту подписку?');
             console.log('[deleteAlert] Результат подтверждения:', confirmed);
 
             if (!confirmed) {
