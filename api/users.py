@@ -77,6 +77,9 @@ async def create_user(
 @router.get("/stats")
 async def get_user_stats(
     telegram_id: int = Query(..., description="ID пользователя в Telegram"),
+    username: Optional[str] = Query(None, description="Username пользователя"),
+    first_name: Optional[str] = Query(None, description="Имя пользователя"),
+    last_name: Optional[str] = Query(None, description="Фамилия пользователя"),
     db: AsyncSession = Depends(get_db),
     sync_db: Session = Depends(get_sync_db)
 ):
@@ -87,10 +90,12 @@ async def get_user_stats(
         user = result.scalar_one_or_none()
 
         if not user:
-            # Автоматически создаем пользователя если его нет
+            # Автоматически создаем пользователя если его нет с реальными данными
             user = User(
                 telegram_id=telegram_id,
-                first_name=f"User {telegram_id}",
+                username=username or None,
+                first_name=first_name or f"User {telegram_id}",
+                last_name=last_name or None,
                 is_active=True,
                 daily_requests_used=0,
                 daily_requests_limit=15,
@@ -99,6 +104,23 @@ async def get_user_stats(
             db.add(user)
             await db.commit()
             await db.refresh(user)
+        else:
+            # Обновляем данные пользователя если они переданы
+            updated = False
+            if username is not None and user.username != username:
+                user.username = username
+                updated = True
+            if first_name is not None and user.first_name != first_name:
+                user.first_name = first_name
+                updated = True
+            if last_name is not None and user.last_name != last_name:
+                user.last_name = last_name
+                updated = True
+
+            if updated:
+                user.updated_at = datetime.utcnow()
+                await db.commit()
+                await db.refresh(user)
 
         # Используем синхронную сессию для RequestLimitChecker
         stats = RequestLimitChecker.get_user_stats(sync_db, telegram_id)

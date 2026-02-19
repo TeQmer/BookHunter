@@ -773,20 +773,36 @@ class BookHunterApp {
         try {
             console.log('[loadUserProfile] Загрузка профиля пользователя');
 
-            // Получаем telegram_id
-            let telegramId = window.tg.getChatId();
-            if (!telegramId) {
-                telegramId = window.tg.getQueryId();
-            }
-
-            if (!telegramId) {
-                console.error('[loadUserProfile] Не удалось получить ID пользователя');
+            // Получаем telegram_id и данные пользователя из Telegram
+            const user = window.tg.getUser();
+            if (!user) {
+                console.error('[loadUserProfile] Не удалось получить данные пользователя из Telegram');
                 this.showError('Не удалось получить информацию о пользователе');
                 return;
             }
 
+            const telegramId = user.id;
+
+            // Собираем параметры запроса
+            const params = new URLSearchParams({
+                telegram_id: telegramId
+            });
+
+            // Добавляем данные пользователя если они есть
+            if (user.username) {
+                params.append('username', user.username);
+            }
+            if (user.first_name) {
+                params.append('first_name', user.first_name);
+            }
+            if (user.last_name) {
+                params.append('last_name', user.last_name);
+            }
+
+            console.log('[loadUserProfile] Запрос статистики с параметрами:', params.toString());
+
             // Загружаем статистику пользователя
-            const response = await fetch(`${this.apiBaseUrl}/api/users/stats?telegram_id=${telegramId}`);
+            const response = await fetch(`${this.apiBaseUrl}/api/users/stats?${params.toString()}`);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
