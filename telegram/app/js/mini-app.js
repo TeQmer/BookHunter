@@ -1162,7 +1162,7 @@ class BookHunterApp {
                 return;
             }
 
-            const url = `${this.apiBaseUrl}/api/alerts/${alertId}/`;
+            const url = `${this.apiBaseUrl}/api/alerts/${alertId}`;
             console.log('[deleteAlert] URL запроса (DELETE):', url);
 
             const response = await fetch(url, {
@@ -1275,7 +1275,7 @@ class BookHunterApp {
 
             if (this.currentAlert) {
                 // Редактирование существующей подписки
-                url = `${this.apiBaseUrl}/api/alerts/${this.currentAlert.id}/`;
+                url = `${this.apiBaseUrl}/api/alerts/${this.currentAlert.id}`;
                 console.log('[saveAlert] URL запроса (PUT):', url);
 
                 response = await fetch(url, {
@@ -1297,7 +1297,7 @@ class BookHunterApp {
                     throw new Error('Информация о книге не найдена');
                 }
 
-                url = `${this.apiBaseUrl}/api/alerts/`;
+                url = `${this.apiBaseUrl}/api/alerts`;
                 console.log('[saveAlert] URL запроса (POST):', url);
 
                 response = await fetch(url, {
@@ -1359,7 +1359,7 @@ class BookHunterApp {
                 return null;
             }
 
-            const url = `${this.apiBaseUrl}/api/alerts/book/${bookId}/?telegram_id=${user.id}`;
+            const url = `${this.apiBaseUrl}/api/alerts/book/${bookId}?telegram_id=${user.id}`;
             const response = await fetch(url);
             const data = await response.json();
 
@@ -1657,7 +1657,7 @@ class BookHunterApp {
 
         try {
             // Проверяем, есть ли уже подписка
-            const checkResponse = await fetch(`${this.apiBaseUrl}/api/alerts/book/${bookId}/`);
+            const checkResponse = await fetch(`${this.apiBaseUrl}/api/alerts/book/${bookId}`);
             const checkData = await checkResponse.json();
 
             if (checkData.alert) {
@@ -1678,7 +1678,7 @@ class BookHunterApp {
 
                 if (result.button_id === 'delete') {
                     // Удаляем подписку
-                    const deleteResponse = await fetch(`${this.apiBaseUrl}/api/alerts/${checkData.alert.id}/`, {
+                    const deleteResponse = await fetch(`${this.apiBaseUrl}/api/alerts/${checkData.alert.id}`, {
                         method: 'DELETE'
                     });
 
