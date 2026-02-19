@@ -41,24 +41,63 @@
     --border-light: #3E3428;
 
     /* Telegram Theme Colors - фиксированные, игнорируют тему Telegram */
-    --tg-theme-bg-color: var(--bg-primary);
-    --tg-theme-text-color: var(--text-primary);
-    --tg-theme-hint-color: var(--text-muted);
-    --tg-theme-link-color: var(--accent-primary);
-    --tg-theme-button-color: var(--accent-primary);
-    --tg-theme-button-text-color: var(--text-light);
-    --tg-theme-secondary-bg-color: var(--bg-secondary);
+    --tg-theme-bg-color: var(--bg-primary) !important;
+    --tg-theme-text-color: var(--text-primary) !important;
+    --tg-theme-hint-color: var(--text-muted) !important;
+    --tg-theme-link-color: var(--accent-primary) !important;
+    --tg-theme-button-color: var(--accent-primary) !important;
+    --tg-theme-button-text-color: var(--text-light) !important;
+    --tg-theme-secondary-bg-color: var(--bg-secondary) !important;
 }
 
-/* Единый тёмный книжный фон для всех тем */
+/* Класс для принудительного применения темной темы */
+body.force-dark-theme {
+    background-color: var(--bg-primary) !important;
+    background-image:
+        linear-gradient(135deg, rgba(93, 64, 55, 0.08) 0%, transparent 50%),
+        linear-gradient(45deg, rgba(139, 111, 71, 0.05) 0%, transparent 50%) !important;
+    color: var(--text-primary) !important;
+}
+
+body.force-dark-theme *,
+body.force-dark-theme *::before,
+body.force-dark-theme *::after {
+    color: inherit !important;
+}
+
+/* Единый тёмный книжный фон для всех тем - ПРИНУДИТЕЛЬНО ПЕРЕЗАПИСЫВАЕМ СТИЛИ TELEGRAM */
 body {
-    background-color: var(--bg-primary);
+    background-color: var(--bg-primary) !important;
     background-image:
         linear-gradient(135deg, rgba(93, 64, 55, 0.08) 0%, transparent 50%),
         linear-gradient(45deg, rgba(139, 111, 71, 0.05) 0%, transparent 50%),
         radial-gradient(circle at 20% 30%, rgba(212, 175, 55, 0.08) 0%, transparent 30%),
-        radial-gradient(circle at 80% 70%, rgba(160, 120, 90, 0.08) 0%, transparent 30%);
-    background-attachment: fixed;
+        radial-gradient(circle at 80% 70%, rgba(160, 120, 90, 0.08) 0%, transparent 30%) !important;
+    background-attachment: fixed !important;
+}
+
+/* Принудительно устанавливаем темный фон для html */
+html {
+    background-color: var(--bg-primary) !important;
+}
+
+/* Убираем все инлайн-стили от Telegram WebApp */
+body[style] {
+    background-color: var(--bg-primary) !important;
+    background-image: linear-gradient(135deg, rgba(93, 64, 55, 0.08) 0%, transparent 50%),
+                       linear-gradient(45deg, rgba(139, 111, 71, 0.05) 0%, transparent 50%) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Убираем переменные темы Telegram и используем наши */
+:root {
+    --tg-theme-bg-color: var(--bg-primary) !important;
+    --tg-theme-text-color: var(--text-primary) !important;
+    --tg-theme-hint-color: var(--text-muted) !important;
+    --tg-theme-link-color: var(--accent-primary) !important;
+    --tg-theme-button-color: var(--accent-primary) !important;
+    --tg-theme-button-text-color: var(--text-light) !important;
+    --tg-theme-secondary-bg-color: var(--bg-secondary) !important;
 }
 
 /* Reset & Base */
@@ -70,12 +109,51 @@ body {
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
-    background: var(--tg-theme-bg-color, var(--bg-primary));
-    color: var(--tg-theme-text-color, var(--text-primary));
+    background: var(--tg-theme-bg-color, var(--bg-primary)) !important;
+    color: var(--tg-theme-text-color, var(--text-primary)) !important;
     line-height: 1.5;
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+/* Принудительно устанавливаем цвет текста для всех элементов */
+*, *::before, *::after {
+    color: inherit !important;
+}
+
+/* Для заголовков и акцентных текстов используем правильные цвета */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-primary) !important;
+}
+
+/* Для всех карточек и контейнеров */
+.card, .book-card, .alert-item, .stats__card, .profile__stat,
+.search__input, .form-input, .form-select, .form-textarea {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Для навигации */
+.nav, .nav__item {
+    background-color: var(--bg-card) !important;
+    color: var(--text-secondary) !important;
+}
+
+.nav__item.active {
+    background: var(--gradient-primary) !important;
+    color: var(--text-light) !important;
+}
+
+/* Для кнопок */
+.btn, .btn--primary, .btn--secondary, .btn--search-books {
+    background: var(--gradient-primary) !important;
+    color: var(--text-light) !important;
+}
+
+.btn--secondary {
+    background: var(--bg-card) !important;
+    color: var(--text-primary) !important;
 }
 
 /* Container */

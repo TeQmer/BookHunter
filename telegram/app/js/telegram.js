@@ -42,9 +42,47 @@ class TelegramWebApp {
      * Примечание: Тема фиксирована (тёмная), игнорируем тему Telegram
      */
     applyTheme() {
-        // Тема фиксирована на тёмную - ничего не делаем
-        // CSS переменные уже заданы в mini-app.css
-        console.log('Используется фиксированная тёмная тема (тема Telegram игнорируется)');
+        // Принудительно устанавливаем тёмную тему через Telegram WebApp API
+        const darkColors = {
+            bg_color: '#2C241B',
+            text_color: '#EFEBE9',
+            hint_color: '#A1887F',
+            link_color: '#A0785A',
+            button_color: '#A0785A',
+            button_text_color: '#F5EDE0',
+            secondary_bg_color: '#3E3428'
+        };
+
+        // Применяем цвета через Telegram WebApp API
+        if (this.webApp.setHeaderColor) {
+            this.webApp.setHeaderColor('#2C241B');
+        }
+        if (this.webApp.setBackgroundColor) {
+            this.webApp.setBackgroundColor('#2C241B');
+        }
+
+        // Удаляем инлайн-стили, которые Telegram может применить к body
+        setTimeout(() => {
+            const body = document.body;
+            if (body && body.style) {
+                // Удаляем инлайн-стили от Telegram
+                body.style.removeProperty('background-color');
+                body.style.removeProperty('color');
+                body.style.removeProperty('background-image');
+
+                // Добавляем наш класс для темной темы
+                body.classList.add('force-dark-theme');
+            }
+
+            // Удаляем инлайн-стили из html
+            const html = document.documentElement;
+            if (html && html.style) {
+                html.style.removeProperty('background-color');
+                html.style.removeProperty('color');
+            }
+
+            console.log('Принудительно применена тёмная тема (стили Telegram перезаписаны)');
+        }, 100);
     }
 
     /**
