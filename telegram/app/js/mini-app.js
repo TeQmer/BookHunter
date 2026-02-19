@@ -944,7 +944,7 @@ class BookHunterApp {
             }
 
             const telegramId = user.id;
-            const url = `${this.apiBaseUrl}/api/alerts?telegram_id=${telegramId}`;
+            const url = `${this.apiBaseUrl}/api/alerts/?telegram_id=${telegramId}`;
             console.log('[loadAlerts] URL запроса:', url);
 
             const response = await fetch(url);
@@ -1103,7 +1103,7 @@ class BookHunterApp {
                 throw new Error('Не удалось получить Telegram ID пользователя. Убедитесь, что вы открыли приложение через Telegram.');
             }
 
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts`, {
+            const response = await fetch(`${this.apiBaseUrl}/api/alerts/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1290,7 +1290,7 @@ class BookHunterApp {
                     throw new Error('Информация о книге не найдена');
                 }
 
-                url = `${this.apiBaseUrl}/api/alerts`;
+                url = `${this.apiBaseUrl}/api/alerts/`;
                 console.log('[saveAlert] URL запроса (POST):', url);
 
                 response = await fetch(url, {
