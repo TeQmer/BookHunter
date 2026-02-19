@@ -58,7 +58,7 @@ def validate_string_field(value, field_name, max_length=500):
 def validate_user_id(user_id):
     """Валидация ID пользователя"""
     if user_id is None:
-        return 1  # Демо пользователь по умолчанию
+        raise HTTPException(status_code=400, detail="ID пользователя обязателен")
     try:
         uid = int(user_id)
         if uid <= 0:
@@ -70,25 +70,38 @@ def validate_user_id(user_id):
 @router.get("/", response_model=List[dict])
 async def get_alerts(
     db: AsyncSession = Depends(get_db),
-    user_id: Optional[int] = Query(None, description="ID пользователя"),
+    telegram_id: Optional[int] = Query(None, description="Telegram ID пользователя"),
     active_only: bool = Query(True, description="Только активные подписки")
 ):
     """Получение списка подписок пользователя"""
     
     try:
+        # Ищем пользователя по telegram_id
+        if telegram_id:
+            from models.user import User
+            user_result = await db.execute(select(User).where(User.telegram_id == telegram_id))
+            user = user_result.scalar_one_or_none()
+
+            if not user:
+                return []  # Пользователь не найден, возвращаем пустой список
+
+            user_id = user.id
+        else:
+            user_id = None
+
         query = select(Alert)
-        
+
         if active_only:
             query = query.where(Alert.is_active == True)
-        
+
         if user_id:
             query = query.where(Alert.user_id == user_id)
-        
+
         query = query.order_by(Alert.created_at.desc())
-        
+
         result = await db.execute(query)
         alerts = result.scalars().all()
-        
+
         return [
             {
                 "id": alert.id,
@@ -113,7 +126,7 @@ async def get_alerts(
             }
             for alert in alerts
         ]
-        
+
     except Exception as e:
         logger.error(f"Ошибка получения подписок: {e}")
         raise HTTPException(status_code=500, detail="Ошибка получения подписок")
@@ -126,8 +139,21 @@ async def create_alert(
     """Создание новой подписки"""
     
     try:
+        # Получаем telegram_id и находим пользователя
+        telegram_id = alert_data.get("telegram_id")
+        if not telegram_id:
+            raise HTTPException(status_code=400, detail="Telegram ID обязателен")
+
+        from models.user import User
+        user_result = await db.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+        user_id = user.id
+
         # Валидация входных данных
-        user_id = validate_user_id(alert_data.get("user_id"))
         target_price = validate_price(alert_data.get("target_price"))
         min_discount = validate_discount(alert_data.get("min_discount"))
         book_title = validate_string_field(alert_data.get("book_title"), "Название книги", 500)
@@ -176,6 +202,8 @@ async def create_alert(
             "message": "Подписка создана успешно"
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         logger.error(f"Ошибка создания подписки: {e}")
@@ -284,6 +312,19 @@ async def create_alert_from_book(
     """Создание подписки из карточки книги"""
     
     try:
+        # Получаем telegram_id
+        telegram_id = data.get('user_id') or data.get('telegram_id')
+        if not telegram_id:
+            raise HTTPException(status_code=400, detail="Telegram ID обязателен")
+
+        # Находим пользователя по telegram_id
+        from models.user import User
+        user_result = await db.execute(select(User).where(User.telegram_id == telegram_id))
+        user = user_result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+
         # Валидация book_id
         try:
             book_id = int(data.get('book_id'))
@@ -308,11 +349,12 @@ async def create_alert_from_book(
         if not book:
             raise HTTPException(status_code=404, detail="Книга не найдена")
         
-        # Проверяем, существует ли уже подписка на эту книгу
+        # Проверяем, существует ли уже подписка на эту книгу для этого пользователя
         existing_alert = await db.execute(
             select(Alert).where(
                 and_(
                     Alert.book_id == book_id,
+                    Alert.user_id == user.id,
                     Alert.is_active == True
                 )
             )
@@ -321,9 +363,9 @@ async def create_alert_from_book(
         if existing_alert.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Подписка на эту книгу уже существует")
         
-        # Создаем новую подписку с новой структурой
+        # Создаем новую подписку
         new_alert = Alert(
-            user_id=1,  # Демо пользователь
+            user_id=user.id,
             book_id=book_id,
             book_title=book.title,
             book_author=book.author,

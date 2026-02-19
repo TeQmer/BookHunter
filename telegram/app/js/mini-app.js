@@ -930,22 +930,17 @@ class BookHunterApp {
             console.log('[loadAlerts] Начинаем загрузку подписок');
             console.log('[loadAlerts] apiBaseUrl:', this.apiBaseUrl);
 
-            // Пробуем получить user_id, если не получилось - используем query_id
-            let userId = window.tg.getChatId();
-
-            if (!userId) {
-                console.warn('[loadAlerts] Chat ID не получен, пробуем query_id...');
-                userId = window.tg.getQueryId();
-            }
-
-            if (!userId) {
-                console.error('[loadAlerts] Не удалось получить ни Chat ID, ни Query ID');
+            // Получаем telegram_id
+            const user = window.tg.getUser();
+            if (!user || !user.id) {
+                console.error('[loadAlerts] Не удалось получить Telegram ID пользователя');
                 this.showError('Не удалось получить ID пользователя. Откройте приложение через Telegram.');
                 this.renderAlerts([]);
                 return;
             }
 
-            const url = `${this.apiBaseUrl}/api/alerts/?user_id=${userId}`;
+            const telegramId = user.id;
+            const url = `${this.apiBaseUrl}/api/alerts/?telegram_id=${telegramId}`;
             console.log('[loadAlerts] URL запроса:', url);
 
             const response = await fetch(url);
@@ -1098,16 +1093,10 @@ class BookHunterApp {
      */
     async createAlert(bookData) {
         try {
-            // Пробуем получить user_id, если не получилось - используем query_id
-            let userId = window.tg.getChatId();
-
-            if (!userId) {
-                console.warn('Chat ID не получен, пробуем query_id...');
-                userId = window.tg.getQueryId();
-            }
-
-            if (!userId) {
-                throw new Error('Не удалось получить ID пользователя. Убедитесь, что вы открыли приложение через Telegram.');
+            // Получаем telegram_id
+            const user = window.tg.getUser();
+            if (!user || !user.id) {
+                throw new Error('Не удалось получить Telegram ID пользователя. Убедитесь, что вы открыли приложение через Telegram.');
             }
 
             const response = await fetch(`${this.apiBaseUrl}/api/alerts/`, {
@@ -1116,7 +1105,7 @@ class BookHunterApp {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    user_id: userId,
+                    telegram_id: user.id,
                     book_id: bookData.id,
                     book_title: bookData.title,
                     book_author: bookData.author,
@@ -1467,15 +1456,10 @@ class BookHunterApp {
         try {
             console.log('[createAlertFromBook] Создание подписки на книгу:', bookId);
 
-            // Получаем user_id
-            let userId = window.tg.getChatId();
-
-            if (!userId) {
-                userId = window.tg.getQueryId();
-            }
-
-            if (!userId) {
-                throw new Error('Не удалось получить ID пользователя');
+            // Получаем telegram_id
+            const user = window.tg.getUser();
+            if (!user || !user.id) {
+                throw new Error('Не удалось получить Telegram ID пользователя');
             }
 
             // Получаем информацию о книге
@@ -1491,7 +1475,7 @@ class BookHunterApp {
                 },
                 body: JSON.stringify({
                     book_id: bookId,
-                    user_id: userId,
+                    telegram_id: user.id,
                     target_price: book.current_price,
                     min_discount: book.discount_percent || 0
                 })
