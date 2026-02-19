@@ -1140,8 +1140,20 @@ class BookHunterApp {
      */
     async deleteAlert(alertId) {
         try {
-            const confirmed = await window.tg.showConfirm('Удалить эту подписку?');
-            if (!confirmed) return;
+            // Используем showPopup вместо showConfirm для лучшей работы в Telegram
+            const result = await window.tg.showPopup({
+                title: 'Подтверждение',
+                message: 'Удалить эту подписку?',
+                buttons: [
+                    { id: 'cancel', type: 'cancel', text: 'Отмена' },
+                    { id: 'ok', type: 'destructive', text: 'Удалить' }
+                ]
+            });
+
+            // Проверяем, что нажата кнопка 'ok'
+            if (!result || result.button_id !== 'ok') {
+                return;
+            }
 
             const response = await fetch(`${this.apiBaseUrl}/api/alerts/${alertId}/`, {
                 method: 'DELETE'
@@ -1628,8 +1640,21 @@ class BookHunterApp {
 
             if (checkData.alert) {
                 // Подписка уже есть - спрашиваем, что сделать
-                const confirmed = await window.tg.showConfirm('Удалить подписку или изменить параметры? Нажмите "Отмена" для изменения параметров.');
-                if (confirmed) {
+                const result = await window.tg.showPopup({
+                    title: 'Подписка',
+                    message: 'Удалить подписку или изменить параметры?',
+                    buttons: [
+                        { id: 'edit', type: 'default', text: 'Изменить' },
+                        { id: 'delete', type: 'destructive', text: 'Удалить' },
+                        { id: 'cancel', type: 'cancel', text: 'Отмена' }
+                    ]
+                });
+
+                if (!result || result.button_id === 'cancel') {
+                    return;
+                }
+
+                if (result.button_id === 'delete') {
                     // Удаляем подписку
                     const deleteResponse = await fetch(`${this.apiBaseUrl}/api/alerts/${checkData.alert.id}/`, {
                         method: 'DELETE'
@@ -1642,7 +1667,7 @@ class BookHunterApp {
                     } else {
                         throw new Error('Не удалось удалить подписку');
                     }
-                } else {
+                } else if (result.button_id === 'edit') {
                     // Открываем модальное окно для редактирования
                     this.openAlertModal(checkData.alert);
                 }
