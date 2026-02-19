@@ -449,15 +449,29 @@ class TelegramWebApp {
      */
     showPopup(options) {
         if (!this.webApp?.showPopup) {
+            // Если API недоступен, используем нативный confirm для простых случаев
+            if (options.buttons && options.buttons.length === 2) {
+                const result = confirm(options.message);
+                return Promise.resolve(result ? { button_id: options.buttons[0].id || 'ok' } : null);
+            }
             alert(options.message);
-            return Promise.resolve();
+            return Promise.resolve({ button_id: 'ok' });
         }
 
-        return this.webApp.showPopup({
+        // showPopup возвращает Promise, но обернём для надёжности
+        const result = this.webApp.showPopup({
             title: options.title || '',
             message: options.message || '',
             buttons: options.buttons || [{type: 'ok'}]
         });
+
+        // Если result уже Promise, возвращаем его
+        if (result && typeof result.then === 'function') {
+            return result;
+        }
+
+        // Если результат синхронный, оборачиваем в Promise
+        return Promise.resolve(result);
     }
 
     /**
