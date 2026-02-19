@@ -19,7 +19,7 @@ class Notification(Base):
     id = Column(Integer, primary_key=True, index=True)
     
     # Связи
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="ID пользователя")
+    user_id = Column(Integer, ForeignKey("app_users.id"), nullable=False, comment="ID пользователя")
     alert_id = Column(Integer, ForeignKey("alerts.id"), nullable=False, comment="ID подписки")
     book_id = Column(Integer, ForeignKey("books.id"), nullable=True, comment="ID книги")
     
