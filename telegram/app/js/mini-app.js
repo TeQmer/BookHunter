@@ -1359,7 +1359,7 @@ class BookHunterApp {
                 return null;
             }
 
-            const url = `${this.apiBaseUrl}/api/alerts/book/${bookId}?telegram_id=${user.id}`;
+            const url = `${this.apiBaseUrl}/api/alerts/book/${bookId}/?telegram_id=${user.id}`;
             const response = await fetch(url);
             const data = await response.json();
 
@@ -1657,7 +1657,7 @@ class BookHunterApp {
 
         try {
             // Проверяем, есть ли уже подписка
-            const checkResponse = await fetch(`${this.apiBaseUrl}/api/alerts/book/${bookId}`);
+            const checkResponse = await fetch(`${this.apiBaseUrl}/api/alerts/book/${bookId}/`);
             const checkData = await checkResponse.json();
 
             if (checkData.alert) {
