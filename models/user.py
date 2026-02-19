@@ -13,7 +13,7 @@ from .base import Base
 class User(Base):
     """Модель пользователя системы"""
     
-    __tablename__ = "users"
+    __tablename__ = "app_users"
     
     # Основные поля
     id = Column(Integer, primary_key=True, index=True)
