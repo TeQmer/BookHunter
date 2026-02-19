@@ -256,6 +256,65 @@
                 </div>
             </div>
         </div>
+
+        <!-- Alert Modal (hidden by default) -->
+        <div id="alert-modal" style="display: none;">
+            <div class="modal">
+                <div class="modal__header">
+                    <h3 class="modal__title" id="alert-modal-title">Настройки подписки</h3>
+                    <button class="modal__close" onclick="app.closeAlertModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal__body">
+                    <div class="form-group">
+                        <label class="form-label">Книга</label>
+                        <div class="form-input" style="background: var(--bg-secondary); color: var(--text-muted);">
+                            <span id="alert-modal-book-title">Название книги</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Максимальная цена (₽)</label>
+                        <input type="number" class="form-input" id="alert-modal-max-price" placeholder="Например: 500" min="0">
+                        <small style="color: var(--text-muted); font-size: 0.85rem;">
+                            Уведомлю, когда цена будет ниже или равна указанной
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Минимальная скидка (%)</label>
+                        <select class="form-select" id="alert-modal-min-discount">
+                            <option value="">Любая скидка</option>
+                            <option value="10">От 10%</option>
+                            <option value="20">От 20%</option>
+                            <option value="30">От 30%</option>
+                            <option value="40">От 40%</option>
+                            <option value="50">От 50%</option>
+                        </select>
+                        <small style="color: var(--text-muted); font-size: 0.85rem;">
+                            Уведомлю, когда скидка будет больше или равна указанной
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Тип уведомления</label>
+                        <select class="form-select" id="alert-modal-type">
+                            <option value="price_drop">Снижение цены</option>
+                            <option value="discount">Высокая скидка</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal__footer">
+                    <button class="btn btn--secondary" onclick="app.closeAlertModal()">
+                        Отмена
+                    </button>
+                    <button class="btn btn--primary" onclick="app.saveAlert()">
+                        <i class="fas fa-check"></i> Сохранить
+                    </button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Footer Space -->

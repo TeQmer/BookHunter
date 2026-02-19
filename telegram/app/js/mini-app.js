@@ -16,6 +16,7 @@ class BookHunterApp {
         this.recentBooksPage = 1; // Текущая страница недавних книг на главной
         this.recentBooksTotal = 0; // Общее количество недавних книг
         this.savedScrollPosition = 0; // Сохраненная позиция скролла (задача #3)
+        this.currentAlert = null; // Текущая подписка для редактирования
         this.init();
     }
 
@@ -1167,25 +1168,179 @@ class BookHunterApp {
         try {
             console.log('[editAlert] Редактирование подписки:', alertId);
 
-            // Переключаем активность подписки
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts/${alertId}/toggle`, {
-                method: 'POST'
-            });
+            // Находим подписку в списке
+            const alert = this.data.alerts.find(a => a.id === alertId);
+            if (!alert) {
+                this.showError('Подписка не найдена');
+                return;
+            }
 
-            if (!response.ok) throw new Error('Ошибка переключения подписки');
-
-            const data = await response.json();
-            console.log('[editAlert] Ответ:', data);
-
-            window.tg.hapticSuccess();
-            this.showSuccess(data.message || 'Подписка обновлена');
-
-            // Обновляем список
-            await this.loadAlerts();
+            // Открываем модальное окно для редактирования
+            this.openAlertModal(alert);
         } catch (error) {
             console.error('Ошибка редактирования подписки:', error);
-            window.tg.hapticError();
             this.showError('Не удалось редактировать подписку');
+        }
+    }
+
+    /**
+     * Открыть модальное окно подписки
+     */
+    openAlertModal(alert = null) {
+        console.log('[openAlertModal] Открытие модального окна:', alert);
+
+        this.currentAlert = alert;
+
+        const modal = document.getElementById('alert-modal');
+        const title = document.getElementById('alert-modal-title');
+        const bookTitle = document.getElementById('alert-modal-book-title');
+        const maxPrice = document.getElementById('alert-modal-max-price');
+        const minDiscount = document.getElementById('alert-modal-min-discount');
+        const type = document.getElementById('alert-modal-type');
+
+        if (alert) {
+            // Редактирование существующей подписки
+            title.textContent = 'Редактировать подписку';
+            bookTitle.textContent = alert.book_title;
+            maxPrice.value = alert.target_price || '';
+            minDiscount.value = alert.min_discount || '';
+            type.value = alert.notification_type || 'price_drop';
+        } else {
+            // Создание новой подписки
+            title.textContent = 'Создать подписку';
+            bookTitle.textContent = this.currentBook ? this.currentBook.title : 'Новая подписка';
+            maxPrice.value = '';
+            minDiscount.value = '';
+            type.value = 'price_drop';
+        }
+
+        modal.style.display = 'block';
+    }
+
+    /**
+     * Закрыть модальное окно подписки
+     */
+    closeAlertModal() {
+        console.log('[closeAlertModal] Закрытие модального окна');
+
+        const modal = document.getElementById('alert-modal');
+        modal.style.display = 'none';
+
+        this.currentAlert = null;
+    }
+
+    /**
+     * Сохранить подписку
+     */
+    async saveAlert() {
+        try {
+            console.log('[saveAlert] Сохранение подписки');
+
+            const maxPrice = document.getElementById('alert-modal-max-price').value;
+            const minDiscount = document.getElementById('alert-modal-min-discount').value;
+            const type = document.getElementById('alert-modal-type').value;
+
+            const user = window.tg.getUser();
+            if (!user || !user.id) {
+                throw new Error('Не удалось получить Telegram ID пользователя');
+            }
+
+            let response;
+
+            if (this.currentAlert) {
+                // Редактирование существующей подписки
+                response = await fetch(`${this.apiBaseUrl}/api/alerts/${this.currentAlert.id}/`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        telegram_id: user.id,
+                        target_price: maxPrice ? parseFloat(maxPrice) : null,
+                        min_discount: minDiscount ? parseFloat(minDiscount) : null,
+                        notification_type: type
+                    })
+                });
+            } else {
+                // Создание новой подписки
+                const book = this.currentBook;
+                if (!book) {
+                    throw new Error('Информация о книге не найдена');
+                }
+
+                response = await fetch(`${this.apiBaseUrl}/api/alerts/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        telegram_id: user.id,
+                        book_id: book.id,
+                        book_title: book.title,
+                        book_author: book.author,
+                        book_source: book.source,
+                        target_price: maxPrice ? parseFloat(maxPrice) : null,
+                        min_discount: minDiscount ? parseFloat(minDiscount) : null,
+                        notification_type: type
+                    })
+                });
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка сохранения подписки');
+            }
+
+            const data = await response.json();
+            console.log('[saveAlert] Ответ:', data);
+
+            window.tg.hapticSuccess();
+            this.showSuccess(this.currentAlert ? 'Подписка обновлена!' : 'Подписка создана!');
+
+            this.closeAlertModal();
+
+            // Обновляем список подписок
+            await this.loadAlerts();
+
+            // Если мы на странице деталей книги, обновляем кнопку
+            if (this.currentBook) {
+                await this.checkAlertForBook(this.currentBook.id);
+            }
+        } catch (error) {
+            console.error('[saveAlert] Ошибка:', error);
+            window.tg.hapticError();
+            this.showError(error.message || 'Не удалось сохранить подписку');
+        }
+    }
+
+    /**
+     * Проверить, есть ли подписка на книгу
+     */
+    async checkAlertForBook(bookId) {
+        try {
+            const user = window.tg.getUser();
+            if (!user || !user.id) {
+                console.error('[checkAlertForBook] Не удалось получить Telegram ID пользователя');
+                this.currentAlert = null;
+                return null;
+            }
+
+            const url = `${this.apiBaseUrl}/api/alerts/book/${bookId}?telegram_id=${user.id}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            this.currentAlert = data.alert || null;
+
+            // Если есть подписка, перерисовываем страницу деталей
+            if (this.currentAlert && this.currentBook) {
+                this.renderBookDetail(this.currentBook);
+            }
+
+            return this.currentAlert;
+        } catch (error) {
+            console.error('[checkAlertForBook] Ошибка:', error);
+            this.currentAlert = null;
+            return null;
         }
     }
 
@@ -1239,9 +1394,13 @@ class BookHunterApp {
 
             if (data.success && data.book) {
                 this.renderBookDetail(data.book);
+                // Проверяем наличие подписки
+                await this.checkAlertForBook(bookId);
             } else if (data.book) {
                 // Альтернативный формат ответа
                 this.renderBookDetail(data.book);
+                // Проверяем наличие подписки
+                await this.checkAlertForBook(bookId);
             } else {
                 throw new Error('Неверный формат ответа');
             }
@@ -1376,9 +1535,20 @@ class BookHunterApp {
                             <i class="fas fa-external-link-alt"></i> <span style="color: #FFFFFF;">Перейти в магазин</span>
                         </a>
 
-                        <button class="btn btn--secondary" onclick="app.toggleAlertForBook(${book.id})" style="padding: 12px 24px; border-radius: 12px; font-weight: 600;">
-                            <i class="fas fa-bell"></i> <span style="color: #FFFFFF;">Подписаться на скидку</span>
+                        <button class="btn ${this.currentAlert ? 'btn--primary' : 'btn--secondary'}" onclick="app.toggleAlertForBook(${book.id})" style="padding: 12px 24px; border-radius: 12px; font-weight: 600;">
+                            <i class="fas ${this.currentAlert ? 'fa-bell' : 'fa-bell-slash'}"></i>
+                            <span style="color: #FFFFFF;">${this.currentAlert ? 'Подписка активна' : 'Подписаться на скидку'}</span>
                         </button>
+
+                        ${this.currentAlert ? `
+                            <div style="background: var(--bg-accent); padding: 12px; border-radius: 8px; text-align: center;">
+                                <small style="color: var(--text-secondary);">
+                                    <i class="fas fa-info-circle"></i>
+                                    ${this.currentAlert.target_price ? ` Цена: до ${this.currentAlert.target_price} ₽` : ''}
+                                    ${this.currentAlert.min_discount ? ` Скидка: от ${this.currentAlert.min_discount}%` : ''}
+                                </small>
+                            </div>
+                        ` : ''}
                     </div>
 
                     <!-- Информация о парсинге -->
@@ -1457,20 +1627,28 @@ class BookHunterApp {
             const checkData = await checkResponse.json();
 
             if (checkData.alert) {
-                // Подписка уже есть - удаляем
-                const deleteResponse = await fetch(`${this.apiBaseUrl}/api/alerts/${checkData.alert.id}/`, {
-                    method: 'DELETE'
-                });
+                // Подписка уже есть - спрашиваем, что сделать
+                const confirmed = await window.tg.showConfirm('Удалить подписку или изменить параметры? Нажмите "Отмена" для изменения параметров.');
+                if (confirmed) {
+                    // Удаляем подписку
+                    const deleteResponse = await fetch(`${this.apiBaseUrl}/api/alerts/${checkData.alert.id}/`, {
+                        method: 'DELETE'
+                    });
 
-                if (deleteResponse.ok) {
-                    window.tg.hapticSuccess();
-                    this.showSuccess('Подписка удалена');
+                    if (deleteResponse.ok) {
+                        window.tg.hapticSuccess();
+                        this.showSuccess('Подписка удалена');
+                        await this.checkAlertForBook(bookId);
+                    } else {
+                        throw new Error('Не удалось удалить подписку');
+                    }
                 } else {
-                    throw new Error('Не удалось удалить подписку');
+                    // Открываем модальное окно для редактирования
+                    this.openAlertModal(checkData.alert);
                 }
             } else {
-                // Создаем новую подписку
-                await this.createAlertFromBook(bookId);
+                // Открываем модальное окно для создания новой подписки
+                this.openAlertModal(null);
             }
         } catch (error) {
             console.error('[toggleAlertForBook] Ошибка:', error);

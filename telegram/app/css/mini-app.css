@@ -804,6 +804,69 @@ h1, h2, h3, h4, h5, h6 {
     }
 }
 
+/* Modal Styles */
+.modal {
+    background: var(--bg-card);
+    border-radius: 16px;
+    box-shadow: var(--shadow-strong);
+    max-width: 400px;
+    width: 90%;
+    margin: 16px auto;
+    overflow: hidden;
+}
+
+.modal__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal__title {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.modal__close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.modal__close:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.modal__body {
+    padding: 16px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.modal__footer {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.modal__footer .btn {
+    flex: 1;
+}
+
 /* Safe Area for iPhone X+ */
 @supports (padding: max(0px)) {
     .header {

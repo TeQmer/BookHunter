@@ -481,26 +481,50 @@ async def get_alert_notifications(
 @router.get("/book/{book_id}")
 async def get_user_alert_for_book(
     book_id: int,
+    telegram_id: Optional[int] = Query(None, description="Telegram ID пользователя"),
     db: AsyncSession = Depends(get_db)
 ):
     """Получение подписки пользователя на конкретную книгу"""
     try:
+        user_id = None
+
+        # Если указан telegram_id, находим пользователя
+        if telegram_id:
+            from models.user import User
+            user_result = await db.execute(select(User).where(User.telegram_id == telegram_id))
+            user = user_result.scalar_one_or_none()
+
+            if user:
+                user_id = user.id
+
         # Получаем активную подписку пользователя на книгу
-        result = await db.execute(
-            select(Alert).where(
-                and_(
-                    Alert.book_id == book_id,
-                    Alert.is_active == True
+        if user_id:
+            result = await db.execute(
+                select(Alert).where(
+                    and_(
+                        Alert.book_id == book_id,
+                        Alert.user_id == user_id,
+                        Alert.is_active == True
+                    )
                 )
             )
-        )
+        else:
+            result = await db.execute(
+                select(Alert).where(
+                    and_(
+                        Alert.book_id == book_id,
+                        Alert.is_active == True
+                    )
+                )
+            )
+
         alert = result.scalar_one_or_none()
         
         if alert:
             return {"alert": alert.to_dict()}
         else:
             return {"alert": None}
-        
+
     except Exception as e:
         logger.error(f"Ошибка получения подписки для книги: {e}")
         raise HTTPException(status_code=500, detail="Ошибка получения подписки")
