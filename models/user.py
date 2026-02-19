@@ -4,7 +4,7 @@
 Модель пользователей для системы мониторинга скидок на книги
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy import Column, Integer, BigInteger, String, Boolean, DateTime, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .base import Base
@@ -17,7 +17,7 @@ class User(Base):
     
     # Основные поля
     id = Column(Integer, primary_key=True, index=True)
-    telegram_id = Column(Integer, unique=True, index=True, nullable=False, comment="ID пользователя в Telegram")
+    telegram_id = Column(BigInteger, unique=True, index=True, nullable=False, comment="ID пользователя в Telegram")
     username = Column(String(255), nullable=True, comment="Username в Telegram")
     first_name = Column(String(255), nullable=False, comment="Имя пользователя")
     last_name = Column(String(255), nullable=True, comment="Фамилия пользователя")
