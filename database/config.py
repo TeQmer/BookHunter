@@ -111,8 +111,8 @@ async def init_db():
     from models import User, Book, Alert, Notification, ParsingLog, Base
     
     async with get_engine().begin() as conn:
-        # Создаем все таблицы
-        await conn.run_sync(Base.metadata.create_all)
+        # Создаем все таблицы (checkfirst=True пропускает уже существующие)
+        await conn.run_sync(Base.metadata.create_all, checkfirst=True)
         print("Database tables created successfully")
 
 async def close_db():
