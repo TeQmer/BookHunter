@@ -1307,7 +1307,8 @@ class BookHunterApp {
                         target_price: maxPrice ? parseFloat(maxPrice) : null,
                         min_discount: minDiscount ? parseFloat(minDiscount) : null,
                         notification_type: type
-                    })
+                    }),
+                    cache: 'no-cache'
                 });
             }
 
