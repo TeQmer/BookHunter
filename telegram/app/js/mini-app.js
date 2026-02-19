@@ -1658,7 +1658,9 @@ class BookHunterApp {
         try {
             // Проверяем, есть ли уже подписка
             const checkResponse = await fetch(`${this.apiBaseUrl}/api/alerts/book/${bookId}`);
+            console.log('[toggleAlertForBook] checkResponse status:', checkResponse.status);
             const checkData = await checkResponse.json();
+            console.log('[toggleAlertForBook] checkData:', checkData);
 
             if (checkData.alert) {
                 // Подписка уже есть - спрашиваем, что сделать
@@ -1671,29 +1673,36 @@ class BookHunterApp {
                         { id: 'cancel', type: 'cancel', text: 'Отмена' }
                     ]
                 });
+                console.log('[toggleAlertForBook] Popup result:', result);
 
                 if (!result || result.button_id === 'cancel') {
+                    console.log('[toggleAlertForBook] Cancelled by user');
                     return;
                 }
 
                 if (result.button_id === 'delete') {
+                    console.log('[toggleAlertForBook] Deleting alert with ID:', checkData.alert.id);
                     // Удаляем подписку
                     const deleteResponse = await fetch(`${this.apiBaseUrl}/api/alerts/${checkData.alert.id}`, {
                         method: 'DELETE'
                     });
+                    console.log('[toggleAlertForBook] deleteResponse status:', deleteResponse.status);
 
                     if (deleteResponse.ok) {
                         window.tg.hapticSuccess();
                         this.showSuccess('Подписка удалена');
                         await this.checkAlertForBook(bookId);
                     } else {
+                        console.error('[toggleAlertForBook] Delete failed, status:', deleteResponse.status);
                         throw new Error('Не удалось удалить подписку');
                     }
                 } else if (result.button_id === 'edit') {
+                    console.log('[toggleAlertForBook] Opening edit modal');
                     // Открываем модальное окно для редактирования
                     this.openAlertModal(checkData.alert);
                 }
             } else {
+                console.log('[toggleAlertForBook] No alert found, opening create modal');
                 // Открываем модальное окно для создания новой подписки
                 this.openAlertModal(null);
             }
