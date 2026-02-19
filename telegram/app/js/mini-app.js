@@ -1146,18 +1146,11 @@ class BookHunterApp {
             console.log('[deleteAlert] Удаление подписки:', alertId);
             console.log('[deleteAlert] Текущий apiBaseUrl:', this.apiBaseUrl);
 
-            // Используем showPopup вместо showConfirm для лучшей работы в Telegram
-            const result = await window.tg.showPopup({
-                title: 'Подтверждение',
-                message: 'Удалить эту подписку?',
-                buttons: [
-                    { id: 'cancel', type: 'cancel', text: 'Отмена' },
-                    { id: 'ok', type: 'destructive', text: 'Удалить' }
-                ]
-            });
+            // Используем showConfirm вместо showPopup для простого подтверждения
+            const confirmed = await window.tg.showConfirm('Удалить эту подписку?');
+            console.log('[deleteAlert] Результат подтверждения:', confirmed);
 
-            // Проверяем, что нажата кнопка 'ok'
-            if (!result || result.button_id !== 'ok') {
+            if (!confirmed) {
                 console.log('[deleteAlert] Пользователь отменил удаление');
                 return;
             }
@@ -1680,9 +1673,9 @@ class BookHunterApp {
                     return;
                 }
 
-                // Telegram WebApp может возвращать 'ok' вместо указанного button_id
-                // 'ok' означает нажатие на первую кнопку (Удалить в нашем случае)
-                if (result.button_id === 'delete' || result.button_id === 'ok') {
+                // Telegram WebApp возвращает 'ok' для первой кнопки (edit)
+                // и 'delete' для второй кнопки (delete)
+                if (result.button_id === 'delete') {
                     console.log('[toggleAlertForBook] Deleting alert with ID:', checkData.alert.id);
                     // Удаляем подписку
                     const deleteResponse = await fetch(`${this.apiBaseUrl}/api/alerts/${checkData.alert.id}`, {
@@ -1698,7 +1691,7 @@ class BookHunterApp {
                         console.error('[toggleAlertForBook] Delete failed, status:', deleteResponse.status);
                         throw new Error('Не удалось удалить подписку');
                     }
-                } else if (result.button_id === 'edit') {
+                } else if (result.button_id === 'edit' || result.button_id === 'ok') {
                     console.log('[toggleAlertForBook] Opening edit modal');
                     // Открываем модальное окно для редактирования
                     this.openAlertModal(checkData.alert);
