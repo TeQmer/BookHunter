@@ -1161,6 +1161,35 @@ class BookHunterApp {
     }
 
     /**
+     * Редактирование подписки
+     */
+    async editAlert(alertId) {
+        try {
+            console.log('[editAlert] Редактирование подписки:', alertId);
+
+            // Переключаем активность подписки
+            const response = await fetch(`${this.apiBaseUrl}/api/alerts/${alertId}/toggle`, {
+                method: 'POST'
+            });
+
+            if (!response.ok) throw new Error('Ошибка переключения подписки');
+
+            const data = await response.json();
+            console.log('[editAlert] Ответ:', data);
+
+            window.tg.hapticSuccess();
+            this.showSuccess(data.message || 'Подписка обновлена');
+
+            // Обновляем список
+            await this.loadAlerts();
+        } catch (error) {
+            console.error('Ошибка редактирования подписки:', error);
+            window.tg.hapticError();
+            this.showError('Не удалось редактировать подписку');
+        }
+    }
+
+    /**
      * Показать детали книги
      */
     async showBookDetails(bookId) {
