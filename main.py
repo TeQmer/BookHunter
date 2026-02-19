@@ -93,7 +93,8 @@ app = FastAPI(
     title="📚 BookHunter — Мониторинг скидок на книги",
     description="BookHunter — система для отслеживания скидок на книги с интеграцией Google Sheets, Telegram Bot и веб-интерфейсом",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    redirect_slashes=False
 )
 
 # ========== НАСТРОЙКА CORS ==========
