@@ -480,7 +480,8 @@ class TelegramWebApp {
             return Promise.resolve(confirm(message));
         }
 
-        return this.webApp.showConfirm(message);
+        // showConfirm возвращает boolean синхронно, оборачиваем в Promise для согласованности
+        return Promise.resolve(this.webApp.showConfirm(message));
     }
 
     /**
