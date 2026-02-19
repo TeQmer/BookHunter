@@ -944,7 +944,7 @@ class BookHunterApp {
             }
 
             const telegramId = user.id;
-            const url = `${this.apiBaseUrl}/api/alerts/?telegram_id=${telegramId}`;
+            const url = `${this.apiBaseUrl}/api/alerts?telegram_id=${telegramId}`;
             console.log('[loadAlerts] URL запроса:', url);
 
             const response = await fetch(url);
