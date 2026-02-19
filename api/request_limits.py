@@ -86,22 +86,30 @@ class RequestLimitChecker:
         user = db.query(User).filter(User.telegram_id == telegram_id).first()
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Пользователь не найден"
+            # Если пользователя нет, создаем его
+            user = User(
+                telegram_id=telegram_id,
+                first_name=f"User {telegram_id}",
+                is_active=True,
+                daily_requests_used=0,
+                daily_requests_limit=15,
+                requests_updated_at=datetime.utcnow()
             )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
 
         # Проверяем, нужно ли сбросить счетчик (новый день)
         now = datetime.utcnow()
-        if user.requests_updated_at and user.requests_updated_at.date() < now.date():
+        if user.requests_updated_at is None or user.requests_updated_at.date() < now.date():
             user.daily_requests_used = 0
             user.requests_updated_at = now
             db.commit()
             db.refresh(user)
 
         return {
-            "daily_requests_used": user.daily_requests_used,
-            "daily_requests_limit": user.daily_requests_limit,
-            "requests_remaining": max(0, user.daily_requests_limit - user.daily_requests_used),
+            "daily_requests_used": user.daily_requests_used or 0,
+            "daily_requests_limit": user.daily_requests_limit or 15,
+            "requests_remaining": max(0, (user.daily_requests_limit or 15) - (user.daily_requests_used or 0)),
             "requests_updated_at": user.requests_updated_at.isoformat() if user.requests_updated_at else None
         }

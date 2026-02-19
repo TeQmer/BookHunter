@@ -82,24 +82,38 @@ async def get_user_stats(
 ):
     """Получение статистики пользователя (задача #7)"""
     try:
-        # Используем синхронную сессию для RequestLimitChecker
-        stats = RequestLimitChecker.get_user_stats(sync_db, telegram_id)
-
-        # Получаем дополнительную информацию о пользователе асинхронно
+        # Получаем или создаем пользователя асинхронно
         result = await db.execute(select(User).filter(User.telegram_id == telegram_id))
         user = result.scalar_one_or_none()
 
-        if user:
-            stats.update({
-                "username": user.username,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "display_name": user.display_name,
-                "total_alerts": user.total_alerts,
-                "notifications_sent": user.notifications_sent,
-                "created_at": user.created_at.isoformat() if user.created_at else None,
-                "updated_at": user.updated_at.isoformat() if user.updated_at else None
-            })
+        if not user:
+            # Автоматически создаем пользователя если его нет
+            user = User(
+                telegram_id=telegram_id,
+                first_name=f"User {telegram_id}",
+                is_active=True,
+                daily_requests_used=0,
+                daily_requests_limit=15,
+                requests_updated_at=datetime.utcnow()
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+
+        # Используем синхронную сессию для RequestLimitChecker
+        stats = RequestLimitChecker.get_user_stats(sync_db, telegram_id)
+
+        # Обновляем статистику информацией о пользователе
+        stats.update({
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "display_name": user.display_name,
+            "total_alerts": user.total_alerts,
+            "notifications_sent": user.notifications_sent,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at else None
+        })
 
         return {
             "success": True,
