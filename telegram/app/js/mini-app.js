@@ -23,6 +23,7 @@ class BookHunterApp {
         this.catalogBooksPage = 1; // Текущая страница книг в каталоге
         this.catalogBooksTotal = 0; // Общее количество книг в каталоге
         this.savedScrollPosition = 0; // Сохраненная позиция скролла (задача #3)
+        this.booksPerPage = 15; // Количество книг на странице
         this.currentAlert = null; // Текущая подписка для редактирования
         this.init();
     }
@@ -492,7 +493,7 @@ class BookHunterApp {
         const pagination = document.getElementById('catalog-pagination');
         if (!pagination) return;
 
-        const totalPages = Math.ceil(this.catalogBooksTotal / 30) || 1;
+        const totalPages = Math.ceil(this.catalogBooksTotal / this.booksPerPage) || 1;
         const pageInfo = document.getElementById('catalog-page-info');
         const prevBtn = document.getElementById('catalog-prev-btn');
         const nextBtn = document.getElementById('catalog-next-btn');
@@ -561,7 +562,7 @@ class BookHunterApp {
 
             // Определяем страницу для пагинации
             let page = params.page || this.catalogBooksPage || 1;
-            const limit = 30; // 30 книг на странице в каталоге
+            const limit = this.booksPerPage; // 15 книг на странице в каталоге
             const offset = (page - 1) * limit;
 
             if (params.query) {
