@@ -1,44 +1,44 @@
 /* Telegram Mini App Styles - BookHunter - Bookish Theme */
 
-/* CSS Variables for Book-themed Color Scheme - Dark Library Theme */
+/* CSS Variables for Book-themed Color Scheme - Dark Warm Book Theme (from Web Version) */
 :root {
-    /* Основные цвета - глубокий темно-синий и фиолетовый (атмосфера старой библиотеки) */
-    --bg-primary: #1a1a24;
-    --bg-secondary: #242430;
-    --bg-accent: #2d2d3c;
-    --bg-card: #282836;
-    --bg-header: #1f1f2a;
+    /* Основные цвета - глубокие теплые оттенки (инвертированная веб-версия) */
+    --bg-primary: #2a2522;        /* Глубокий темно-коричневый (инверсия #F5F1E8) */
+    --bg-secondary: #352f2b;      /* Теплый темно-бежевый (инверсия #FFF8F0) */
+    --bg-accent: #3e3833;         /* Темно-песочный (инверсия #DEB887) */
+    --bg-card: #3a342f;           /* Глубокий коричневый (инверсия #FFFFFF) */
+    --bg-header: #3d3631;         /* Темно-коричневый для хедера */
 
-    /* Акцентные цвета - теплые книжные оттенки */
-    --accent-primary: #d4a574;
-    --accent-secondary: #a8c0a8;
-    --accent-tertiary: #b8a8c8;
+    /* Акцентные цвета - теплые книжные оттенки (осветленные для контраста) */
+    --accent-primary: #d4a373;    /* Теплый бежевый (осветленный #8B4513) */
+    --accent-secondary: #c9a67a;  /* Песочно-бежевый (осветленный #D2691E) */
+    --accent-tertiary: #e8c4a0;   /* Кремовый (осветленный #CD853F) */
 
     /* Текстовые цвета - высокая контрастность для тёмной темы */
-    --text-primary: #f5f0e8;
-    --text-secondary: #c4b8a8;
-    --text-muted: #8a8070;
-    --text-light: #faf8f5;
+    --text-primary: #f8f3ed;      /* Кремово-белый (осветленный #2C2C2C) */
+    --text-secondary: #d4c5b8;    /* Бежевый (осветленный #5D5D5D) */
+    --text-muted: #a69b8f;        /* Светло-коричневый (осветленный #8A8A8A) */
+    --text-light: #fff9f2;        /* Теплый белый */
 
-    /* Статусные цвета - мягкие приглушенные оттенки */
-    --success: #a8c0a8;
-    --warning: #d4a574;
-    --danger: #c8a8a8;
-    --info: #a8c8c8;
+    /* Статусные цвета - пастельные оттенки (осветленные) */
+    --success: #7d8c6e;           /* Пастельный оливковый (осветленный #6B8E23) */
+    --warning: #e6b56a;           /* Пастельный золотистый (осветленный #DAA520) */
+    --danger: #d65d5f;            /* Пастельный красный (осветленный #B22222) */
+    --info: #3db5a8;              /* Пастельный бирюзовый (осветленный #4682B4) */
 
     /* Тени */
-    --shadow-light: rgba(26, 26, 36, 0.25);
-    --shadow-medium: rgba(26, 26, 36, 0.4);
-    --shadow-strong: rgba(26, 26, 36, 0.55);
+    --shadow-light: rgba(0, 0, 0, 0.15);
+    --shadow-medium: rgba(0, 0, 0, 0.25);
+    --shadow-strong: rgba(0, 0, 0, 0.35);
 
     /* Градиенты */
-    --gradient-primary: linear-gradient(135deg, #d4a574 0%, #c49a64 100%);
-    --gradient-card: linear-gradient(145deg, #282836 0%, #1a1a24 100%);
-    --gradient-header: linear-gradient(135deg, #1f1f2a 0%, #282838 50%, #323248 100%);
+    --gradient-primary: linear-gradient(135deg, #c9a67a 0%, #d4a373 100%);
+    --gradient-card: linear-gradient(145deg, #3a342f 0%, #2a2522 100%);
+    --gradient-header: linear-gradient(135deg, #3d3631 0%, #47403b 50%, #524a45 100%);
 
     /* Границы */
-    --border-color: #3a3a4a;
-    --border-light: #282836;
+    --border-color: #4a423d;
+    --border-light: #3d3631;
 
     /* Telegram Theme Colors - фиксированные, игнорируют тему Telegram */
     --tg-theme-bg-color: var(--bg-primary) !important;
@@ -54,8 +54,8 @@
 body.force-dark-theme {
     background-color: var(--bg-primary) !important;
     background-image:
-        linear-gradient(135deg, rgba(212, 165, 116, 0.06) 0%, transparent 50%),
-        linear-gradient(45deg, rgba(184, 168, 200, 0.04) 0%, transparent 50%)) !important;
+        linear-gradient(135deg, rgba(93, 64, 55, 0.08) 0%, transparent 50%),
+        linear-gradient(45deg, rgba(139, 111, 71, 0.05) 0%, transparent 50%) !important;
     color: var(--text-primary) !important;
 }
 
@@ -69,10 +69,10 @@ body.force-dark-theme *::after {
 body {
     background-color: var(--bg-primary) !important;
     background-image:
-        linear-gradient(135deg, rgba(212, 165, 116, 0.06) 0%, transparent 50%),
-        linear-gradient(45deg, rgba(184, 168, 200, 0.04) 0%, transparent 50%),
-        radial-gradient(circle at 20% 30%, rgba(212, 165, 116, 0.05) 0%, transparent 30%),
-        radial-gradient(circle at 80% 70%, rgba(168, 192, 168, 0.05) 0%, transparent 30%) !important;
+        linear-gradient(135deg, rgba(93, 64, 55, 0.08) 0%, transparent 50%),
+        linear-gradient(45deg, rgba(139, 111, 71, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 20% 30%, rgba(212, 175, 55, 0.08) 0%, transparent 30%),
+        radial-gradient(circle at 80% 70%, rgba(160, 120, 90, 0.08) 0%, transparent 30%) !important;
     background-attachment: fixed !important;
 }
 
@@ -84,8 +84,8 @@ html {
 /* Убираем все инлайн-стили от Telegram WebApp */
 body[style] {
     background-color: var(--bg-primary) !important;
-    background-image: linear-gradient(135deg, rgba(212, 165, 116, 0.06) 0%, transparent 50%),
-                       linear-gradient(45deg, rgba(184, 168, 200, 0.04) 0%, transparent 50%)) !important;
+    background-image: linear-gradient(135deg, rgba(93, 64, 55, 0.08) 0%, transparent 50%),
+                       linear-gradient(45deg, rgba(139, 111, 71, 0.05) 0%, transparent 50%) !important;
     color: var(--text-primary) !important;
 }
 
@@ -554,7 +554,7 @@ h1, h2, h3, h4, h5, h6 {
 .form-textarea:focus {
     outline: none;
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.15);
+    box-shadow: 0 0 0 3px rgba(139, 111, 71, 0.15);
 }
 
 .form-textarea {
