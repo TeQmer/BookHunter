@@ -522,9 +522,9 @@ class BookHunterApp {
 
         // Анимация скроллинга к началу списка книг
         setTimeout(() => {
-            const booksHeader = document.querySelector('h1.header__title');
-            if (booksHeader) {
-                booksHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const booksContainer = document.getElementById('books-container');
+            if (booksContainer) {
+                booksContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }, 100);
     }
