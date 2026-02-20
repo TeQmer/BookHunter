@@ -481,9 +481,11 @@ class BookHunterApp {
         setTimeout(() => {
             const recentHeader = document.querySelector('h3:has(i.fa-clock)');
             if (recentHeader) {
-                recentHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                // Добавляем небольшой отступ (10px)
-                window.scrollBy({ top: -10, behavior: 'smooth' });
+                const headerPosition = recentHeader.getBoundingClientRect().top + window.scrollY;
+                window.scrollTo({
+                    top: headerPosition - 10,
+                    behavior: 'smooth'
+                });
             }
         }, 100);
     }
@@ -533,9 +535,11 @@ class BookHunterApp {
         setTimeout(() => {
             const booksPageTitle = document.getElementById('books-page-title');
             if (booksPageTitle) {
-                booksPageTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                // Добавляем небольшой отступ (10px)
-                window.scrollBy({ top: -10, behavior: 'smooth' });
+                const titlePosition = booksPageTitle.getBoundingClientRect().top + window.scrollY;
+                window.scrollTo({
+                    top: titlePosition - 10,
+                    behavior: 'smooth'
+                });
             }
         }, 100);
     }
