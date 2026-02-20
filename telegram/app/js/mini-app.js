@@ -405,35 +405,8 @@ class BookHunterApp {
                 `;
                 if (pagination) pagination.style.display = 'none';
             } else {
-                container.innerHTML = books.map(book => `
-                    <div class="book-card" data-book-id="${book.id}" style="cursor: pointer;">
-                        <div class="book-card__cover" style="width: 60px; height: 80px;">
-                            ${book.image_url
-                                ? `<img src="${book.image_url}" alt="${book.title}">`
-                                : `<div class="book-card__cover-placeholder"><i class="fas fa-book"></i></div>`
-                            }
-                        </div>
-                        <div class="book-card__info">
-                            <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">
-                                ${this.escapeHtml(book.title)}
-                            </h4>
-                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">
-                                ${this.escapeHtml(book.author || 'Неизвестный автор')}
-                            </div>
-                            <div style="font-size: 0.95rem; font-weight: 700; color: var(--accent-primary);">
-                                ${book.current_price || 0} ₽
-                                ${(book.original_price || 0) > 0 && book.original_price > book.current_price
-                                    ? `<span style="font-size: 0.8rem; color: var(--text-secondary); text-decoration: line-through; margin-left: 8px;">${book.original_price} ₽</span>`
-                                    : ''
-                                }
-                                ${(book.discount_percent || 0) > 0
-                                    ? `<span style="font-size: 0.75rem; background: var(--danger); color: white; padding: 2px 6px; border-radius: 8px; margin-left: 8px;">-${book.discount_percent}%</span>`
-                                    : ''
-                                }
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
+                // Используем единый дизайн карточки из createBookCard
+                container.innerHTML = books.map(book => this.createBookCard(book)).join('');
 
                 // Добавляем обработчики кликов
                 container.querySelectorAll('.book-card').forEach(card => {
@@ -675,6 +648,23 @@ class BookHunterApp {
                 return;
             }
 
+            // Клиентская фильтрация по типу переплета
+            if (params.binding) {
+                console.log('[loadBooks] Фильтрация по типу переплета:', params.binding);
+                const bindingLower = params.binding.toLowerCase();
+                this.data.books = this.data.books.filter(book => {
+                    if (!book.binding_type) return false;
+                    const binding = book.binding_type.toLowerCase();
+                    if (bindingLower === 'твердый') {
+                        return binding.includes('тверд') || binding.includes('hard') || binding.includes('тв');
+                    } else if (bindingLower === 'мягкий') {
+                        return binding.includes('мягк') || binding.includes('soft') || binding.includes('м');
+                    }
+                    return false;
+                });
+                console.log('[loadBooks] После фильтрации по переплету:', this.data.books.length, 'книг');
+            }
+
             // isSearch = true только если есть поисковый запрос (params.query)
             const isSearch = Boolean(params.query && params.query.trim());
             console.log('[loadBooks] isSearch:', isSearch, 'params.query:', params.query);
@@ -900,6 +890,19 @@ class BookHunterApp {
         const discount = book.discount_percent || 0;
         const hasDiscount = discount > 0;
 
+        // Определяем тип переплета
+        let bindingType = 'Не указан';
+        if (book.binding_type) {
+            const binding = book.binding_type.toLowerCase();
+            if (binding.includes('тверд') || binding.includes('hard') || binding.includes('тв')) {
+                bindingType = 'Твердый';
+            } else if (binding.includes('мягк') || binding.includes('soft') || binding.includes('м')) {
+                bindingType = 'Мягкий';
+            } else {
+                bindingType = book.binding_type;
+            }
+        }
+
         return `
             <div class="book-card" data-book-id="${book.id}">
                 <div class="book-card__cover">
@@ -912,6 +915,9 @@ class BookHunterApp {
                     <div class="book-card__source">${book.source || 'Неизвестно'}</div>
                     <h3 class="book-card__title">${this.escapeHtml(book.title)}</h3>
                     <div class="book-card__author">${this.escapeHtml(book.author || 'Неизвестный автор')}</div>
+                    <div class="book-card__binding">
+                        <i class="fas fa-book-open"></i> ${bindingType}
+                    </div>
                     <div class="book-card__price">
                         ${hasDiscount
                             ? `<span class="original">${book.original_price || 0} ₽</span>${book.current_price || 0} ₽`
@@ -1235,6 +1241,7 @@ class BookHunterApp {
         const source = document.getElementById('filter-source');
         const discount = document.getElementById('filter-discount');
         const price = document.getElementById('filter-price');
+        const binding = document.getElementById('filter-binding');
         const searchInput = document.getElementById('search-input');
 
         if (!source || !discount || !price || !searchInput) {
@@ -1246,12 +1253,14 @@ class BookHunterApp {
         const sourceValue = source.value;
         const discountValue = discount.value;
         const priceValue = price.value;
+        const bindingValue = binding ? binding.value : undefined;
         const queryValue = searchInput.value;
 
         console.log('[applyFilters] Параметры фильтров:', {
             source: sourceValue,
             discount: discountValue,
             price: priceValue,
+            binding: bindingValue,
             query: queryValue
         });
 
@@ -1274,7 +1283,8 @@ class BookHunterApp {
                 query: queryValue || undefined,
                 source: sourceValue || undefined,
                 discount: discountValue || undefined,
-                price: priceValue || undefined
+                price: priceValue || undefined,
+                binding: bindingValue || undefined
             });
         } catch (error) {
             console.error('[applyFilters] Ошибка:', error);

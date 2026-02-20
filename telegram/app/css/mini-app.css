@@ -3,42 +3,42 @@
 /* CSS Variables for Book-themed Color Scheme - Unified Dark Theme */
 :root {
     /* Основные цвета - тёмная кожа и старый переплёт */
-    --bg-primary: #2C241B;
-    --bg-secondary: #3E3428;
-    --bg-accent: #4A3F32;
-    --bg-card: #362C21;
-    --bg-header: #4E342E;
+    --bg-primary: #1a1816;
+    --bg-secondary: #24201e;
+    --bg-accent: #2e2825;
+    --bg-card: #2a2422;
+    --bg-header: #2d2623;
 
     /* Акцентные цвета - классические книжные */
-    --accent-primary: #A0785A;
-    --accent-secondary: #C4A47C;
-    --accent-tertiary: #D4AF37;
+    --accent-primary: #b08968;
+    --accent-secondary: #9c6644;
+    --accent-tertiary: #d4a373;
 
     /* Текстовые цвета - высокая контрастность для тёмной темы */
-    --text-primary: #EFEBE9;
-    --text-secondary: #D7CCC8;
-    --text-muted: #A1887F;
-    --text-light: #F5EDE0;
+    --text-primary: #f5f0eb;
+    --text-secondary: #c9b9a8;
+    --text-muted: #8c7b70;
+    --text-light: #fef6e4;
 
     /* Статусные цвета */
-    --success: #689F38;
-    --warning: #FBC02D;
-    --danger: #D32F2F;
-    --info: #1976D2;
+    --success: #6b705c;
+    --warning: #dda15e;
+    --danger: #bc4749;
+    --info: #2a9d8f;
 
     /* Тени */
-    --shadow-light: rgba(0, 0, 0, 0.15);
-    --shadow-medium: rgba(0, 0, 0, 0.2);
-    --shadow-strong: rgba(0, 0, 0, 0.3);
+    --shadow-light: rgba(0, 0, 0, 0.2);
+    --shadow-medium: rgba(0, 0, 0, 0.3);
+    --shadow-strong: rgba(0, 0, 0, 0.4);
 
     /* Градиенты */
-    --gradient-primary: linear-gradient(135deg, #6D4C41 0%, #8B6F47 100%);
-    --gradient-card: linear-gradient(145deg, #362C21 0%, #2C241B 100%);
-    --gradient-header: linear-gradient(135deg, #3E2723 0%, #4E342E 50%, #5D4037 100%);
+    --gradient-primary: linear-gradient(135deg, #9c6644 0%, #b08968 100%);
+    --gradient-card: linear-gradient(145deg, #2a2422 0%, #1a1816 100%);
+    --gradient-header: linear-gradient(135deg, #2d2623 0%, #3a322e 50%, #453c38 100%);
 
     /* Границы */
-    --border-color: #4E3E32;
-    --border-light: #3E3428;
+    --border-color: #3e3632;
+    --border-light: #2d2623;
 
     /* Telegram Theme Colors - фиксированные, игнорируют тему Telegram */
     --tg-theme-bg-color: var(--bg-primary) !important;
@@ -411,7 +411,19 @@ h1, h2, h3, h4, h5, h6 {
 .book-card__author {
     font-size: 0.85rem;
     color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.book-card__binding {
+    font-size: 0.75rem;
+    color: var(--accent-secondary);
     margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.book-card__binding i {
+    margin-right: 4px;
+    font-size: 0.7rem;
 }
 
 .book-card__price {
