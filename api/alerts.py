@@ -194,8 +194,12 @@ async def create_alert(
         await db.commit()
         await db.refresh(new_alert)
         
-        logger.info(f"Создана новая подписка: {new_alert.book_title}")
+        # Обновляем счетчик подписок пользователя
+        user.total_alerts = (user.total_alerts or 0) + 1
+        await db.commit()
         
+        logger.info(f"Создана новая подписка: {new_alert.book_title}")
+
         return {
             "id": new_alert.id,
             "message": "Подписка создана успешно"
@@ -299,8 +303,15 @@ async def delete_alert(
         # Удаляем саму подписку
         await db.delete(alert)
 
-        await db.commit()
+        # Обновляем счетчик подписок пользователя
+        from models.user import User
+        user_result = await db.execute(select(User).where(User.id == alert.user_id))
+        user = user_result.scalar_one_or_none()
+        if user:
+            user.total_alerts = max(0, (user.total_alerts or 0) - 1)
 
+        await db.commit()
+        
         logger.info(f"Подписка полностью удалена: {alert.book_title}")
 
         return {
@@ -394,8 +405,12 @@ async def create_alert_from_book(
         await db.commit()
         await db.refresh(new_alert)
         
-        logger.info(f"Создана подписка на книгу '{book.title}' с целевой ценой {target_price}₽")
+        # Обновляем счетчик подписок пользователя
+        user.total_alerts = (user.total_alerts or 0) + 1
+        await db.commit()
         
+        logger.info(f"Создана подписка на книгу '{book.title}' с целевой ценой {target_price}₽")
+
         return {
             "success": True,
             "message": "Подписка создана успешно",

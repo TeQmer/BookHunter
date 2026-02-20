@@ -10,10 +10,12 @@ class BookHunterApp {
         console.log('[BookHunterApp] window.location.origin:', window.location.origin);
         console.log('[BookHunterApp] API_BASE_URL из config:', typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : 'НЕ ОПРЕДЕЛЕН');
         this.currentRoute = 'home';
+        this.previousRoute = 'home'; // Предыдущая страница для корректного возврата
         this.user = null;
         this.data = {
             books: [],
             alerts: [],
+            userAlerts: [], // Подписки текущего пользователя для проверки в карточках
             stats: null
         };
         this.recentBooksPage = 1; // Текущая страница недавних книг на главной
@@ -78,6 +80,11 @@ class BookHunterApp {
      */
     navigate(route, params = {}) {
         console.log('[navigate] Навигация на:', route, params);
+
+        // Сохраняем предыдущую страницу (кроме book-detail)
+        if (route !== 'book-detail') {
+            this.previousRoute = this.currentRoute;
+        }
 
         // Скрываем все страницы
         this.hideAllPages();
@@ -482,8 +489,8 @@ class BookHunterApp {
         const avgDiscountEl = document.getElementById('stat-avg-discount');
 
         if (totalBooksEl) totalBooksEl.textContent = stats.total_books || 0;
-        if (activeAlertsEl) activeAlertsEl.textContent = stats.active_alerts || 0;
-        if (avgDiscountEl) avgDiscountEl.textContent = (stats.avg_discount || 0) + '%';
+        if (activeAlertsEl) activeAlertsEl.textContent = stats.total_alerts || 0;
+        if (avgDiscountEl) avgDiscountEl.textContent = stats.avg_discount || 0;
     }
 
     /**
@@ -837,7 +844,6 @@ class BookHunterApp {
 
         const requestsUsed = stats.daily_requests_used || 0;
         const requestsLimit = stats.daily_requests_limit || 15;
-        const requestsRemaining = Math.max(0, requestsLimit - requestsUsed);
         const requestsPercentage = (requestsUsed / requestsLimit) * 100;
 
         // Форматируем дату обновления
@@ -879,13 +885,6 @@ class BookHunterApp {
                         <div class="profile__stat-value">${requestsUsed} / ${requestsLimit}</div>
                     </div>
 
-                    <div class="profile__stat">
-                        <div class="profile__stat-label">Осталось сегодня</div>
-                        <div class="profile__stat-value" style="color: ${requestsRemaining <= 3 ? 'var(--danger)' : 'var(--success)'};">
-                            ${requestsRemaining}
-                        </div>
-                    </div>
-
                     <div style="margin-top: 16px;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem;">
                             <span style="color: var(--text-secondary);">Прогресс</span>
@@ -908,13 +907,6 @@ class BookHunterApp {
                         <div class="profile__stat">
                             <div class="profile__stat-label">Никнейм</div>
                             <div class="profile__stat-value">@${this.escapeHtml(stats.username)}</div>
-                        </div>
-                    ` : ''}
-
-                    ${stats.first_name ? `
-                        <div class="profile__stat">
-                            <div class="profile__stat-label">Имя</div>
-                            <div class="profile__stat-value">${this.escapeHtml(stats.first_name)}</div>
                         </div>
                     ` : ''}
 
@@ -1382,6 +1374,7 @@ class BookHunterApp {
         // Сохраняем текущую позицию скролла (задача #3)
         this.savedScrollPosition = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
         console.log('[showBookDetails] Сохранена позиция скролла:', this.savedScrollPosition);
+        console.log('[showBookDetails] Предыдущая страница:', this.previousRoute);
 
         // Переключаемся на страницу деталей
         this.hideAllPages();
@@ -1624,12 +1617,10 @@ class BookHunterApp {
         // Скрываем кнопку назад
         window.tg.hideBackButton();
 
-        // Возвращаемся на предыдущую страницу
-        if (this.currentRoute === 'book-detail') {
-            this.navigate('books');
-        } else {
-            this.navigate('home');
-        }
+        // Возвращаемся на предыдущую страницу (home или books)
+        const targetRoute = this.previousRoute || 'home';
+        console.log('[closeBookDetail] Возвращаемся на:', targetRoute);
+        this.navigate(targetRoute);
 
         // Восстанавливаем позицию скролла (задача #3)
         if (this.savedScrollPosition > 0) {
