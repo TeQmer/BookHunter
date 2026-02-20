@@ -10,7 +10,7 @@ class BookHunterApp {
         console.log('[BookHunterApp] window.location.origin:', window.location.origin);
         console.log('[BookHunterApp] API_BASE_URL из config:', typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : 'НЕ ОПРЕДЕЛЕН');
         this.currentRoute = 'home';
-        this.previousRoute = 'home'; // Предыдущая страница для корректного возврата
+        this.pageBeforeBookDetail = 'home'; // Страница перед открытием деталей книги
         this.user = null;
         this.data = {
             books: [],
@@ -80,11 +80,6 @@ class BookHunterApp {
      */
     navigate(route, params = {}) {
         console.log('[navigate] Навигация на:', route, params);
-
-        // Сохраняем предыдущую страницу (кроме book-detail)
-        if (route !== 'book-detail') {
-            this.previousRoute = this.currentRoute;
-        }
 
         // Скрываем все страницы
         this.hideAllPages();
@@ -1371,10 +1366,13 @@ class BookHunterApp {
         console.log('[showBookDetails] Показ деталей книги:', bookId);
         window.tg.hapticClick();
 
+        // Сохраняем текущую страницу перед открытием деталей
+        this.pageBeforeBookDetail = this.currentRoute;
+        console.log('[showBookDetails] Сохранена страница:', this.pageBeforeBookDetail);
+
         // Сохраняем текущую позицию скролла (задача #3)
         this.savedScrollPosition = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
         console.log('[showBookDetails] Сохранена позиция скролла:', this.savedScrollPosition);
-        console.log('[showBookDetails] Предыдущая страница:', this.previousRoute);
 
         // Переключаемся на страницу деталей
         this.hideAllPages();
@@ -1617,8 +1615,8 @@ class BookHunterApp {
         // Скрываем кнопку назад
         window.tg.hideBackButton();
 
-        // Возвращаемся на предыдущую страницу (home или books)
-        const targetRoute = this.previousRoute || 'home';
+        // Возвращаемся на страницу, с которой открыли книгу
+        const targetRoute = this.pageBeforeBookDetail || 'home';
         console.log('[closeBookDetail] Возвращаемся на:', targetRoute);
         this.navigate(targetRoute);
 
