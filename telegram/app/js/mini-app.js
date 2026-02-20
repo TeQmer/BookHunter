@@ -1181,16 +1181,27 @@ class BookHunterApp {
             query: queryValue
         });
 
-        this.showLoading('Применение фильтров...');
+        // Показываем загрузку только в контейнере книг
+        const container = document.getElementById('books-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="loading__spinner"></div>
+                    <div class="loading__text">Применение фильтров...</div>
+                </div>
+            `;
+        }
 
         try {
-            // Загружаем книги с фильтрацией с таймаутом (задача #5)
-            await Promise.race([
-                this.loadBooks({ query: queryValue, source: sourceValue, discount: discountValue, price: priceValue }),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Таймаут загрузки')), 30000)
-                )
-            ]);
+            // Загружаем книги с фильтрацией
+            // Если есть поисковый запрос - используем поиск
+            // Если нет поискового запроса - используем фильтрацию всех книг
+            await this.loadBooks({
+                query: queryValue || undefined,
+                source: sourceValue || undefined,
+                discount: discountValue || undefined,
+                price: priceValue || undefined
+            });
         } catch (error) {
             console.error('[applyFilters] Ошибка:', error);
             this.showError(error.message || 'Не удалось применить фильтры');
