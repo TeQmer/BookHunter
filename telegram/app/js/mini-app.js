@@ -483,7 +483,7 @@ class BookHunterApp {
             if (recentHeader) {
                 const headerPosition = recentHeader.getBoundingClientRect().top + window.scrollY;
                 window.scrollTo({
-                    top: headerPosition - 10,
+                    top: headerPosition - 30,
                     behavior: 'smooth'
                 });
             }
@@ -537,7 +537,7 @@ class BookHunterApp {
             if (booksPageTitle) {
                 const titlePosition = booksPageTitle.getBoundingClientRect().top + window.scrollY;
                 window.scrollTo({
-                    top: titlePosition - 10,
+                    top: titlePosition - 30,
                     behavior: 'smooth'
                 });
             }
