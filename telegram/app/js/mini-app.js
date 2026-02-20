@@ -439,7 +439,7 @@ class BookHunterApp {
                 }
 
                 // Прокрутка к началу блока недавних книг отключена (задача #2)
-                // const recentHeader = document.querySelector('h3:has(i.fa-clock)');
+                // const recentHeader = document.getElementById('recent-books-title');
                 // if (recentHeader) {
                 //     recentHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 // }
@@ -479,7 +479,7 @@ class BookHunterApp {
 
         // Анимация скроллинга к началу блока недавних книг с небольшим отступом
         setTimeout(() => {
-            const recentHeader = document.querySelector('h3:has(i.fa-clock)');
+            const recentHeader = document.getElementById('recent-books-title');
             if (recentHeader) {
                 const headerPosition = recentHeader.getBoundingClientRect().top + window.scrollY;
                 window.scrollTo({
