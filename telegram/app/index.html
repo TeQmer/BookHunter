@@ -216,6 +216,28 @@
                     <div class="loading__text">Загрузка книг...</div>
                 </div>
             </div>
+
+            <!-- Catalog Pagination -->
+            <div id="catalog-pagination" style="display: none; margin-top: 16px; padding: 16px; background: var(--bg-secondary); border-radius: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                    <button class="btn btn--secondary" id="catalog-prev-btn" onclick="app.loadCatalogBooksPage('prev')" style="flex: 1;">
+                        <i class="fas fa-chevron-left"></i> Назад
+                    </button>
+                    <span id="catalog-page-info" style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">
+                        Страница 1 из 1
+                    </span>
+                    <button class="btn btn--secondary" id="catalog-next-btn" onclick="app.loadCatalogBooksPage('next')" style="flex: 1;">
+                        Далее <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Load More -->
+            <div id="load-more-container" style="display: none; margin-top: 16px;">
+                <button class="btn btn--secondary" onclick="app.loadMoreBooks()">
+                    <i class="fas fa-plus"></i> Загрузить еще
+                </button>
+            </div>
         </div>
 
         <!-- Alerts Page (hidden by default) -->
