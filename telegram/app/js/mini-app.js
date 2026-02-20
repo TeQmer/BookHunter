@@ -311,6 +311,8 @@ class BookHunterApp {
         switch (route) {
             case 'home':
                 await this.loadStats();
+                // Загружаем недавние книги только для главной страницы
+                await this.loadRecentBooks(this.recentBooksPage);
                 break;
             case 'books':
                 // Всегда загружаем книги - все или с фильтрами/поиском
@@ -341,8 +343,8 @@ class BookHunterApp {
             // Загружаем статистику
             await this.loadStats();
 
-            // Загружаем недавние книги
-            await this.loadRecentBooks(1);
+            // Недавние книги загружаются только при открытии главной страницы
+            // в loadPageData(), чтобы не показывать пагинацию на других страницах
         } catch (error) {
             console.error('Ошибка загрузки начальных данных:', error);
             this.showError('Не удалось загрузить данные. Проверьте соединение.');
