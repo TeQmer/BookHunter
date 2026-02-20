@@ -812,21 +812,33 @@ class BookHunterApp {
         const loadMoreContainer = document.getElementById('load-more-container');
         const pagination = document.getElementById('catalog-pagination');
 
-        if (resultsInfo && resultsCount) {
-            if (isSearch) {
+        console.log('[renderBooks] isSearch:', isSearch);
+        console.log('[renderBooks] pagination:', pagination);
+        console.log('[renderBooks] resultsInfo:', resultsInfo);
+        console.log('[renderBooks] catalogBooksTotal:', this.catalogBooksTotal);
+
+        if (isSearch) {
+            // Скрываем пагинацию при поиске
+            if (pagination) pagination.style.display = 'none';
+            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+
+            // Показываем информацию о результатах если элемент существует
+            if (resultsInfo && resultsCount) {
                 resultsInfo.style.display = 'block';
                 resultsCount.textContent = this.catalogBooksTotal || books.length;
-                // Скрываем пагинацию при поиске
-                if (pagination) pagination.style.display = 'none';
-                if (loadMoreContainer) loadMoreContainer.style.display = 'none';
-            } else {
+            }
+        } else {
+            // Показываем пагинацию для каталога
+            if (pagination) {
+                console.log('[renderBooks] Показываем пагинацию каталога');
+                this.updateCatalogPagination();
+                pagination.style.display = 'block';
+            }
+            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+
+            // Скрываем информацию о результатах если элемент существует
+            if (resultsInfo) {
                 resultsInfo.style.display = 'none';
-                // Показываем пагинацию для каталога
-                if (pagination) {
-                    this.updateCatalogPagination();
-                    pagination.style.display = 'block';
-                }
-                if (loadMoreContainer) loadMoreContainer.style.display = 'none';
             }
         }
 
