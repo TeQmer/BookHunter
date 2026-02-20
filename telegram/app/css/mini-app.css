@@ -11,8 +11,8 @@
     --bg-book-card: #3a4058;      /* Отдельный цвет для карточек книг */
 
     /* Акцентные цвета - теплые коричневые и золотые */
-    --accent-primary: #d4a574;    /* Золотисто-коричневый */
-    --accent-secondary: #c9a068;  /* Медный */
+    --accent-primary: #c9776a;    /* Теплый терракотовый */
+    --accent-secondary: #d48c75;  /* Песочно-терракотовый */
     --accent-tertiary: #f0e6d2;   /* Пергаментный (белая обводка) */
 
     /* Текстовые цвета - высокая контрастность для тёмной темы */
@@ -33,7 +33,7 @@
     --shadow-strong: rgba(0, 0, 0, 0.35);
 
     /* Градиенты */
-    --gradient-primary: linear-gradient(135deg, #c9a068 0%, #d4a574 100%);
+    --gradient-primary: linear-gradient(135deg, #d48c75 0%, #c9776a 100%);
     --gradient-card: linear-gradient(145deg, #2d3448 0%, #1a1d2e 100%);
     --gradient-book-card: linear-gradient(145deg, #3a4058 0%, #252a40 100%);
     --gradient-header: linear-gradient(135deg, #222838 0%, #2d3448 50%, #3d4458 100%);
@@ -56,7 +56,7 @@
 body.force-dark-theme {
     background-color: var(--bg-primary) !important;
     background-image:
-        linear-gradient(135deg, rgba(212, 165, 116, 0.06) 0%, transparent 50%),
+        linear-gradient(135deg, rgba(201, 119, 106, 0.06) 0%, transparent 50%),
         linear-gradient(45deg, rgba(61, 68, 88, 0.05) 0%, transparent 50%) !important;
     color: var(--text-primary) !important;
 }
@@ -71,9 +71,9 @@ body.force-dark-theme *::after {
 body {
     background-color: var(--bg-primary) !important;
     background-image:
-        linear-gradient(135deg, rgba(212, 165, 116, 0.06) 0%, transparent 50%),
+        linear-gradient(135deg, rgba(201, 119, 106, 0.06) 0%, transparent 50%),
         linear-gradient(45deg, rgba(61, 68, 88, 0.05) 0%, transparent 50%),
-        radial-gradient(circle at 20% 30%, rgba(205, 133, 63, 0.06) 0%, transparent 30%),
+        radial-gradient(circle at 20% 30%, rgba(212, 140, 117, 0.06) 0%, transparent 30%),
         radial-gradient(circle at 80% 70%, rgba(125, 160, 110, 0.06) 0%, transparent 30%) !important;
     background-attachment: fixed !important;
 }
@@ -86,7 +86,7 @@ html {
 /* Убираем все инлайн-стили от Telegram WebApp */
 body[style] {
     background-color: var(--bg-primary) !important;
-    background-image: linear-gradient(135deg, rgba(212, 165, 116, 0.06) 0%, transparent 50%),
+    background-image: linear-gradient(135deg, rgba(201, 119, 106, 0.06) 0%, transparent 50%),
                        linear-gradient(45deg, rgba(61, 68, 88, 0.05) 0%, transparent 50%) !important;
     color: var(--text-primary) !important;
 }
@@ -558,7 +558,7 @@ h1, h2, h3, h4, h5, h6 {
 .form-textarea:focus {
     outline: none;
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.15);
+    box-shadow: 0 0 0 3px rgba(201, 119, 106, 0.15);
 }
 
 .form-textarea {
@@ -584,7 +584,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .search__input:focus-within {
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 3px rgba(212, 165, 116, 0.15);
+    box-shadow: 0 0 0 3px rgba(201, 119, 106, 0.15);
 }
 
 .search__input input {
