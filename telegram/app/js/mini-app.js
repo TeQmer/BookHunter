@@ -648,7 +648,11 @@ class BookHunterApp {
                 return;
             }
 
-            this.renderBooks(this.data.books, params.query ? true : false);
+            // isSearch = true только если есть поисковый запрос (params.query)
+            const isSearch = Boolean(params.query && params.query.trim());
+            console.log('[loadBooks] isSearch:', isSearch, 'params.query:', params.query);
+
+            this.renderBooks(this.data.books, isSearch);
         } catch (error) {
             console.error('[loadBooks] Ошибка загрузки книг:', error);
 
@@ -825,28 +829,30 @@ class BookHunterApp {
         console.log('[renderBooks] catalogBooksTotal:', this.catalogBooksTotal);
         console.log('[renderBooks] books.length:', books.length);
 
-        if (isSearch) {
-            // Скрываем пагинацию при поиске
-            if (pagination) pagination.style.display = 'none';
-            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+        // Всегда показываем пагинацию для каталога, если есть книги
+        // Пагинация скрывается только при поиске
+        const shouldShowPagination = !isSearch && pagination;
 
-            // Показываем информацию о результатах если элемент существует
-            if (resultsInfo && resultsCount) {
-                resultsInfo.style.display = 'block';
-                resultsCount.textContent = this.catalogBooksTotal || books.length;
-            }
-        } else {
-            // Показываем пагинацию для каталога (всегда, когда есть книги)
-            if (pagination) {
-                console.log('[renderBooks] Показываем пагинацию каталога');
-                this.updateCatalogPagination();
-                pagination.style.display = 'block';
-            }
+        if (shouldShowPagination) {
+            console.log('[renderBooks] Показываем пагинацию каталога');
+            this.updateCatalogPagination();
+            pagination.style.display = 'block';
+
             if (loadMoreContainer) loadMoreContainer.style.display = 'none';
 
             // Скрываем информацию о результатах если элемент существует
             if (resultsInfo) {
                 resultsInfo.style.display = 'none';
+            }
+        } else {
+            // Скрываем пагинацию при поиске или если элемент не найден
+            if (pagination) pagination.style.display = 'none';
+            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+
+            // Показываем информацию о результатах если элемент существует и это поиск
+            if (isSearch && resultsInfo && resultsCount) {
+                resultsInfo.style.display = 'block';
+                resultsCount.textContent = this.catalogBooksTotal || books.length;
             }
         }
 
