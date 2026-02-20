@@ -653,8 +653,8 @@ class BookHunterApp {
                 console.log('[loadBooks] Фильтрация по типу переплета:', params.binding);
                 const bindingLower = params.binding.toLowerCase();
                 this.data.books = this.data.books.filter(book => {
-                    if (!book.binding_type) return false;
-                    const binding = book.binding_type.toLowerCase();
+                    if (!book.binding) return false;
+                    const binding = book.binding.toLowerCase();
                     if (bindingLower === 'твердый') {
                         return binding.includes('тверд') || binding.includes('hard') || binding.includes('тв');
                     } else if (bindingLower === 'мягкий') {
@@ -892,14 +892,14 @@ class BookHunterApp {
 
         // Определяем тип переплета
         let bindingType = 'Не указан';
-        if (book.binding_type) {
-            const binding = book.binding_type.toLowerCase();
+        if (book.binding) {
+            const binding = book.binding.toLowerCase();
             if (binding.includes('тверд') || binding.includes('hard') || binding.includes('тв')) {
                 bindingType = 'Твердый';
             } else if (binding.includes('мягк') || binding.includes('soft') || binding.includes('м')) {
                 bindingType = 'Мягкий';
             } else {
-                bindingType = book.binding_type;
+                bindingType = book.binding;
             }
         }
 

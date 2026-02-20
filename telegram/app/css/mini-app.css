@@ -2,43 +2,43 @@
 
 /* CSS Variables for Book-themed Color Scheme - Unified Dark Theme */
 :root {
-    /* Основные цвета - тёмная кожа и старый переплёт */
-    --bg-primary: #1a1816;
-    --bg-secondary: #24201e;
-    --bg-accent: #2e2825;
-    --bg-card: #2a2422;
-    --bg-header: #2d2623;
+    /* Основные цвета - пастельные теплые тона */
+    --bg-primary: #2a2522;
+    --bg-secondary: #352f2b;
+    --bg-accent: #3e3833;
+    --bg-card: #3a342f;
+    --bg-header: #3d3631;
 
-    /* Акцентные цвета - классические книжные */
-    --accent-primary: #b08968;
-    --accent-secondary: #9c6644;
-    --accent-tertiary: #d4a373;
+    /* Акцентные цвета - мягкие пастельные */
+    --accent-primary: #d4a373;
+    --accent-secondary: #c9a67a;
+    --accent-tertiary: #e8c4a0;
 
     /* Текстовые цвета - высокая контрастность для тёмной темы */
-    --text-primary: #f5f0eb;
-    --text-secondary: #c9b9a8;
-    --text-muted: #8c7b70;
-    --text-light: #fef6e4;
+    --text-primary: #f8f3ed;
+    --text-secondary: #d4c5b8;
+    --text-muted: #a69b8f;
+    --text-light: #fff9f2;
 
-    /* Статусные цвета */
-    --success: #6b705c;
-    --warning: #dda15e;
-    --danger: #bc4749;
-    --info: #2a9d8f;
+    /* Статусные цвета - пастельные */
+    --success: #7d8c6e;
+    --warning: #e6b56a;
+    --danger: #d65d5f;
+    --info: #3db5a8;
 
     /* Тени */
-    --shadow-light: rgba(0, 0, 0, 0.2);
-    --shadow-medium: rgba(0, 0, 0, 0.3);
-    --shadow-strong: rgba(0, 0, 0, 0.4);
+    --shadow-light: rgba(0, 0, 0, 0.15);
+    --shadow-medium: rgba(0, 0, 0, 0.25);
+    --shadow-strong: rgba(0, 0, 0, 0.35);
 
     /* Градиенты */
-    --gradient-primary: linear-gradient(135deg, #9c6644 0%, #b08968 100%);
-    --gradient-card: linear-gradient(145deg, #2a2422 0%, #1a1816 100%);
-    --gradient-header: linear-gradient(135deg, #2d2623 0%, #3a322e 50%, #453c38 100%);
+    --gradient-primary: linear-gradient(135deg, #c9a67a 0%, #d4a373 100%);
+    --gradient-card: linear-gradient(145deg, #3a342f 0%, #2a2522 100%);
+    --gradient-header: linear-gradient(135deg, #3d3631 0%, #47403b 50%, #524a45 100%);
 
     /* Границы */
-    --border-color: #3e3632;
-    --border-light: #2d2623;
+    --border-color: #4a423d;
+    --border-light: #3d3631;
 
     /* Telegram Theme Colors - фиксированные, игнорируют тему Telegram */
     --tg-theme-bg-color: var(--bg-primary) !important;
