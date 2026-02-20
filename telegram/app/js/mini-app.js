@@ -20,6 +20,8 @@ class BookHunterApp {
         };
         this.recentBooksPage = 1; // Текущая страница недавних книг на главной
         this.recentBooksTotal = 0; // Общее количество недавних книг
+        this.catalogBooksPage = 1; // Текущая страница книг в каталоге
+        this.catalogBooksTotal = 0; // Общее количество книг в каталоге
         this.savedScrollPosition = 0; // Сохраненная позиция скролла (задача #3)
         this.currentAlert = null; // Текущая подписка для редактирования
         this.init();
@@ -473,6 +475,58 @@ class BookHunterApp {
 
         // Загружаем новую страницу
         await this.loadRecentBooks(currentPage);
+
+        // Анимация скроллинга к началу блока недавних книг
+        setTimeout(() => {
+            const recentHeader = document.querySelector('h3:has(i.fa-clock)');
+            if (recentHeader) {
+                recentHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100);
+    }
+
+    /**
+     * Обновление пагинации каталога книг
+     */
+    updateCatalogPagination() {
+        const pagination = document.getElementById('catalog-pagination');
+        if (!pagination) return;
+
+        const totalPages = Math.ceil(this.catalogBooksTotal / 30);
+        const pageInfo = document.getElementById('catalog-page-info');
+        const prevBtn = document.getElementById('catalog-prev-btn');
+        const nextBtn = document.getElementById('catalog-next-btn');
+
+        if (pageInfo) pageInfo.textContent = `Страница ${this.catalogBooksPage} из ${totalPages}`;
+        if (prevBtn) prevBtn.disabled = this.catalogBooksPage <= 1;
+        if (nextBtn) nextBtn.disabled = this.catalogBooksPage >= totalPages;
+    }
+
+    /**
+     * Загрузка страницы каталога книг (пагинация)
+     */
+    async loadCatalogBooksPage(direction) {
+        console.log('[loadCatalogBooksPage] Загрузка страницы:', direction);
+
+        // Получаем текущую страницу
+        let currentPage = this.catalogBooksPage || 1;
+
+        if (direction === 'prev') {
+            currentPage = Math.max(1, currentPage - 1);
+        } else if (direction === 'next') {
+            currentPage = currentPage + 1;
+        }
+
+        // Загружаем новую страницу
+        await this.loadBooks({ page: currentPage });
+
+        // Анимация скроллинга к началу списка книг
+        setTimeout(() => {
+            const booksHeader = document.querySelector('h1.header__title');
+            if (booksHeader) {
+                booksHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100);
     }
 
     /**
@@ -499,10 +553,15 @@ class BookHunterApp {
             let url;
             let useSmartSearch = false;
 
+            // Определяем страницу для пагинации
+            let page = params.page || this.catalogBooksPage || 1;
+            const limit = 30; // 30 книг на странице в каталоге
+            const offset = (page - 1) * limit;
+
             if (params.query) {
                 // Умный поиск: сначала база данных, потом парсинг
                 useSmartSearch = true;
-                url = `${this.apiBaseUrl}/web/books/api/search?q=${encodeURIComponent(params.query)}`;
+                url = `${this.apiBaseUrl}/web/books/api/search?q=${encodeURIComponent(params.query)}&limit=${limit}&offset=${offset}`;
                 if (params.source) {
                     url += `&source=${params.source}`;
                 }
@@ -514,7 +573,7 @@ class BookHunterApp {
                 }
             } else {
                 // Если нет запроса, загружаем все книги с сортировкой по цене
-                url = `${this.apiBaseUrl}/web/books/api/all`;
+                url = `${this.apiBaseUrl}/web/books/api/all?limit=${limit}&offset=${offset}`;
                 const queryParams = [];
                 if (params.source) {
                     queryParams.push(`source=${params.source}`);
@@ -526,7 +585,7 @@ class BookHunterApp {
                     queryParams.push(`max_price=${params.price}`);
                 }
                 if (queryParams.length > 0) {
-                    url += `?${queryParams.join('&')}`;
+                    url += `&${queryParams.join('&')}`;
                 }
             }
 
@@ -561,13 +620,19 @@ class BookHunterApp {
             // Веб API: {books: [...]}
             if (data.success && data.books) {
                 this.data.books = data.books;
+                this.catalogBooksTotal = data.total || 0;
             } else if (data.books) {
                 this.data.books = data.books;
+                this.catalogBooksTotal = data.total || 0;
             } else {
                 this.data.books = [];
+                this.catalogBooksTotal = 0;
             }
 
+            this.catalogBooksPage = page;
+
             console.log('[loadBooks] Книги для рендеринга:', this.data.books.length);
+            console.log('[loadBooks] Всего книг:', this.catalogBooksTotal);
 
             // Если книг нет и это поиск - запускаем парсинг
             if (useSmartSearch && this.data.books.length === 0) {
@@ -576,7 +641,7 @@ class BookHunterApp {
                 return;
             }
 
-            this.renderBooks(this.data.books);
+            this.renderBooks(this.data.books, params.query ? true : false);
         } catch (error) {
             console.error('[loadBooks] Ошибка загрузки книг:', error);
 
@@ -698,8 +763,8 @@ class BookHunterApp {
     /**
      * Отрисовка списка книг
      */
-    renderBooks(books) {
-        console.log('[renderBooks] Начинаем отрисовку книг:', books.length);
+    renderBooks(books, isSearch = false) {
+        console.log('[renderBooks] Начинаем отрисовку книг:', books.length, 'isSearch:', isSearch);
 
         // Ищем контейнер для книг - может быть books-container или другой
         let container = document.getElementById('books-container');
@@ -718,6 +783,9 @@ class BookHunterApp {
         if (!books || books.length === 0) {
             console.log('[renderBooks] Книг нет, показываем пустое состояние');
             container.innerHTML = this.getEmptyState('Книги не найдены', 'Попробуйте изменить параметры поиска');
+            // Скрываем пагинацию при отсутствии результатов
+            const pagination = document.getElementById('catalog-pagination');
+            if (pagination) pagination.style.display = 'none';
             return;
         }
 
@@ -737,6 +805,30 @@ class BookHunterApp {
                 }
             });
         });
+
+        // Показываем информацию о результатах и пагинацию (только для каталога, не для поиска)
+        const resultsInfo = document.getElementById('results-info');
+        const resultsCount = document.getElementById('results-count');
+        const loadMoreContainer = document.getElementById('load-more-container');
+        const pagination = document.getElementById('catalog-pagination');
+
+        if (resultsInfo && resultsCount) {
+            if (isSearch) {
+                resultsInfo.style.display = 'block';
+                resultsCount.textContent = this.catalogBooksTotal || books.length;
+                // Скрываем пагинацию при поиске
+                if (pagination) pagination.style.display = 'none';
+                if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+            } else {
+                resultsInfo.style.display = 'none';
+                // Показываем пагинацию для каталога
+                if (pagination) {
+                    this.updateCatalogPagination();
+                    pagination.style.display = 'block';
+                }
+                if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+            }
+        }
 
         console.log('[renderBooks] Отрисовка завершена');
     }
