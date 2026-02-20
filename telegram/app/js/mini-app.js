@@ -213,6 +213,10 @@ class BookHunterApp {
      * Показать страницу книг
      */
     showBooksPage() {
+        // �������� ��������� �������� ����
+        const recentPagination = document.getElementById('recent-pagination');
+        if (recentPagination) recentPagination.style.display = 'none';
+
         console.log('[showBooksPage] Показываем страницу книг');
 
         const booksPage = document.getElementById('books-page');
@@ -230,6 +234,10 @@ class BookHunterApp {
      * Показать страницу подписок
      */
     showAlertsPage() {
+        // Скрываем пагинацию недавних книг
+        const recentPagination = document.getElementById('recent-pagination');
+        if (recentPagination) recentPagination.style.display = 'none';
+
         console.log('[showAlertsPage] Показываем страницу подписок');
 
         const alertsPage = document.getElementById('alerts-page');
@@ -246,6 +254,10 @@ class BookHunterApp {
      * Показать страницу профиля
      */
     showProfilePage() {
+        // Скрываем пагинацию недавних книг
+        const recentPagination = document.getElementById('recent-pagination');
+        if (recentPagination) recentPagination.style.display = 'none';
+
         console.log('[showProfilePage] Показываем страницу профиля');
 
         const profilePage = document.getElementById('profile-page');
@@ -262,6 +274,10 @@ class BookHunterApp {
      * Показать страницу деталей книги
      */
     showBookDetailPage() {
+        // Скрываем пагинацию недавних книг
+        const recentPagination = document.getElementById('recent-pagination');
+        if (recentPagination) recentPagination.style.display = 'none';
+
         console.log('[showBookDetailPage] Показываем страницу деталей книги');
 
         const bookDetailPage = document.getElementById('book-detail-page');
