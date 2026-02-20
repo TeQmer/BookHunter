@@ -492,14 +492,20 @@ class BookHunterApp {
         const pagination = document.getElementById('catalog-pagination');
         if (!pagination) return;
 
-        const totalPages = Math.ceil(this.catalogBooksTotal / 30);
+        const totalPages = Math.ceil(this.catalogBooksTotal / 30) || 1;
         const pageInfo = document.getElementById('catalog-page-info');
         const prevBtn = document.getElementById('catalog-prev-btn');
         const nextBtn = document.getElementById('catalog-next-btn');
 
-        if (pageInfo) pageInfo.textContent = `Страница ${this.catalogBooksPage} из ${totalPages}`;
+        if (pageInfo) {
+            if (this.catalogBooksTotal > 0) {
+                pageInfo.textContent = `Страница ${this.catalogBooksPage} из ${totalPages}`;
+            } else {
+                pageInfo.textContent = `Страница ${this.catalogBooksPage}`;
+            }
+        }
         if (prevBtn) prevBtn.disabled = this.catalogBooksPage <= 1;
-        if (nextBtn) nextBtn.disabled = this.catalogBooksPage >= totalPages;
+        if (nextBtn) nextBtn.disabled = (this.catalogBooksTotal > 0 && this.catalogBooksPage >= totalPages);
     }
 
     /**
@@ -816,6 +822,7 @@ class BookHunterApp {
         console.log('[renderBooks] pagination:', pagination);
         console.log('[renderBooks] resultsInfo:', resultsInfo);
         console.log('[renderBooks] catalogBooksTotal:', this.catalogBooksTotal);
+        console.log('[renderBooks] books.length:', books.length);
 
         if (isSearch) {
             // Скрываем пагинацию при поиске
@@ -828,7 +835,7 @@ class BookHunterApp {
                 resultsCount.textContent = this.catalogBooksTotal || books.length;
             }
         } else {
-            // Показываем пагинацию для каталога
+            // Показываем пагинацию для каталога (всегда, когда есть книги)
             if (pagination) {
                 console.log('[renderBooks] Показываем пагинацию каталога');
                 this.updateCatalogPagination();

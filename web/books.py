@@ -376,6 +376,8 @@ async def search_books_api(
     source: str = Query(None, description="Фильтр по источнику"),
     min_discount: str = Query(None, description="Минимальная скидка"),
     max_price: str = Query(None, description="Максимальная цена"),
+    limit: int = Query(None, description="Лимит результатов"),
+    offset: int = Query(None, description="Смещение для пагинации"),
     db: AsyncSession = Depends(get_db)
 ):
     """Поиск книг по названию или автору с фильтрацией"""
@@ -434,6 +436,16 @@ async def search_books_api(
         if max_price_float is not None:
             query = query.where(Book.current_price <= max_price_float)
 
+        # Подсчет общего количества
+        count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+        total = count_result.scalar() or 0
+
+        # Пагинация
+        if offset is not None:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+
         query = query.order_by(Book.current_price.asc())
         
         result = await db.execute(query)
@@ -444,12 +456,13 @@ async def search_books_api(
         for book in books:
             books_list.append(book.to_dict())
         
-        logger.info(f"Поиск '{q}' (филтры: source={source}, min_discount={min_discount_int}, max_price={max_price_float}): найдено {len(books_list)} книг")
+        logger.info(f"Поиск '{q}' (филтры: source={source}, min_discount={min_discount_int}, max_price={max_price_float}): найдено {len(books_list)} книг (всего: {total})")
 
         return JSONResponse({
             "success": True,
             "query": q,
             "books": books_list,
+            "total": total,
             "found_count": len(books_list)
         })
         
@@ -459,6 +472,7 @@ async def search_books_api(
             "success": False,
             "error": str(e),
             "books": [],
+            "total": 0,
             "found_count": 0
         })
 
