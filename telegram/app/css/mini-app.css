@@ -151,11 +151,13 @@ h1, h2, h3, h4, h5, h6 {
 .btn, .btn--primary, .btn--secondary, .btn--search-books {
     background: var(--gradient-primary) !important;
     color: var(--text-light) !important;
+    border: 2px solid var(--accent-tertiary) !important;
 }
 
 .btn--secondary {
     background: var(--bg-card) !important;
     color: var(--text-primary) !important;
+    border: 2px solid var(--accent-primary) !important;
 }
 
 /* Container */
@@ -483,22 +485,22 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn--primary {
-    background: var(--gradient-primary);
-    color: var(--text-light);
+    background: var(--gradient-primary) !important;
+    color: var(--text-light) !important;
     box-shadow: 0 4px 12px var(--shadow-medium);
-    border: 2px solid var(--accent-tertiary);
+    border: 2px solid var(--accent-tertiary) !important;
 }
 
 .btn--secondary {
-    background: var(--bg-card);
-    color: var(--text-primary);
-    border: 2px solid var(--accent-primary);
+    background: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    border: 2px solid var(--accent-primary) !important;
 }
 
 .btn--search-books {
-    background: var(--gradient-primary);
-    color: var(--text-light);
-    border: 2px solid var(--accent-tertiary);
+    background: var(--gradient-primary) !important;
+    color: var(--text-light) !important;
+    border: 2px solid var(--accent-tertiary) !important;
 }
 
 .btn--success {
