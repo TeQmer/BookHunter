@@ -890,3 +890,39 @@ h1, h2, h3, h4, h5, h6 {
     color: #FFFFFF;
 }
 
+/* Alert Item Inline Edit Styles */
+.alert-item__content {
+    transition: opacity 0.2s ease;
+}
+
+.alert-item__edit {
+    animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alert-item__edit .form-input,
+.alert-item__edit .form-select {
+    font-size: 0.9rem;
+    padding: 10px 12px;
+}
+
+.alert-item__edit .form-group {
+    margin-bottom: 10px;
+}
+
+.alert-item__edit .form-label {
+    font-size: 0.8rem;
+    margin-bottom: 6px;
+}
+
+

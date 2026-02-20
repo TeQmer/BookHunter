@@ -1120,22 +1120,61 @@ class BookHunterApp {
     createAlertItem(alert) {
         return `
             <div class="alert-item" data-alert-id="${alert.id}">
-                <h4 class="alert-item__title">${this.escapeHtml(alert.book_title || 'Без названия')}</h4>
-                <div class="alert-item__info">
-                    ${alert.book_author ? `Автор: ${this.escapeHtml(alert.book_author)}` : ''}
-                    ${alert.target_price ? `<br>Цена до: ${alert.target_price} ₽` : ''}
-                    ${alert.min_discount ? `<br>Скидка от: ${alert.min_discount}%` : ''}
+                <!-- Основная информация -->
+                <div class="alert-item__content" id="alert-content-${alert.id}">
+                    <h4 class="alert-item__title">${this.escapeHtml(alert.book_title || 'Без названия')}</h4>
+                    <div class="alert-item__info">
+                        ${alert.book_author ? `Автор: ${this.escapeHtml(alert.book_author)}` : ''}
+                        ${alert.target_price ? `<br>Цена до: ${alert.target_price} ₽` : ''}
+                        ${alert.min_discount ? `<br>Скидка от: ${alert.min_discount}%` : ''}
+                    </div>
+                    <span class="alert-item__status ${alert.is_active ? 'alert-item__status--active' : 'alert-item__status--inactive'}">
+                        ${alert.is_active ? 'Активна' : 'Неактивна'}
+                    </span>
+                    <div class="alert-item__actions">
+                        <button class="btn btn--small btn--secondary" onclick="app.editAlert(${alert.id})">
+                            <i class="fas fa-edit"></i> Изменить
+                        </button>
+                        <button class="btn btn--small btn--danger" onclick="app.deleteAlert(${alert.id})">
+                            <i class="fas fa-trash"></i> Удалить
+                        </button>
+                    </div>
                 </div>
-                <span class="alert-item__status ${alert.is_active ? 'alert-item__status--active' : 'alert-item__status--inactive'}">
-                    ${alert.is_active ? 'Активна' : 'Неактивна'}
-                </span>
-                <div class="alert-item__actions">
-                    <button class="btn btn--small btn--secondary" onclick="app.editAlert(${alert.id})">
-                        <i class="fas fa-edit"></i> Изменить
-                    </button>
-                    <button class="btn btn--small btn--danger" onclick="app.deleteAlert(${alert.id})">
-                        <i class="fas fa-trash"></i> Удалить
-                    </button>
+
+                <!-- Встроенная форма редактирования (скрыта по умолчанию) -->
+                <div class="alert-item__edit" id="alert-edit-${alert.id}" style="display: none;">
+                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-top: 12px;">
+                        <h4 style="margin-bottom: 12px; font-size: 0.95rem;">Редактировать подписку</h4>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
+                            ${this.escapeHtml(alert.book_title)}
+                        </p>
+
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size: 0.85rem;">Максимальная цена (₽)</label>
+                            <input type="number" class="form-input" id="edit-max-price-${alert.id}" placeholder="Например: 500" min="0" value="${alert.target_price || ''}" style="font-size: 0.9rem;">
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size: 0.85rem;">Минимальная скидка (%)</label>
+                            <select class="form-select" id="edit-min-discount-${alert.id}" style="font-size: 0.9rem;">
+                                <option value="" ${!alert.min_discount ? 'selected' : ''}>Любая скидка</option>
+                                <option value="10" ${alert.min_discount === 10 ? 'selected' : ''}>От 10%</option>
+                                <option value="20" ${alert.min_discount === 20 ? 'selected' : ''}>От 20%</option>
+                                <option value="30" ${alert.min_discount === 30 ? 'selected' : ''}>От 30%</option>
+                                <option value="40" ${alert.min_discount === 40 ? 'selected' : ''}>От 40%</option>
+                                <option value="50" ${alert.min_discount === 50 ? 'selected' : ''}>От 50%</option>
+                            </select>
+                        </div>
+
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn--small btn--secondary" onclick="app.closeInlineEdit(${alert.id})" style="flex: 1;">
+                                Отмена
+                            </button>
+                            <button class="btn btn--small btn--primary" onclick="app.saveInlineEdit(${alert.id})" style="flex: 1;">
+                                <i class="fas fa-check"></i> Сохранить
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -1321,7 +1360,7 @@ class BookHunterApp {
     }
 
     /**
-     * Редактирование подписки
+     * Редактирование подписки (встроенное редактирование)
      */
     async editAlert(alertId) {
         try {
@@ -1334,11 +1373,94 @@ class BookHunterApp {
                 return;
             }
 
-            // Открываем модальное окно для редактирования
-            this.openAlertModal(alert);
+            // Сохраняем текущую подписку для редактирования
+            this.currentAlert = alert;
+
+            // Скрываем основное содержимое
+            const content = document.getElementById(`alert-content-${alertId}`);
+            if (content) content.style.display = 'none';
+
+            // Показываем встроенную форму редактирования
+            const edit = document.getElementById(`alert-edit-${alertId}`);
+            if (edit) {
+                edit.style.display = 'block';
+                // Плавно прокручиваем к форме редактирования
+                edit.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         } catch (error) {
             console.error('Ошибка редактирования подписки:', error);
             this.showError('Не удалось редактировать подписку');
+        }
+    }
+
+    /**
+     * Закрыть встроенное редактирование
+     */
+    closeInlineEdit(alertId) {
+        console.log('[closeInlineEdit] Закрытие редактирования:', alertId);
+
+        // Скрываем форму редактирования
+        const edit = document.getElementById(`alert-edit-${alertId}`);
+        if (edit) edit.style.display = 'none';
+
+        // Показываем основное содержимое
+        const content = document.getElementById(`alert-content-${alertId}`);
+        if (content) content.style.display = 'block';
+
+        // Очищаем текущую подписку
+        this.currentAlert = null;
+    }
+
+    /**
+     * Сохранить встроенное редактирование
+     */
+    async saveInlineEdit(alertId) {
+        try {
+            console.log('[saveInlineEdit] Сохранение редактирования:', alertId);
+
+            const maxPrice = document.getElementById(`edit-max-price-${alertId}`).value;
+            const minDiscount = document.getElementById(`edit-min-discount-${alertId}`).value;
+
+            const user = window.tg.getUser();
+            if (!user || !user.id) {
+                throw new Error('Не удалось получить Telegram ID пользователя');
+            }
+
+            const url = `${this.apiBaseUrl}/api/alerts/${alertId}`;
+            console.log('[saveInlineEdit] URL запроса (PUT):', url);
+
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    telegram_id: user.id,
+                    target_price: maxPrice ? parseFloat(maxPrice) : null,
+                    min_discount: minDiscount ? parseFloat(minDiscount) : null,
+                    notification_type: 'price_drop'
+                })
+            });
+
+            console.log('[saveInlineEdit] Статус ответа:', response.status);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка сохранения подписки');
+            }
+
+            const data = await response.json();
+            console.log('[saveInlineEdit] Ответ:', data);
+
+            window.tg.hapticSuccess();
+            this.showSuccess('Подписка обновлена!');
+
+            // Обновляем список подписок
+            await this.loadAlerts();
+        } catch (error) {
+            console.error('[saveInlineEdit] Ошибка:', error);
+            window.tg.hapticError();
+            this.showError(error.message || 'Не удалось сохранить подписку');
         }
     }
 
