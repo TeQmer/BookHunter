@@ -15,7 +15,7 @@ class BookHunterApp {
         this.data = {
             books: [],
             alerts: [],
-            userAlerts: [], // Подписки текущего пользователя для проверки в карточках
+            userAlertsMap: {}, // Карта подписок пользователя по book_id {bookId: alert}
             stats: null
         };
         this.recentBooksPage = 1; // Текущая страница недавних книг на главной
@@ -25,6 +25,7 @@ class BookHunterApp {
         this.savedScrollPosition = 0; // Сохраненная позиция скролла (задача #3)
         this.booksPerPage = 15; // Количество книг на странице
         this.currentAlert = null; // Текущая подписка для редактирования
+        this.currentSearchQuery = null; // Текущий поисковый запрос
         this.init();
     }
 
@@ -678,6 +679,13 @@ class BookHunterApp {
             const isSearch = Boolean(params.query && params.query.trim());
             console.log('[loadBooks] isSearch:', isSearch, 'params.query:', params.query);
 
+            // Сохраняем текущий поисковый запрос
+            if (params.query) {
+                this.currentSearchQuery = params.query;
+            } else {
+                this.currentSearchQuery = null;
+            }
+
             this.renderBooks(this.data.books, isSearch);
         } catch (error) {
             console.error('[loadBooks] Ошибка загрузки книг:', error);
@@ -1092,6 +1100,15 @@ class BookHunterApp {
 
             this.data.alerts = data || [];
 
+            // Создаем карту подписок по book_id
+            this.data.userAlertsMap = {};
+            this.data.alerts.forEach(alert => {
+                if (alert.book_id) {
+                    this.data.userAlertsMap[alert.book_id] = alert;
+                }
+            });
+            console.log('[loadAlerts] Карта подписок обновлена:', Object.keys(this.data.userAlertsMap).length, 'подписок');
+
             this.renderAlerts(this.data.alerts);
         } catch (error) {
             console.error('[loadAlerts] Ошибка загрузки подписок:', error);
@@ -1327,6 +1344,10 @@ class BookHunterApp {
             console.log('[deleteAlert] Удаление подписки:', alertId);
             console.log('[deleteAlert] Текущий apiBaseUrl:', this.apiBaseUrl);
 
+            // Находим подписку для получения book_id
+            const alert = this.data.alerts.find(a => a.id === alertId);
+            const bookId = alert ? alert.book_id : null;
+
             // Используем нативный confirm для надежности
             const confirmed = confirm('Удалить эту подписку?');
             console.log('[deleteAlert] Результат подтверждения:', confirmed);
@@ -1350,8 +1371,20 @@ class BookHunterApp {
             window.tg.hapticSuccess();
             this.showSuccess('Подписка удалена');
 
+            // Удаляем из карты подписок
+            if (bookId && this.data.userAlertsMap[bookId]) {
+                delete this.data.userAlertsMap[bookId];
+                console.log('[deleteAlert] Удалена из карты подписок:', bookId);
+            }
+
             // Обновляем список
             await this.loadAlerts();
+
+            // Если это удаление со страницы деталей книги, обновляем кнопку
+            if (this.currentBook && this.currentBook.id === bookId) {
+                this.currentAlert = null;
+                this.renderBookDetail(this.currentBook);
+            }
         } catch (error) {
             console.error('[deleteAlert] Ошибка удаления подписки:', error);
             window.tg.hapticError();
@@ -1529,6 +1562,7 @@ class BookHunterApp {
 
             let response;
             let url;
+            let isNewAlert = false;
 
             if (this.currentAlert) {
                 // Редактирование существующей подписки
@@ -1549,6 +1583,7 @@ class BookHunterApp {
                 });
             } else {
                 // Создание новой подписки
+                isNewAlert = true;
                 const book = this.currentBook;
                 if (!book) {
                     throw new Error('Информация о книге не найдена');
@@ -1594,9 +1629,31 @@ class BookHunterApp {
             // Обновляем список подписок
             await this.loadAlerts();
 
-            // Если мы на странице деталей книги, обновляем кнопку
+            // Если мы на странице деталей книги
             if (this.currentBook) {
                 await this.checkAlertForBook(this.currentBook.id);
+
+                // Если это новая подписка и мы открыли детали из списка книг, перезагружаем страницу
+                if (isNewAlert && this.pageBeforeBookDetail === 'books') {
+                    console.log('[saveAlert] Новая подписка, перезагружаем страницу книг');
+                    const bookId = this.currentBook.id;
+                    const scrollPos = this.savedScrollPosition;
+
+                    // Закрываем детали книги
+                    this.closeBookDetail();
+
+                    // Перезагружаем книги с текущими параметрами
+                    await this.loadBooks({
+                        page: this.catalogBooksPage,
+                        query: this.currentSearchQuery
+                    });
+
+                    // Восстанавливаем скролл и открываем детали книги
+                    setTimeout(() => {
+                        window.scrollTo({ top: scrollPos, behavior: 'auto' });
+                        this.showBookDetails(bookId);
+                    }, 100);
+                }
             }
         } catch (error) {
             console.error('[saveAlert] Ошибка:', error);
@@ -1917,7 +1974,12 @@ class BookHunterApp {
 
         try {
             // Проверяем, есть ли уже подписка
-            const checkResponse = await fetch(`${this.apiBaseUrl}/api/alerts/book/${bookId}`);
+            const user = window.tg.getUser();
+            if (!user || !user.id) {
+                throw new Error('Не удалось получить Telegram ID пользователя');
+            }
+
+            const checkResponse = await fetch(`${this.apiBaseUrl}/api/alerts/book/${bookId}?telegram_id=${user.id}`);
             console.log('[toggleAlertForBook] checkResponse status:', checkResponse.status);
             const checkData = await checkResponse.json();
             console.log('[toggleAlertForBook] checkData:', checkData);
@@ -1953,6 +2015,13 @@ class BookHunterApp {
                     if (deleteResponse.ok) {
                         window.tg.hapticSuccess();
                         this.showSuccess('Подписка удалена');
+
+                        // Удаляем из карты подписок
+                        if (this.data.userAlertsMap[bookId]) {
+                            delete this.data.userAlertsMap[bookId];
+                            console.log('[toggleAlertForBook] Удалена из карты подписок:', bookId);
+                        }
+
                         await this.checkAlertForBook(bookId);
                     } else {
                         console.error('[toggleAlertForBook] Delete failed, status:', deleteResponse.status);
