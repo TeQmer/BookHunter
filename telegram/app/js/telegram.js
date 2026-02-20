@@ -97,18 +97,18 @@ class TelegramWebApp {
             // Применяем к html
             const html = document.documentElement;
             if (html) {
-                html.style.setProperty('background-color', '#2C241B', 'important');
-                html.style.setProperty('--tg-theme-bg-color', '#2C241B', 'important');
-                html.style.setProperty('--tg-theme-text-color', '#EFEBE9', 'important');
+                html.style.setProperty('background-color', '#1a1d2e', 'important');
+                html.style.setProperty('--tg-theme-bg-color', '#1a1d2e', 'important');
+                html.style.setProperty('--tg-theme-text-color', '#f4f1ea', 'important');
             }
 
             // Применяем к body
             const body = document.body;
             if (body) {
-                body.style.setProperty('background-color', '#2C241B', 'important');
-                body.style.setProperty('color', '#EFEBE9', 'important');
-                body.style.setProperty('--tg-theme-bg-color', '#2C241B', 'important');
-                body.style.setProperty('--tg-theme-text-color', '#EFEBE9', 'important');
+                body.style.setProperty('background-color', '#1a1d2e', 'important');
+                body.style.setProperty('color', '#f4f1ea', 'important');
+                body.style.setProperty('--tg-theme-bg-color', '#1a1d2e', 'important');
+                body.style.setProperty('--tg-theme-text-color', '#f4f1ea', 'important');
                 body.classList.add('force-dark-theme');
             }
 
@@ -116,11 +116,11 @@ class TelegramWebApp {
             const allElements = document.querySelectorAll('[style*="background"], [style*="color"]');
             allElements.forEach(el => {
                 const style = el.getAttribute('style') || '';
-                if (style.includes('background') && !style.includes('#2C241B')) {
-                    el.style.setProperty('background-color', '#2C241B', 'important');
+                if (style.includes('background') && !style.includes('#1a1d2e')) {
+                    el.style.setProperty('background-color', '#1a1d2e', 'important');
                 }
-                if (style.includes('color') && !style.includes('#EFEBE9') && !style.includes('#A0785A')) {
-                    el.style.setProperty('color', '#EFEBE9', 'important');
+                if (style.includes('color') && !style.includes('#f4f1ea') && !style.includes('#d4a574')) {
+                    el.style.setProperty('color', '#f4f1ea', 'important');
                 }
             });
         };
