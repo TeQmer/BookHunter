@@ -55,23 +55,23 @@ class ChitaiGorodAPIClient:
         bearer_token: str = None,
         user_id: str = None,
         city_id: int = 39,
-        delay_min: float = 1.0,
-        delay_max: float = 3.0,
-        max_retries: int = 3,
-        timeout: int = 30
+        delay_min: float = 0.5,
+        delay_max: float = 1.5,
+        max_retries: int = 2,
+        timeout: int = 15
     ):
         """
-        Инициализация API клиента
-        
+        Инициализация API клиента (оптимизирован для быстрого парсинга)
+
         Args:
             api_url: URL API (по умолчанию из env)
             bearer_token: Bearer токен авторизации (по умолчанию из env или Redis)
             user_id: ID пользователя (по умолчанию из env)
             city_id: ID города (по умолчанию 39 - Москва)
-            delay_min: Минимальная задержка между запросами (сек)
-            delay_max: Максимальная задержка между запросами (сек)
-            max_retries: Максимальное количество попыток при ошибке
-            timeout: Таймаут запроса (сек)
+            delay_min: Минимальная задержка между запросами (сек) - оптимизировано до 0.5
+            delay_max: Максимальная задержка между запросами (сек) - оптимизировано до 1.5
+            max_retries: Максимальное количество попыток при ошибке - оптимизировано до 2
+            timeout: Таймаут запроса (сек) - оптимизировано до 15
         """
         self.api_url = api_url or os.getenv("CHITAI_GOROD_API_URL", "https://web-agr.chitai-gorod.ru/web/api/v2")
 
@@ -215,8 +215,9 @@ class ChitaiGorodAPIClient:
                 logger.info(f"[ChitaiGorodAPI] Запрос #{self.request_count}: {method} {url}")
                 if params:
                     logger.debug(f"[ChitaiGorodAPI] Параметры: {params}")
-                if params:
-                    logger.debug(f"[ChitaiGorodAPI] Параметры: {params}")
+
+                # Замеряем время выполнения запроса
+                request_start = time.time()
 
                 # Выполняем запрос
                 async with aiohttp.ClientSession(
@@ -230,6 +231,10 @@ class ChitaiGorodAPIClient:
                         cookies=cookies_dict  # Добавляем cookies
                     ) as response:
                         self.last_request_time = datetime.now()
+
+                        # Логируем время выполнения
+                        request_time = time.time() - request_start
+                        logger.info(f"[ChitaiGorodAPI] Время запроса: {request_time:.2f} сек")
 
                         # Обрабатываем ответ
                         if response.status == 200:
@@ -338,8 +343,8 @@ class ChitaiGorodAPIClient:
         except Exception as e:
             logger.error(f"[ChitaiGorodAPI] Ошибка триггера обновления токена: {e}")
 
-    async def _wait_for_token_update(self, max_wait: int = 60, check_interval: int = 2):
-        """Ожидание обновления токена в Redis"""
+    async def _wait_for_token_update(self, max_wait: int = 30, check_interval: int = 2):
+        """Ожидание обновления токена в Redis (оптимизировано до 30 сек)"""
         try:
             from services.token_manager import get_token_manager
             token_manager = get_token_manager()

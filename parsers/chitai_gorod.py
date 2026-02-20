@@ -1,5 +1,5 @@
 """
-Парсер для магазина 'Читай-город' с использованием API
+Парсер для магазина 'Читай-город' с использованием API (оптимизирован)
 
 Использует API вместо HTML парсинга:
 - Быстрее и надежнее
@@ -8,6 +8,7 @@
 """
 
 import asyncio
+import time
 from typing import List, Optional
 from datetime import datetime
 from parsers.base import BaseParser, Book
@@ -16,10 +17,11 @@ from services.logger import parser_logger
 
 
 class ChitaiGorodParser(BaseParser):
-    """Парсер для магазина 'Читай-город' с использованием API"""
-    
+    """Парсер для магазина 'Читай-город' с использованием API (оптимизирован)"""
+
     def __init__(self):
-        super().__init__("chitai-gorod", delay_min=1, delay_max=3)
+        # Оптимизированные задержки для быстрого парсинга
+        super().__init__("chitai-gorod", delay_min=0.5, delay_max=1.5)
         self.api_client = ChitaiGorodAPIClient(
             delay_min=self.delay_min,
             delay_max=self.delay_max
@@ -46,6 +48,9 @@ class ChitaiGorodParser(BaseParser):
         """
         await self.log_operation("search", "info", f"Поиск книг по запросу: {query}")
         
+        # Замеряем время выполнения
+        search_start = time.time()
+
         try:
             all_books = []
             
@@ -79,6 +84,10 @@ class ChitaiGorodParser(BaseParser):
                 len(all_books)
             )
             
+            # Логируем время выполнения поиска
+            search_time = time.time() - search_start
+            parser_logger.info(f"⏱️ Поиск занял: {search_time:.2f} сек")
+
             return all_books
             
         except Exception as e:

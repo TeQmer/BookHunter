@@ -11,6 +11,7 @@ import traceback
 import json
 import os
 import sys
+import time
 
 # Импортируем класс Book для парсеров
 from parsers.base import Book as ParserBook
@@ -564,7 +565,14 @@ def parse_books(self, query: str, source: str = "chitai-gorod", fetch_details: b
         # ДИАГНОСТИКА: Логируем начало задачи
         celery_logger.info(f"DEBUG: parse_books started with query='{query}', source='{source}', fetch_details={fetch_details}")
 
+        # Замеряем время выполнения задачи
+        task_start = time.time()
+
         result = run_async_task()
+        
+        # Логируем время выполнения задачи
+        task_time = time.time() - task_start
+        celery_logger.info(f"⏱️ Задача выполнена за: {task_time:.2f} сек")
         
         # ДИАГНОСТИКА: Логируем результат
         celery_logger.info(f"DEBUG: parse_books result = {result}")
@@ -632,8 +640,15 @@ async def _parse_books_async(query: str, source: str, fetch_details: bool = Fals
             celery_logger.info(f"🔍 ОТЛАДКА: parser type = {type(parser)}")
             celery_logger.info(f"🔍 ОТЛАДКА: parser class = {parser.__class__.__name__}")
             
-            # Ищем книги с правильными параметрами
-            books = await parser.search_books(query, max_pages=2, limit=10, fetch_details=fetch_details)
+            # Замеряем время парсинга
+            parse_start = time.time()
+
+            # Ищем книги с правильными параметрами (оптимизировано: 1 страница вместо 2)
+            books = await parser.search_books(query, max_pages=1, limit=10, fetch_details=fetch_details)
+
+            # Логируем время парсинга
+            parse_time = time.time() - parse_start
+            celery_logger.info(f"⏱️ Парсинг занял: {parse_time:.2f} сек")
 
             # 🔍 ОТЛАДКА: Проверяем результат парсера
             celery_logger.info(f"🔍 ОТЛАДКА: books = {books}")
