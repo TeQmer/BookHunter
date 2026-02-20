@@ -477,11 +477,13 @@ class BookHunterApp {
         // Загружаем новую страницу
         await this.loadRecentBooks(currentPage);
 
-        // Анимация скроллинга к началу блока недавних книг
+        // Анимация скроллинга к началу блока недавних книг с небольшим отступом
         setTimeout(() => {
             const recentHeader = document.querySelector('h3:has(i.fa-clock)');
             if (recentHeader) {
                 recentHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Добавляем небольшой отступ (10px)
+                window.scrollBy({ top: -10, behavior: 'smooth' });
             }
         }, 100);
     }
@@ -527,11 +529,13 @@ class BookHunterApp {
         // Загружаем новую страницу
         await this.loadBooks({ page: currentPage });
 
-        // Анимация скроллинга к началу списка книг
+        // Анимация скроллинга к заголовку "Каталог книг" с небольшим отступом
         setTimeout(() => {
-            const booksContainer = document.getElementById('books-container');
-            if (booksContainer) {
-                booksContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const booksPageTitle = document.getElementById('books-page-title');
+            if (booksPageTitle) {
+                booksPageTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Добавляем небольшой отступ (10px)
+                window.scrollBy({ top: -10, behavior: 'smooth' });
             }
         }, 100);
     }
