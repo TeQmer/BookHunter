@@ -170,3 +170,57 @@ async def get_user_info(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка получения информации о пользователе: {str(e)}")
+
+
+@router.post("/signin")
+async def signin(
+    telegram_id: int = Query(..., description="ID пользователя в Telegram"),
+    username: Optional[str] = Query(None, description="Username пользователя"),
+    first_name: Optional[str] = Query(None, description="Имя пользователя"),
+    last_name: Optional[str] = Query(None, description="Фамилия пользователя"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Упрощенный вход (для совместимости со старым клиентом)
+    В продакшене рекомендуется использовать /api/auth/signin с валидацией initData
+    """
+    try:
+        # Ищем пользователя
+        result = await db.execute(select(User).filter(User.telegram_id == telegram_id))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            # Создаем нового пользователя
+            user = User(
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name or f"User {telegram_id}",
+                last_name=last_name,
+                is_active=True,
+                daily_requests_used=0,
+                daily_requests_limit=15,
+                requests_updated_at=datetime.utcnow()
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+        else:
+            # Обновляем данные
+            if username and user.username != username:
+                user.username = username
+            if first_name and user.first_name != first_name:
+                user.first_name = first_name
+            if last_name and user.last_name != last_name:
+                user.last_name = last_name
+            user.last_activity = datetime.utcnow()
+            await db.commit()
+            await db.refresh(user)
+
+        return {
+            "success": True,
+            "user": user.to_dict()
+        }
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка входа: {str(e)}")
