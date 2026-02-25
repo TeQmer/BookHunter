@@ -568,7 +568,7 @@ class BookHunterApp {
             if (params.query) {
                 // Умный поиск: сначала база данных, потом парсинг
                 useSmartSearch = true;
-                url = `${this.apiBaseUrl}/web/books/api/search?q=${encodeURIComponent(params.query)}&limit=${limit}&offset=${offset}`;
+                url = `${this.apiBaseUrl}/web/books/api/smart-search?q=${encodeURIComponent(params.query)}`;
                 if (params.source) {
                     url += `&source=${params.source}`;
                 }
@@ -2135,74 +2135,4 @@ class BookHunterApp {
      * Показать состояние загрузки
      */
     showLoading(message = 'Загрузка...') {
-        const container = document.getElementById('main-content');
-        if (container) {
-            container.innerHTML = `
-                <div class="loading">
-                    <div class="loading__spinner"></div>
-                    <div class="loading__text">${message}</div>
-                </div>
-            `;
-        }
-    }
-
-    /**
-     * Получить HTML для пустого состояния
-     */
-    getEmptyState(title, text) {
-        return `
-            <div class="empty">
-                <div class="empty__icon"><i class="fas fa-inbox"></i></div>
-                <h3 class="empty__title">${title}</h3>
-                <p class="empty__text">${text}</p>
-            </div>
-        `;
-    }
-
-    /**
-     * Экранирование HTML
-     */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-}
-
-// Создаем глобальный экземпляр приложения
-window.app = new BookHunterApp();
-
-// Обработка навигации через history
-window.addEventListener('popstate', (event) => {
-    if (event.state) {
-        window.app.currentRoute = event.state.route;
-        window.app.loadPageData(event.state.route, event.state.params);
-    }
-});
-
-// Инициализация при загрузке DOM
-document.addEventListener('DOMContentLoaded', () => {
-    // Проверяем маршрут из URL
-    const params = new URLSearchParams(window.location.search);
-    const route = params.get('route') || 'home';
-
-    const routeParams = {};
-    for (const [key, value] of params.entries()) {
-        if (key !== 'route') {
-            routeParams[key] = value;
-        }
-    }
-
-    // Навигация на начальную страницу
-    window.app.navigate(route, routeParams);
-
-    // Обработка Enter в поиске
-    const searchInput = document.getElementById('search-input');
-    if (searchInput) {
-        searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                app.searchBooks(e.target.value);
-            }
-        });
-    }
-});
+        

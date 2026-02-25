@@ -484,8 +484,10 @@ async def smart_search_books(
 ):
     """Умный поиск книг: сначала база данных, затем автоматический парсинг"""
     try:
-        # Сначала ищем в базе данных
-        # Улучшенный поиск: разбиваем запрос на слова и очищаем от пунктуации
+        # Импортируем логику умного поиска
+        from services.search_utils import is_book_similar, is_exact_match
+        
+        # Сначала ищем в базе данных (широкий поиск)
         search_words = clean_search_words(q)
         
         # Фильтруем предлоги и союзы
@@ -513,27 +515,30 @@ async def smart_search_books(
         result = await db.execute(search_query)
         db_books = result.scalars().all()
         
-        # Преобразуем в словари
-        db_books_list = []
+        # Проверяем релевантность каждой книги
+        relevant_books = []
         for book in db_books:
-            db_books_list.append(book.to_dict())
+            is_similar, reason = is_book_similar(q, book.title, book.author)
+            if is_similar:
+                relevant_books.append(book.to_dict())
+                logger.info(f"Релевантная книга: '{book.title}' (причина: {reason})")
         
-        logger.info(f"Smart search '{q}': найдено {len(db_books_list)} книг в базе")
+        logger.info(f"Smart search '{q}': найдено {len(db_books)} в базе, релевантных: {len(relevant_books)}")
         
-        # Если книги найдены в базе - возвращаем их сразу
-        if db_books_list:
+        # Если есть релевантные книги - возвращаем их
+        if relevant_books:
             return JSONResponse({
                 "success": True,
                 "query": q,
                 "source": source,
-                "books": db_books_list,
-                "found_count": len(db_books_list),
+                "books": relevant_books,
+                "found_count": len(relevant_books),
                 "status": "found_in_database",
-                "message": f"Найдено {len(db_books_list)} книг в каталоге"
+                "message": f"Найдено {len(relevant_books)} релевантных книг в каталоге"
             })
         
-        # Если книг нет в базе - запускаем парсинг
-        logger.info(f"Книги не найдены в базе для '{q}', запускаем парсинг")
+        # Если релевантных книг нет - запускаем парсинг
+        logger.info(f"Релевантные книги не найдены в базе для '{q}', запускаем парсинг")
         
         # Запускаем парсинг в фоне
         from services.celery_tasks import parse_books

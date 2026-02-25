@@ -80,7 +80,7 @@ function performSearch(query) {
 
     resultsContainer.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div></div>';
     
-    fetch(`/web/books/api/search?q=${encodeURIComponent(cleanedQuery)}`)
+    fetch(`/web/books/api/smart-search?q=${encodeURIComponent(cleanedQuery)}`)
         .then(response => response.json())
         .then(data => {
             displaySearchResults(data, resultsContainer);
