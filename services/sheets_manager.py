@@ -219,51 +219,84 @@ class SheetManager:
             raise
     
     async def add_book_row(self, book) -> bool:
-        """Добавление строки с книгой в таблицу"""
+        """Добавление строки с книгой в таблицу (устарело - используй add_books_batch)"""
+        return await self.add_books_batch([book])
+
+    async def add_books_batch(self, books: list, max_books: int = 5) -> bool:
+        """
+        Добавление нескольких книг в таблицу (только топ-N самых дешёвых)
+        
+        Args:
+            books: Список книг для добавления
+            max_books: Максимальное количество книг (по умолчанию 5)
+        
+        Returns:
+            True если успешно
+        """
         try:
             if not self.service or not self.spreadsheet_id:
                 parser_logger.warning("Google Sheets не инициализирован - пропускаем")
                 return False
             
-            # Форматируем данные
-            row_data = [
-                datetime.now().strftime("%Y-%m-%d %H:%M"),
-                book.source,
-                book.title,
-                book.author or "",
-                f"{book.current_price}₽",
-                f"{book.original_price}₽" if book.original_price else "",
-                f"{book.discount_percent}%" if book.discount_percent else "",
-                book.url,
-                f'=IMAGE("{book.image_url}")' if book.image_url else ""
-            ]
+            if not books:
+                parser_logger.info("Список книг пуст - пропускаем добавление в Google Sheets")
+                return False
+            
+            # Сортируем книги по цене (от дешёвых к дорогим) и берём топ-N
+            sorted_books = sorted(
+                books, 
+                key=lambda x: x.current_price if hasattr(x, 'current_price') else float('inf')
+            )
+            top_books = sorted_books[:max_books]
+            
+            parser_logger.info(f"Добавление топ-{len(top_books)} самых дешёвых книг в Google Sheets из {len(books)} найденных")
             
             # Получаем количество строк для определения следующей позиции
             result = self.service.spreadsheets().values().get(
                 spreadsheetId=self.spreadsheet_id,
-                range=f'Скидки на книги!A:A'
+                range='Скидки на книги!A:A'
             ).execute()
             
             next_row = len(result.get('values', [])) + 1
             
-            # Добавляем строку
-            body = {
-                'values': [row_data]
-            }
+            # Формируем данные для каждой книги
+            rows_data = []
+            for book in top_books:
+                row_data = [
+                    datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    book.source,
+                    book.title,
+                    book.author or "",
+                    f"{book.current_price}₽",
+                    f"{book.original_price}₽" if book.original_price else "",
+                    f"{book.discount_percent}%" if book.discount_percent else "",
+                    book.url,
+                    f'=IMAGE("{book.image_url}")' if book.image_url else ""
+                ]
+                rows_data.append(row_data)
             
-            self.service.spreadsheets().values().append(
-                spreadsheetId=self.spreadsheet_id,
-                range=f'Скидки на книги!A{next_row}:I{next_row}',
-                valueInputOption='RAW',
-                insertDataOption='INSERT_ROWS',
-                body=body
-            ).execute()
+            # Добавляем все строки одним запросом
+            if rows_data:
+                body = {'values': rows_data}
+                
+                end_row = next_row + len(rows_data) - 1
+                self.service.spreadsheets().values().append(
+                    spreadsheetId=self.spreadsheet_id,
+                    range=f'Скидки на книги!A{next_row}:I{end_row}',
+                    valueInputOption='RAW',
+                    insertDataOption='INSERT_ROWS',
+                    body=body
+                ).execute()
+                
+                parser_logger.info(f"Добавлено {len(top_books)} книг в Google Sheets (топ-{max_books} по цене)")
             
-            parser_logger.info(f"Книга добавлена в Google Sheets: {book.title}")
             return True
             
         except HttpError as e:
-            parser_logger.error(f"Ошибка добавления книги в Google Sheets: {e}")
+            parser_logger.error(f"Ошибка добавления книг в Google Sheets: {e}")
+            return False
+        except Exception as e:
+            parser_logger.error(f"Общая ошибка добавления книг в Google Sheets: {e}")
             return False
     
     async def get_recent_books(self, limit: int = 50) -> List[dict]:

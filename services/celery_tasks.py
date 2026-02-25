@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from celery import current_app
 from services.logger import celery_logger
 from database.config import get_session_factory, AsyncSession
@@ -18,6 +18,17 @@ from parsers.base import Book as ParserBook
 
 # Импортируем celery_app после создания, чтобы избежать циклического импорта
 from services.celery_app import celery_app
+
+# Импортируем утилиты умного поиска
+from services.search_utils import (
+    is_book_similar, 
+    is_exact_match, 
+    should_limit_parsing,
+    add_to_pending_parse,
+    check_and_complete_pending_parse,
+    PARSE_LIMIT_NORMAL,
+    PARSE_LIMIT_LOADED
+)
 
 def check_all_alerts():
     """Проверка всех активных подписок пользователей с реальным парсером"""
@@ -261,12 +272,24 @@ async def _save_book(db: AsyncSession, book: ParserBook):
         await db.rollback()
 
 async def _add_to_sheets(book: ParserBook):
-    """Добавление книги в Google Sheets"""
-    
+    """Добавление книги в Google Sheets (устарело - используй _add_to_sheets_batch)"""
+    # Для обратной совместимости
+    await _add_to_sheets_batch([book])
+
+
+async def _add_to_sheets_batch(books: List[ParserBook], max_books: int = 5):
+    """
+    Добавление книг в Google Sheets (только топ-N самых дешёвых)
+
+    Args:
+        books: Список найденных книг
+        max_books: Максимальное количество книг для добавления (по умолчанию 5)
+    """
     try:
         from services.sheets_manager import SheetManager
         sheets_manager = SheetManager()
-        await sheets_manager.add_book_row(book)
+        # Передаём весь список - метод сам выберет топ-5 дешёвых
+        await sheets_manager.add_books_batch(books, max_books=max_books)
     except Exception as e:
         celery_logger.error(f"Ошибка добавления в Google Sheets: {e}")
         # Не прерываем выполнение из-за ошибки с Sheets
@@ -291,7 +314,7 @@ async def _create_notification(db: AsyncSession, alert: Alert, book: ParserBook)
             url=book.url,
             image_url=book.image_url
         )
-        
+
         db.add(notification)
         await db.commit()
         
@@ -608,6 +631,46 @@ def parse_books(self, query: str, source: str = "chitai-gorod", fetch_details: b
         # Возвращаем структурированный ответ об ошибке
         return error_result
 
+async def _check_existing_books_in_db(db: AsyncSession, query: str) -> Tuple[bool, List[DBBook], str]:
+    """
+    Проверяет, есть ли в базе книги, похожие на запрос
+
+    Returns:
+        Кортеж (has_exact_match: bool, similar_books: List[DBBook], reason: str)
+    """
+    try:
+        # Ищем книги, похожие на запрос (LIKE поиск)
+        search_pattern = f"%{query}%"
+        
+        result = await db.execute(
+            select(DBBook)
+            .where(
+                or_(
+                    DBBook.title.ilike(search_pattern),
+                    DBBook.author.ilike(search_pattern)
+                )
+            )
+            .limit(20)
+        )
+        existing_books = result.scalars().all()
+
+        if not existing_books:
+            return False, [], "no_existing_books"
+        
+        # Проверяем каждую книгу на точное совпадение
+        for book in existing_books:
+            is_similar, reason = is_book_similar(query, book.title, book.author)
+            if is_similar:
+                celery_logger.info(f"Найдена похожая книга в БД: {book.title} (причина: {reason})")
+                return True, existing_books, reason
+        
+        return False, existing_books, "similar_books_found"
+        
+    except Exception as e:
+        celery_logger.error(f"Ошибка проверки существующих книг: {e}")
+        return False, [], "error_checking"
+
+
 async def _parse_books_async(query: str, source: str, fetch_details: bool = False):
     """Асинхронная функция парсинга книг с реальным парсером
 
@@ -620,6 +683,41 @@ async def _parse_books_async(query: str, source: str, fetch_details: bool = Fals
     session_factory = get_session_factory()
     async with session_factory() as db:
         try:
+            # ШАГ 1: Проверяем нагрузку сервера для определения лимита парсинга
+            is_loaded, parse_limit = should_limit_parsing()
+            celery_logger.info(f"Лимит парсинга: {parse_limit} (нагрузка: {'высокая' if is_loaded else 'нормальная'})")
+            
+            # ШАГ 2: Проверяем, есть ли в базе похожие книги
+            has_existing, existing_books, match_reason = await _check_existing_books_in_db(db, query)
+            
+            if has_existing:
+                celery_logger.info(f"Найдены существующие книги в БД для запроса '{query}': {len(existing_books)} шт. (причина: {match_reason})")
+                
+                # Проверяем, есть ли запрос в очереди допарсинга
+                needs_more, additional_limit = await check_and_complete_pending_parse(query)
+                
+                if not needs_more:
+                    # Точное совпадение найдено, не парсим
+                    celery_logger.info(f"Книги уже есть в БД, пропускаем парсинг для '{query}'")
+                    return {
+                        "books_found": 0,
+                        "books_added": 0,
+                        "books_updated": 0,
+                        "message": f"Книги уже есть в базе ({match_reason})",
+                        "cached": True,
+                        "books": [b.to_dict() for b in existing_books[:5]]
+                    }
+                else:
+                    # Нужно допарсить дополнительные книги
+                    parse_limit = min(parse_limit, additional_limit)
+                    celery_logger.info(f"Допарсинг для '{query}': лимит {parse_limit}")
+            
+            # ШАГ 3: Проверяем очередь допарсинга
+            needs_more, additional_limit = await check_and_complete_pending_parse(query)
+            if needs_more:
+                parse_limit = min(parse_limit, additional_limit)
+                celery_logger.info(f"Допарсинг из очереди: {parse_limit} книг")
+            
             # Импортируем реальный парсер
             if source == "chitai-gorod":
                 try:
@@ -634,7 +732,7 @@ async def _parse_books_async(query: str, source: str, fetch_details: bool = Fals
             else:
                 raise ValueError(f"Неподдерживаемый источник: {source}")
             
-            celery_logger.info(f"Начинаем парсинг для запроса: '{query}' (fetch_details={fetch_details})")
+            celery_logger.info(f"Начинаем парсинг для запроса: '{query}' (fetch_details={fetch_details}, limit={parse_limit})")
 
             # 🔍 ОТЛАДКА: Проверяем парсер
             celery_logger.info(f"🔍 ОТЛАДКА: parser type = {type(parser)}")
@@ -643,8 +741,8 @@ async def _parse_books_async(query: str, source: str, fetch_details: bool = Fals
             # Замеряем время парсинга
             parse_start = time.time()
 
-            # Ищем книги с правильными параметрами (оптимизировано: 1 страница вместо 2)
-            books = await parser.search_books(query, max_pages=1, limit=10, fetch_details=fetch_details)
+            # Ищем книги с правильными параметрами
+            books = await parser.search_books(query, max_pages=1, limit=parse_limit, fetch_details=fetch_details)
 
             # Логируем время парсинга
             parse_time = time.time() - parse_start
@@ -672,10 +770,6 @@ async def _parse_books_async(query: str, source: str, fetch_details: bool = Fals
             for book in books:
                 try:
                     await _save_book(db, book)
-                    await _add_to_sheets(book)
-                    
-                    # Определяем, была ли это новая книга или обновление
-                    # (упрощенная логика - в реальности нужно проверить существование)
                     saved_count += 1
                     
                     # Логируем каждую найденную книгу
@@ -687,6 +781,17 @@ async def _parse_books_async(query: str, source: str, fetch_details: bool = Fals
                     celery_logger.error(f"Ошибка сохранения книги {book.title}: {book_error}")
                     continue
             
+            # ШАГ 4: Добавляем ВСЕ найденные книги в Google Sheets (топ-5 по цене)
+            if books:
+                await _add_to_sheets_batch(books)
+            
+            # ШАГ 5: Если парсили с лимитом и книг больше, чем сохранили - добавляем в очередь допарсинга
+            # (это значит, что есть еще книги для этого автора/запроса)
+            if is_loaded and len(books) >= parse_limit:
+                author = books[0].author if books else None
+                await add_to_pending_parse(query, author, len(books))
+                celery_logger.info(f"Добавлено в очередь допарсинга: {query} (автор: {author})")
+            
             # Логируем результат парсинга
             await _log_parsing_result(db, source, "success", 
                                     f"Парсинг '{query}': найдено {len(books)} книг, сохранено {saved_count}")
@@ -695,7 +800,9 @@ async def _parse_books_async(query: str, source: str, fetch_details: bool = Fals
                 "books_found": len(books),
                 "books_added": saved_count,
                 "books_updated": updated_count,
-                "message": f"Парсинг завершен: найдено {len(books)} книг, сохранено {saved_count}"
+                "message": f"Парсинг завершен: найдено {len(books)} книг, сохранено {saved_count}",
+                "limit_used": parse_limit,
+                "was_loaded": is_loaded
             }
             
         except Exception as e:

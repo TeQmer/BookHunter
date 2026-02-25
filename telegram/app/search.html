@@ -134,6 +134,17 @@
                 document.getElementById('search-results-container').style.display = 'block';
                 document.getElementById('recent-searches-container').style.display = 'none';
 
+                // Анимация скролла к результатам поиска
+                setTimeout(() => {
+                    const resultsContainer = document.getElementById('search-results-container');
+                    if (resultsContainer) {
+                        resultsContainer.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'start' 
+                        });
+                    }
+                }, 300);
+
                 window.tg.hapticSuccess();
             } catch (error) {
                 console.error('Ошибка поиска:', error);

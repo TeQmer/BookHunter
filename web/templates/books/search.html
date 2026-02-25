@@ -136,6 +136,58 @@
 
 <script>
 let currentQuery = "{{ query }}";
+
+// Анимация скролла к элементу при отправке формы поиска
+document.addEventListener('DOMContentLoaded', function() {
+    const searchForm = document.querySelector('form[method="GET"]');
+    const parsingStatus = document.getElementById('parsingStatus');
+    
+    if (searchForm) {
+        searchForm.addEventListener('submit', function(e) {
+            // Если есть контейнер статуса парсинга - скроллим к нему
+            if (parsingStatus) {
+                e.preventDefault(); // Предотвращаем стандартную отправку
+                
+                const queryInput = searchForm.querySelector('input[name="q"]');
+                const query = queryInput ? queryInput.value.trim() : '';
+                
+                if (query) {
+                    // Скроллим к статусу парсинга с анимацией
+                    scrollToParsingStatus();
+                    
+                    // Показываем начальный статус
+                    showParsingStatus('info', '🔍 Начинаем поиск...', `Ищем книги по запросу: "${query}"`);
+                    
+                    // Показываем контейнер статуса
+                    parsingStatus.style.display = 'block';
+                    
+                    // Запускаем поиск
+                    startAutomaticSearch(query);
+                } else {
+                    // Если запрос пустой - отправляем форму как обычно
+                    return true;
+                }
+            }
+        });
+    }
+});
+                
+function scrollToParsingStatus() {
+    const statusElement = document.getElementById('parsingStatus');
+    if (statusElement) {
+        statusElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+        });
+    }
+}
+
+// Функция для принудительного скролла к загрузке (может вызываться извне)
+window.scrollToLoading = function() {
+    scrollToParsingStatus();
+};
+
+let currentQuery = "{{ query }}";
 let parsingInProgress = false;
 
 console.log('=== SMART SEARCH INITIALIZED ===');
@@ -166,6 +218,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Если есть поисковый запрос но нет книг - запускаем автоматический поиск
     if (query && !hasBooks && query.trim() !== '') {
         console.log('No books found, starting automatic search...');
+        
+        // Скроллим к статусу парсинга при автоматическом запуске
+        setTimeout(() => {
+            scrollToParsingStatus();
+        }, 500);
+        
         startAutomaticSearch(query);
     }
 });
