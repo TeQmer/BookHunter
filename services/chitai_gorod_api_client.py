@@ -260,11 +260,20 @@ class ChitaiGorodAPIClient:
                                 await self._refresh_token()
                                 await self._refresh_cookies()
 
-                                # Повторяем запрос с новым токеном
-                                logger.info("[ChitaiGorodAPI] Повторяем запрос с новым токеном...")
+                                # СНАЧАЛА получаем новые cookies из Redis
+                                try:
+                                    cookies_dict = token_manager.get_chitai_gorod_cookies()
+                                    if cookies_dict:
+                                        logger.info(f"[ChitaiGorodAPI] Обновили cookies: {len(cookies_dict)} cookies")
+                                    else:
+                                        logger.warning("[ChitaiGorodAPI] Cookies не получены после обновления!")
+                                except Exception as e:
+                                    logger.warning(f"[ChitaiGorodAPI] Не удалось обновить cookies: {e}")
+
+                                # Потом создаем headers с новыми cookies
                                 headers = self._get_headers(include_auth=False)
 
-                                # Обновляем Authorization и cookies
+                                # Обновляем Authorization из новых cookies
                                 if cookies_dict and 'access-token' in cookies_dict:
                                     access_token = cookies_dict['access-token']
                                     if access_token.startswith('Bearer%20'):
@@ -274,14 +283,9 @@ class ChitaiGorodAPIClient:
                                     else:
                                         jwt_token = access_token
                                     headers["authorization"] = f"Bearer {jwt_token}"
+                                    logger.info(f"[ChitaiGorodAPI] Новый Authorization: {jwt_token[:30]}...")
 
-                                try:
-                                    cookies_dict = token_manager.get_chitai_gorod_cookies()
-                                    if cookies_dict:
-                                        logger.info(f"[ChitaiGorodAPI] Обновили cookies: {len(cookies_dict)} cookies")
-                                except Exception as e:
-                                    logger.warning(f"[ChitaiGorodAPI] Не удалось обновить cookies: {e}")
-
+                                logger.info("[ChitaiGorodAPI] Повторяем запрос с обновленным токеном...")
                                 continue  # Повторяем попытку
 
                             return None
