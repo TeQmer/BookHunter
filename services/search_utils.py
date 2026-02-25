@@ -104,7 +104,8 @@ def is_book_similar(query: str, book_title: str, book_author: str = None) -> Tup
     
     # 2. Одно слово в запросе - слишком слабо, требуем автора
     if len(query_words) <= 1:
-        if author_normalized and author_normalized in query_normalized:
+        # Проверяем: запрос содержится в авторе (например "Стивен" в "Стивен Кинг")
+        if author_normalized and query_normalized in author_normalized:
             return True, "single_word_with_author"
         return False, "single_word_no_author_match"
     
@@ -114,10 +115,11 @@ def is_book_similar(query: str, book_title: str, book_author: str = None) -> Tup
     # 4. Проверяем по автору
     author_match = False
     if author_normalized:
-        # Автор содержится в запросе (полностью или частично)
+        # Запрос содержится в авторе или автор в запросе (полностью или частично)
+        # Например: "Стивен" в "Стивен Кинг" или "Стивен Кинг" в "Стивен Кинг"
         author_match = (
-            author_normalized in query_normalized or 
             query_normalized in author_normalized or
+            author_normalized in query_normalized or
             any(author_word in query_words for author_word in get_words_set(book_author))
         )
     
