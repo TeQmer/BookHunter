@@ -482,7 +482,7 @@ async def smart_search_books(
     source: str = Query("chitai-gorod", description="Источник парсинга"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Умный поиск книг: сначала база данных, затем автоматический парсинг"""
+    """Умный поиск книг: показываем ВСЕ книги из БД, сортируем по релевантности"""
     try:
         # Импортируем логику умного поиска
         from services.search_utils import is_book_similar, is_exact_match
@@ -515,30 +515,45 @@ async def smart_search_books(
         result = await db.execute(search_query)
         db_books = result.scalars().all()
         
-        # Проверяем релевантность каждой книги
-        relevant_books = []
+        # Проверяем релевантность каждой книги и сортируем
+        exact_matches = []  # Точные совпадения
+        partial_matches = []  # Частичные совпадения
+        
         for book in db_books:
             is_similar, reason = is_book_similar(q, book.title, book.author)
+            book_dict = book.to_dict()
+            book_dict['relevance'] = reason
+            
             if is_similar:
-                relevant_books.append(book.to_dict())
-                logger.info(f"Релевантная книга: '{book.title}' (причина: {reason})")
+                exact_matches.append(book_dict)
+                logger.info(f"Точное совпадение: '{book.title}' ({reason})")
+            else:
+                # Добавляем даже нерелевантные, но помечаем
+                partial_matches.append(book_dict)
         
-        logger.info(f"Smart search '{q}': найдено {len(db_books)} в базе, релевантных: {len(relevant_books)}")
+        # Объединяем: точные первыми, потом частичные
+        all_relevant_books = exact_matches + partial_matches
         
-        # Если есть релевантные книги - возвращаем их
-        if relevant_books:
+        logger.info(f"Smart search '{q}': найдено {len(db_books)} в базе, точных: {len(exact_matches)}, частичных: {len(partial_matches)}")
+        
+        # ВСЕГДА возвращаем книги из базы (даже частично релевантные)
+        if all_relevant_books:
+            status = "found_exact" if exact_matches else "found_partial"
+            message = f"Найдено {len(exact_matches)} точных и {len(partial_matches)} частичных совпадений"
+            
             return JSONResponse({
                 "success": True,
                 "query": q,
                 "source": source,
-                "books": relevant_books,
-                "found_count": len(relevant_books),
-                "status": "found_in_database",
-                "message": f"Найдено {len(relevant_books)} релевантных книг в каталоге"
+                "books": all_relevant_books,
+                "found_count": len(all_relevant_books),
+                "exact_match_count": len(exact_matches),
+                "status": status,
+                "message": message
             })
         
-        # Если релевантных книг нет - запускаем парсинг
-        logger.info(f"Релевантные книги не найдены в базе для '{q}', запускаем парсинг")
+        # Только если совсем ничего нет - запускаем парсинг
+        logger.info(f"Книги не найдены в базе для '{q}', запускаем парсинг")
         
         # Запускаем парсинг в фоне
         from services.celery_tasks import parse_books
