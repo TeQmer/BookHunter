@@ -46,22 +46,14 @@ class BookHunterApp {
         // Обработка кнопки "Назад" от Telegram через BackButton.onClick
         if (window.tg.webApp?.BackButton) {
             window.tg.webApp.BackButton.onClick(() => {
-                console.log('[Telegram] Нажата кнопка назад');
-                // Используем историю для возврата на предыдущую страницу
-                if (window.history.state && window.history.state.route) {
-                    const prevRoute = window.history.state.route;
-                    const params = window.history.state.params || {};
-                    
-                    // Если мы на главной - закрываем мини-апп
-                    if (prevRoute === 'home') {
-                        window.tg.close();
-                    } else {
-                        // Иначе возвращаемся на предыдущую страницу
-                        this.navigate(prevRoute, params);
-                    }
-                } else {
-                    // Нет истории - возвращаемся на главную
+                console.log('[Telegram] Нажата кнопка назад, текущая страница:', this.currentRoute);
+                
+                // Если мы не на главной странице - переходим на главную
+                if (this.currentRoute !== 'home') {
                     this.navigate('home');
+                } else {
+                    // Если на главной - закрываем мини-апп
+                    window.tg.close();
                 }
                 window.tg.hapticClick();
             });
