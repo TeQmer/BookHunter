@@ -43,6 +43,28 @@ class BookHunterApp {
         // Настраиваем навигацию
         this.setupNavigation();
 
+        // Обработка кнопки "Назад" от Telegram
+        window.tg.onEvent('backButtonClicked', () => {
+            console.log('[Telegram] Нажата кнопка назад');
+            // Используем историю для возврата на предыдущую страницу
+            if (window.history.state && window.history.state.route) {
+                const prevRoute = window.history.state.route;
+                const params = window.history.state.params || {};
+                
+                // Если мы на главной - закрываем мини-апп
+                if (prevRoute === 'home') {
+                    window.tg.close();
+                } else {
+                    // Иначе возвращаемся на предыдущую страницу
+                    this.navigate(prevRoute, params);
+                }
+            } else {
+                // Нет истории - возвращаемся на главную
+                this.navigate('home');
+            }
+            window.tg.hapticClick();
+        });
+
         // Загружаем начальные данные
         await this.loadInitialData();
 
