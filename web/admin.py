@@ -540,9 +540,9 @@ async def admin_analytics(
     try:
         # Статистика книг по магазинам
         stores_stats = await db.execute(
-            select(Book.store, func.count(Book.id).label('count'))
-            .where(Book.store.isnot(None))
-            .group_by(Book.store)
+            select(Book.source, func.count(Book.id).label('count'))
+            .where(Book.source.isnot(None))
+            .group_by(Book.source)
             .order_by(desc('count'))
         )
         stores_data = stores_stats.fetchall()
@@ -560,10 +560,10 @@ async def admin_analytics(
         # Статистика по ценовым диапазонам
         price_ranges = await db.execute(
             select(
-                func.sum(func.case((Book.price < 500, 1), else_=0)).label('under_500'),
-                func.sum(func.case((Book.price >= 500, Book.price < 1000, 1), else_=0)).label('500_1000'),
-                func.sum(func.case((Book.price >= 1000, Book.price < 2000, 1), else_=0)).label('1000_2000'),
-                func.sum(func.case((Book.price >= 2000, 1), else_=0)).label('over_2000')
+                func.sum(func.case((Book.current_price < 500, 1), else_=0)).label('under_500'),
+                func.sum(func.case((Book.current_price >= 500, Book.current_price < 1000, 1), else_=0)).label('500_1000'),
+                func.sum(func.case((Book.current_price >= 1000, Book.current_price < 2000, 1), else_=0)).label('1000_2000'),
+                func.sum(func.case((Book.current_price >= 2000, 1), else_=0)).label('over_2000')
             )
         )
         price_stats = price_ranges.fetchone() if price_ranges else None
@@ -609,8 +609,8 @@ async def admin_analytics(
             'authors_stats': [{'author': author, 'count': count} for author, count in authors_data],
             'price_stats': {
                 'under_500': getattr(price_stats, 'under_500', 0) if price_stats else 0,
-                '500_1000': getattr(price_stats, 'five_hundred_1000', 0) if price_stats else 0,
-                '1000_2000': getattr(price_stats, 'thousand_2000', 0) if price_stats else 0,
+                '500_1000': getattr(price_stats, '500_1000', 0) if price_stats else 0,
+                '1000_2000': getattr(price_stats, '1000_2000', 0) if price_stats else 0,
                 'over_2000': getattr(price_stats, 'over_2000', 0) if price_stats else 0
             },
             'discount_stats': {
@@ -713,7 +713,7 @@ async def admin_export_books(
     """Экспорт книг"""
     try:
         books_query = await db.execute(
-            select(Book).order_by(Book.created_at.desc())
+            select(Book).order_by(Book.parsed_at.desc())
         )
         books = books_query.scalars().all()
         
@@ -723,17 +723,17 @@ async def admin_export_books(
             
             output = io.StringIO()
             writer = csv.writer(output)
-            writer.writerow(['ID', 'Название', 'Автор', 'Цена', 'Скидка', 'Магазин', 'Дата добавления'])
+            writer.writerow(['ID', 'Название', 'Автор', 'Цена', 'Скидка', 'Магазин', 'Дата парсинга'])
             
             for book in books:
                 writer.writerow([
                     book.id,
                     book.title or 'Не указано',
                     book.author or 'Не указано',
-                    f"{book.price} {book.currency}" if book.price else 'Не указано',
+                    float(book.current_price) if book.current_price else 0,
                     f"{book.discount_percent}%" if book.discount_percent else 'Нет',
-                    book.store or 'Не указано',
-                    book.created_at.strftime('%d.%m.%Y %H:%M:%S') if book.created_at else 'Не указано'
+                    book.source or 'Не указано',
+                    book.parsed_at.strftime('%d.%m.%Y %H:%M:%S') if book.parsed_at else 'Не указано'
                 ])
             
             return Response(
@@ -748,12 +748,12 @@ async def admin_export_books(
                     'id': book.id,
                     'title': book.title,
                     'author': book.author,
-                    'price': book.price,
-                    'currency': book.currency,
+                    'current_price': float(book.current_price) if book.current_price else 0,
+                    'original_price': float(book.original_price) if book.original_price else 0,
                     'discount_percent': book.discount_percent,
-                    'store': book.store,
+                    'source': book.source,
                     'url': book.url,
-                    'created_at': book.created_at.isoformat() if book.created_at else None
+                    'parsed_at': book.parsed_at.isoformat() if book.parsed_at else None
                 })
             
             return JSONResponse({"success": True, "data": books_data})
