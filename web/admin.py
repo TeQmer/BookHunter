@@ -545,7 +545,7 @@ async def admin_analytics(
             .group_by(Book.source)
             .order_by(desc('count'))
         )
-        stores_data = stores_stats.fetchall()
+        stores_data = stores_stats.all()
         
         # Статистика по авторам (топ-10)
         authors_stats = await db.execute(
@@ -555,7 +555,7 @@ async def admin_analytics(
             .order_by(desc('count'))
             .limit(10)
         )
-        authors_data = authors_stats.fetchall()
+        authors_data = authors_stats.all()
         
         # Статистика по ценовым диапазонам
         price_ranges = await db.execute(
@@ -566,7 +566,7 @@ async def admin_analytics(
                 func.sum(case((Book.current_price >= 2000, 1), else_=0)).label('over_2000')
             )
         )
-        price_stats = price_ranges.fetchone() if price_ranges else None
+        price_stats = price_ranges.one_or_none()
         
         # Статистика скидок
         discount_stats = await db.execute(
@@ -577,7 +577,7 @@ async def admin_analytics(
                 func.count(Book.id).label('total_books')
             )
         )
-        discount_data = discount_stats.fetchone()
+        discount_data = discount_stats.one_or_none()
         
         # Активность пользователей за последние 30 дней
         thirty_days_ago = datetime.now() - timedelta(days=30)
@@ -592,7 +592,7 @@ async def admin_analytics(
             select(Alert.is_active, func.count(Alert.id))
             .group_by(Alert.is_active)
         )
-        alerts_data = alerts_stats.fetchall()
+        alerts_data = alerts_stats.all()
 
         # Статистика парсинга за последние 7 дней
         seven_days_ago = datetime.now() - timedelta(days=7)
@@ -601,30 +601,30 @@ async def admin_analytics(
             .where(ParsingLog.created_at >= seven_days_ago)
             .group_by(ParsingLog.status)
         )
-        parsing_data = parsing_stats.fetchall()
+        parsing_data = parsing_stats.all()
         
         # Формируем данные для шаблона
         analytics_data = {
-            'stores_stats': [{'store': row[0], 'count': row[1]} for row in stores_data],
-            'authors_stats': [{'author': row[0], 'count': row[1]} for row in authors_data],
+            'stores_stats': [{'store': row._mapping['source'], 'count': row._mapping['count']} for row in stores_data],
+            'authors_stats': [{'author': row._mapping['author'], 'count': row._mapping['count']} for row in authors_data],
             'price_stats': {
-                'under_500': price_stats[0] if price_stats else 0,
-                '500_1000': price_stats[1] if price_stats else 0,
-                '1000_2000': price_stats[2] if price_stats else 0,
-                'over_2000': price_stats[3] if price_stats else 0
+                'under_500': price_stats._mapping['under_500'] if price_stats else 0,
+                '500_1000': price_stats._mapping['500_1000'] if price_stats else 0,
+                '1000_2000': price_stats._mapping['1000_2000'] if price_stats else 0,
+                'over_2000': price_stats._mapping['over_2000'] if price_stats else 0
             },
             'discount_stats': {
-                'avg_discount': round(discount_data[0], 1) if discount_data and discount_data[0] else 0,
-                'max_discount': discount_data[1] if discount_data else 0,
-                'discounted_books': discount_data[2] if discount_data else 0,
-                'total_books': discount_data[3] if discount_data else 0,
-                'discount_percentage': round((discount_data[2] / discount_data[3] * 100), 1) if discount_data and discount_data[3] and discount_data[3] > 0 else 0
+                'avg_discount': round(discount_data._mapping['avg_discount'], 1) if discount_data and discount_data._mapping['avg_discount'] else 0,
+                'max_discount': discount_data._mapping['max_discount'] if discount_data else 0,
+                'discounted_books': discount_data._mapping['discounted_books'] if discount_data else 0,
+                'total_books': discount_data._mapping['total_books'] if discount_data else 0,
+                'discount_percentage': round((discount_data._mapping['discounted_books'] / discount_data._mapping['total_books'] * 100), 1) if discount_data and discount_data._mapping['total_books'] and discount_data._mapping['total_books'] > 0 else 0
             },
             'user_stats': {
                 'new_users_30d': new_users_30d
             },
-            'alerts_stats': [{'is_active': row[0], 'count': row[1]} for row in alerts_data],
-            'parsing_stats': [{'status': row[0], 'count': row[1]} for row in parsing_data]
+            'alerts_stats': [{'is_active': row._mapping['is_active'], 'count': row._mapping['count']} for row in alerts_data],
+            'parsing_stats': [{'status': row._mapping['status'], 'count': row._mapping['count']} for row in parsing_data]
         }
         
         return templates.TemplateResponse(
