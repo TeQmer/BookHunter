@@ -260,6 +260,67 @@ class TokenManager:
         except Exception as e:
             logger.error(f"Ошибка отправки уведомления в Telegram: {e}")
 
+    def send_subscriptions_check_notification(
+        self,
+        total_checked: int,
+        active_count: int,
+        matched_count: int,
+        deactivated_count: int,
+        notifications_sent: int,
+        duration_seconds: float,
+        errors: str = None
+    ):
+        """
+        Отправка уведомления о результатах проверки подписок
+
+        Args:
+            total_checked: Всего подписок проверено
+            active_count: Активных подписок
+            matched_count: Подписок подошли под условия
+            deactivated_count: Деактивировано подписок
+            notifications_sent: Отправлено уведомлений
+            duration_seconds: Время выполнения в секундах
+            errors: Ошибки (опционально)
+        """
+        try:
+            bot_token = os.getenv("TELEGRAM_NOTIFICATION_BOT_TOKEN")
+            chat_id = os.getenv("TELEGRAM_NOTIFICATION_CHAT_ID")
+
+            if not bot_token or not chat_id:
+                logger.warning("Не настроены переменные для Telegram уведомлений")
+                return
+
+            # Формируем сообщение
+            telegram_message = "🔔 <b>Проверка подписок завершена</b>\n\n"
+            telegram_message += f"📊 <b>Статистика:</b>\n"
+            telegram_message += f"• Проверено подписок: {total_checked}\n"
+            telegram_message += f"• Активных подписок: {active_count}\n"
+            telegram_message += f"• Подошли под условия: {matched_count}\n"
+            telegram_message += f"• Деактивировано: {deactivated_count}\n"
+            telegram_message += f"• Отправлено уведомлений: {notifications_sent}\n"
+            telegram_message += f"• Время выполнения: {duration_seconds:.1f} сек\n"
+
+            if errors:
+                telegram_message += f"\n⚠️ <b>Ошибки:</b>\n<code>{errors}</code>"
+
+            # Отправляем сообщение
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            data = {
+                "chat_id": chat_id,
+                "text": telegram_message,
+                "parse_mode": "HTML"
+            }
+
+            response = requests.post(url, json=data, timeout=10)
+
+            if response.status_code == 200:
+                logger.info("Статистика подписок отправлена в Telegram")
+            else:
+                logger.error(f"Ошибка отправки статистики: {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"Ошибка отправки статистики в Telegram: {e}")
+
 
 # Глобальный экземпляр для использования в приложении
 _token_manager_instance = None

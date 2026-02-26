@@ -1422,6 +1422,13 @@ async def _check_subscriptions_prices_async():
     4. Отправляет уведомление и деактивирует подписку при совпадении
     """
     
+    import time
+    start_time = time.time()
+    errors = []
+    total_checked = 0
+    active_count = 0
+    matched_count = 0
+    
     session_factory = get_session_factory()
     async with session_factory() as db:
         try:
@@ -1457,7 +1464,10 @@ async def _check_subscriptions_prices_async():
             
             celery_logger.info(f"Начинаем проверку цен для {len(alerts)} подписок")
             
+            total_checked = len(alerts)
+            active_count = total_checked
             notifications_sent = 0
+            matched_count = 0
             
             for alert in alerts:
                 try:
@@ -1513,6 +1523,8 @@ async def _check_subscriptions_prices_async():
                             f"{parsed_book.current_price}₽ (скидка {parsed_book.discount_percent}%)"
                         )
                         
+                        matched_count += 1
+                        
                         # Обновляем цену в БД
                         db_book.current_price = parsed_book.current_price
                         db_book.original_price = parsed_book.original_price
@@ -1542,9 +1554,30 @@ async def _check_subscriptions_prices_async():
                     
                 except Exception as e:
                     celery_logger.error(f"Ошибка обработки подписки {alert.id}: {e}")
+                    errors.append(f"Подписка {alert.id}: {str(e)}")
                     continue
             
+            # Вычисляем время выполнения
+            duration = time.time() - start_time
+            
             celery_logger.info(f"Проверка цен подписок завершена. Отправлено уведомлений: {notifications_sent}")
+            
+            # Отправляем статистику в Telegram бот
+            try:
+                from services.token_manager import get_token_manager
+                token_manager = get_token_manager()
+                token_manager.send_subscriptions_check_notification(
+                    total_checked=total_checked,
+                    active_count=active_count,
+                    matched_count=matched_count,
+                    deactivated_count=notifications_sent,
+                    notifications_sent=notifications_sent,
+                    duration_seconds=duration,
+                    errors="\n".join(errors) if errors else None
+                )
+            except Exception as notify_error:
+                celery_logger.error(f"Ошибка отправки статистики: {notify_error}")
+            
             return notifications_sent
             
         except Exception as e:
