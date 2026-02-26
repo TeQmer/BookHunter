@@ -43,27 +43,29 @@ class BookHunterApp {
         // Настраиваем навигацию
         this.setupNavigation();
 
-        // Обработка кнопки "Назад" от Telegram
-        window.tg.onEvent('backButtonClicked', () => {
-            console.log('[Telegram] Нажата кнопка назад');
-            // Используем историю для возврата на предыдущую страницу
-            if (window.history.state && window.history.state.route) {
-                const prevRoute = window.history.state.route;
-                const params = window.history.state.params || {};
-                
-                // Если мы на главной - закрываем мини-апп
-                if (prevRoute === 'home') {
-                    window.tg.close();
+        // Обработка кнопки "Назад" от Telegram через BackButton.onClick
+        if (window.tg.webApp?.BackButton) {
+            window.tg.webApp.BackButton.onClick(() => {
+                console.log('[Telegram] Нажата кнопка назад');
+                // Используем историю для возврата на предыдущую страницу
+                if (window.history.state && window.history.state.route) {
+                    const prevRoute = window.history.state.route;
+                    const params = window.history.state.params || {};
+                    
+                    // Если мы на главной - закрываем мини-апп
+                    if (prevRoute === 'home') {
+                        window.tg.close();
+                    } else {
+                        // Иначе возвращаемся на предыдущую страницу
+                        this.navigate(prevRoute, params);
+                    }
                 } else {
-                    // Иначе возвращаемся на предыдущую страницу
-                    this.navigate(prevRoute, params);
+                    // Нет истории - возвращаемся на главную
+                    this.navigate('home');
                 }
-            } else {
-                // Нет истории - возвращаемся на главную
-                this.navigate('home');
-            }
-            window.tg.hapticClick();
-        });
+                window.tg.hapticClick();
+            });
+        }
 
         // Загружаем начальные данные
         await this.loadInitialData();
