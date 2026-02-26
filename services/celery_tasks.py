@@ -1375,3 +1375,212 @@ async def _update_chitai_gorod_token_async():
 
         return {"status": "error", "message": str(e)}
 
+
+# =============================================================================
+# Задача проверки подписок по ценам из БД (каждые 4 часа)
+# =============================================================================
+
+def check_subscriptions_prices():
+    """
+    Проверка активных подписок по ценам из базы данных.
+    Если цена книги соответствует условиям подписки - отправляем уведомление и деактивируем подписку.
+    """
+    
+    def run_async_task():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(_check_subscriptions_prices_async())
+        finally:
+            loop.close()
+    
+    try:
+        result = run_async_task()
+        celery_logger.info(f"Проверка цен подписок завершена. Уведомлений отправлено: {result}")
+        return result
+    except Exception as e:
+        celery_logger.error(f"Ошибка при проверке цен подписок: {e}")
+        celery_logger.error(traceback.format_exc())
+        raise
+
+# Регистрируем задачу
+check_subscriptions_prices_task = celery_app.task(
+    check_subscriptions_prices, 
+    bind=True, 
+    autoretry_for=(Exception,), 
+    retry_kwargs={'max_retries': 3}
+)
+
+async def _check_subscriptions_prices_async():
+    """
+    Асинхронная функция проверки цен подписок из базы данных.
+    Проверяет книги в БД (без парсинга) и отправляет уведомления при совпадении условий.
+    """
+    
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        try:
+            # Получаем все активные подписки
+            result = await db.execute(
+                select(Alert).where(Alert.is_active == True)
+            )
+            alerts = result.scalars().all()
+            
+            if not alerts:
+                celery_logger.info("Нет активных подписок для проверки цен")
+                return 0
+            
+            notifications_sent = 0
+            
+            for alert in alerts:
+                try:
+                    # Ищем книги в БД по названию и автору
+                    search_conditions = []
+                    
+                    if alert.book_title:
+                        # Ищем по названию (частичное совпадение)
+                        search_conditions.append(
+                            DBBook.title.ilike(f"%{alert.book_title}%")
+                        )
+                    
+                    if alert.book_author:
+                        # Ищем по автору (частичное совпадение)
+                        search_conditions.append(
+                            DBBook.author.ilike(f"%{alert.book_author}%")
+                        )
+                    
+                    if not search_conditions:
+                        celery_logger.warning(f"Подписка {alert.id} не имеет названия или автора для поиска")
+                        continue
+                    
+                    # Выполняем поиск в БД
+                    query = select(DBBook).where(or_(*search_conditions))
+                    result = await db.execute(query.limit(10))
+                    books = result.scalars().all()
+                    
+                    if not books:
+                        celery_logger.info(f"Книги не найдены в БД для подписки {alert.id}")
+                        continue
+                    
+                    # Проверяем каждую книгу на соответствие условиям подписки
+                    for book in books:
+                        # Проверяем цену
+                        price_match = True
+                        if alert.target_price and book.current_price > alert.target_price:
+                            price_match = False
+                        
+                        # Проверяем скидку
+                        discount_match = True
+                        if alert.min_discount and (book.discount_percent or 0) < alert.min_discount:
+                            discount_match = False
+                        
+                        # Если оба условия выполняются
+                        if price_match and discount_match:
+                            celery_logger.info(
+                                f"Найдена книга по подписке {alert.id}: {book.title} - "
+                                f"{book.current_price}₽ (скидка {book.discount_percent}%)"
+                            )
+                            
+                            # Отправляем уведомление
+                            await _send_subscription_notification(db, alert, book)
+                            
+                            # Деактивируем подписку
+                            alert.is_active = False
+                            alert.updated_at = datetime.now()
+                            await db.commit()
+                            
+                            notifications_sent += 1
+                            celery_logger.info(f"Подписка {alert.id} деактивирована")
+                            break  # Останавливаем проверку для этой подписки
+                    
+                except Exception as e:
+                    celery_logger.error(f"Ошибка обработки подписки {alert.id}: {e}")
+                    continue
+            
+            celery_logger.info(f"Проверка цен подписок завершена. Отправлено уведомлений: {notifications_sent}")
+            return notifications_sent
+            
+        except Exception as e:
+            celery_logger.error(f"Критическая ошибка при проверке цен подписок: {e}")
+            raise
+
+async def _send_subscription_notification(db: AsyncSession, alert: Alert, book: DBBook):
+    """
+    Отправка уведомления о книге по подписке.
+    Формат сообщения:
+    🔔 Книга поступила в продажу!
+    
+    📖 Остров привидений
+    ✍️ Автор: Артур Конан Дойл
+    💰 Цена: 299 ₽ (было 450 ₽, скидка 33%)
+    🎯 Ваше условие: до 300 ₽
+    
+    👉 Купить: [ссылка]
+    """
+    
+    try:
+        # Получаем пользователя
+        result = await db.execute(select(User).where(User.id == alert.user_id))
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            celery_logger.error(f"Пользователь {alert.user_id} не найден")
+            return
+        
+        # Формируем сообщение
+        message = "🔔 <b>Книга поступила в продажу!</b>\n\n"
+        message += f"📖 <b>{book.title}</b>\n"
+        
+        if book.author:
+            message += f"✍️ Автор: {book.author}\n"
+        
+        # Цена и скидка
+        if book.original_price and book.original_price > book.current_price:
+            discount = int((1 - book.current_price / book.original_price) * 100)
+            message += f"💰 Цена: <b>{int(book.current_price)} ₽</b> (было {int(book.original_price)} ₽, скидка {discount}%)\n"
+        else:
+            message += f"💰 Цена: <b>{int(book.current_price)} ₽</b>\n"
+        
+        # Условие подписки
+        if alert.target_price:
+            message += f"🎯 Ваше условие: до {int(alert.target_price)} ₽\n"
+        elif alert.min_discount:
+            message += f"🎯 Ваше условие: скидка от {int(alert.min_discount)}%\n"
+        
+        # Ссылка на книгу
+        if book.url:
+            message += f"\n👉 <a href='{book.url}'>Купить</a>"
+        
+        # Отправляем через Telegram Bot
+        try:
+            from app.bot.telegram_bot import TelegramBot
+            bot = TelegramBot()
+            await bot.send_message(user.telegram_id, message)
+            celery_logger.info(f"Уведомление отправлено пользователю {user.telegram_id} для книги {book.title}")
+        except Exception as bot_error:
+            celery_logger.error(f"Ошибка отправки Telegram уведомления: {bot_error}")
+        
+        # Создаем запись в таблице уведомлений
+        try:
+            notification = Notification(
+                user_id=user.id,
+                book_id=book.id,
+                alert_id=alert.id,
+                title=book.title,
+                author=book.author,
+                current_price=book.current_price,
+                original_price=book.original_price,
+                discount_percent=book.discount_percent,
+                url=book.url,
+                image_url=book.image_url
+            )
+            db.add(notification)
+            await db.commit()
+        except Exception as notify_error:
+            celery_logger.error(f"Ошибка создания записи уведомления: {notify_error}")
+            await db.rollback()
+        
+    except Exception as e:
+        celery_logger.error(f"Ошибка отправки уведомления подписки: {e}")
+        await db.rollback()
+
