@@ -1,7 +1,7 @@
 """Модель для хранения настроек системы"""
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean
 from sqlalchemy.sql import func
-from database.config import Base
+from database.base import Base
 
 
 class Settings(Base):
