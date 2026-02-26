@@ -545,7 +545,7 @@ async def admin_analytics(
             .group_by(Book.source)
             .order_by(desc('count'))
         )
-        stores_data = stores_stats.all()
+        stores_data = stores_stats.mappings().all()
         
         # Статистика по авторам (топ-10)
         authors_stats = await db.execute(
@@ -555,7 +555,7 @@ async def admin_analytics(
             .order_by(desc('count'))
             .limit(10)
         )
-        authors_data = authors_stats.all()
+        authors_data = authors_stats.mappings().all()
         
         # Статистика по ценовым диапазонам
         price_ranges = await db.execute(
@@ -566,7 +566,7 @@ async def admin_analytics(
                 func.sum(case((Book.current_price >= 2000, 1), else_=0)).label('over_2000')
             )
         )
-        price_stats = price_ranges.one_or_none()
+        price_stats = price_ranges.mappings().one_or_none()
         
         # Статистика скидок
         discount_stats = await db.execute(
@@ -577,7 +577,7 @@ async def admin_analytics(
                 func.count(Book.id).label('total_books')
             )
         )
-        discount_data = discount_stats.one_or_none()
+        discount_data = discount_stats.mappings().one_or_none()
         
         # Активность пользователей за последние 30 дней
         thirty_days_ago = datetime.now() - timedelta(days=30)
@@ -592,7 +592,7 @@ async def admin_analytics(
             select(Alert.is_active, func.count(Alert.id))
             .group_by(Alert.is_active)
         )
-        alerts_data = alerts_stats.all()
+        alerts_data = alerts_stats.mappings().all()
 
         # Статистика парсинга за последние 7 дней
         seven_days_ago = datetime.now() - timedelta(days=7)
@@ -601,114 +601,31 @@ async def admin_analytics(
             .where(ParsingLog.created_at >= seven_days_ago)
             .group_by(ParsingLog.status)
         )
-        parsing_data = parsing_stats.all()
+        parsing_data = parsing_stats.mappings().all()
         
-        # Формируем данные для шаблона - используем безопасную обработку
+        # Формируем данные для шаблона - используем .mappings() которые сразу возвращают словари
         analytics_data = {
-            'stores_stats': [],
-            'authors_stats': [],
-            'price_stats': {'under_500': 0, '500_1000': 0, '1000_2000': 0, 'over_2000': 0},
-            'discount_stats': {'avg_discount': 0, 'max_discount': 0, 'discounted_books': 0, 'total_books': 0, 'discount_percentage': 0},
-            'user_stats': {'new_users_30d': new_users_30d},
-            'alerts_stats': [],
-            'parsing_stats': []
+            'stores_stats': [{'store': row['source'], 'count': row['count']} for row in stores_data],
+            'authors_stats': [{'author': row['author'], 'count': row['count']} for row in authors_data],
+            'price_stats': {
+                'under_500': price_stats.get('under_500', 0) if price_stats else 0,
+                '500_1000': price_stats.get('500_1000', 0) if price_stats else 0,
+                '1000_2000': price_stats.get('1000_2000', 0) if price_stats else 0,
+                'over_2000': price_stats.get('over_2000', 0) if price_stats else 0
+            },
+            'discount_stats': {
+                'avg_discount': round(discount_data.get('avg_discount', 0) or 0, 1) if discount_data else 0,
+                'max_discount': discount_data.get('max_discount', 0) if discount_data else 0,
+                'discounted_books': discount_data.get('discounted_books', 0) if discount_data else 0,
+                'total_books': discount_data.get('total_books', 0) if discount_data else 0,
+                'discount_percentage': round((discount_data.get('discounted_books', 0) / discount_data.get('total_books', 1) * 100), 1) if discount_data and discount_data.get('total_books', 0) > 0 else 0
+            },
+            'user_stats': {
+                'new_users_30d': new_users_30d
+            },
+            'alerts_stats': [{'is_active': row['is_active'], 'count': row['count']} for row in alerts_data],
+            'parsing_stats': [{'status': row['status'], 'count': row['count']} for row in parsing_data]
         }
-        
-        # Обрабатываем stores_data
-        if stores_data:
-            for row in stores_data:
-                if hasattr(row, '_mapping'):
-                    analytics_data['stores_stats'].append({
-                        'store': row._mapping.get('source'),
-                        'count': row._mapping.get('count')
-                    })
-                elif isinstance(row, (list, tuple)) and len(row) >= 2:
-                    analytics_data['stores_stats'].append({
-                        'store': row[0],
-                        'count': row[1]
-                    })
-        
-        # Обрабатываем authors_data
-        if authors_data:
-            for row in authors_data:
-                if hasattr(row, '_mapping'):
-                    analytics_data['authors_stats'].append({
-                        'author': row._mapping.get('author'),
-                        'count': row._mapping.get('count')
-                    })
-                elif isinstance(row, (list, tuple)) and len(row) >= 2:
-                    analytics_data['authors_stats'].append({
-                        'author': row[0],
-                        'count': row[1]
-                    })
-        
-        # Обрабатываем price_stats
-        if price_stats:
-            if hasattr(price_stats, '_mapping'):
-                analytics_data['price_stats'] = {
-                    'under_500': price_stats._mapping.get('under_500') or 0,
-                    '500_1000': price_stats._mapping.get('500_1000') or 0,
-                    '1000_2000': price_stats._mapping.get('1000_2000') or 0,
-                    'over_2000': price_stats._mapping.get('over_2000') or 0
-                }
-            elif isinstance(price_stats, (list, tuple)) and len(price_stats) >= 4:
-                analytics_data['price_stats'] = {
-                    'under_500': price_stats[0] or 0,
-                    '500_1000': price_stats[1] or 0,
-                    '1000_2000': price_stats[2] or 0,
-                    'over_2000': price_stats[3] or 0
-                }
-        
-        # Обрабатываем discount_data
-        if discount_data:
-            if hasattr(discount_data, '_mapping'):
-                total = discount_data._mapping.get('total_books') or 0
-                discounted = discount_data._mapping.get('discounted_books') or 0
-                analytics_data['discount_stats'] = {
-                    'avg_discount': round(discount_data._mapping.get('avg_discount') or 0, 1),
-                    'max_discount': discount_data._mapping.get('max_discount') or 0,
-                    'discounted_books': discounted,
-                    'total_books': total,
-                    'discount_percentage': round((discounted / total * 100), 1) if total > 0 else 0
-                }
-            elif isinstance(discount_data, (list, tuple)) and len(discount_data) >= 4:
-                total = discount_data[3] or 0
-                discounted = discount_data[2] or 0
-                analytics_data['discount_stats'] = {
-                    'avg_discount': round(discount_data[0] or 0, 1),
-                    'max_discount': discount_data[1] or 0,
-                    'discounted_books': discounted,
-                    'total_books': total,
-                    'discount_percentage': round((discounted / total * 100), 1) if total > 0 else 0
-                }
-        
-        # Обрабатываем alerts_data
-        if alerts_data:
-            for row in alerts_data:
-                if hasattr(row, '_mapping'):
-                    analytics_data['alerts_stats'].append({
-                        'is_active': row._mapping.get('is_active'),
-                        'count': row._mapping.get('count')
-                    })
-                elif isinstance(row, (list, tuple)) and len(row) >= 2:
-                    analytics_data['alerts_stats'].append({
-                        'is_active': row[0],
-                        'count': row[1]
-                    })
-        
-        # Обрабатываем parsing_data
-        if parsing_data:
-            for row in parsing_data:
-                if hasattr(row, '_mapping'):
-                    analytics_data['parsing_stats'].append({
-                        'status': row._mapping.get('status'),
-                        'count': row._mapping.get('count')
-                    })
-                elif isinstance(row, (list, tuple)) and len(row) >= 2:
-                    analytics_data['parsing_stats'].append({
-                        'status': row[0],
-                        'count': row[1]
-                    })
         
         return templates.TemplateResponse(
             "admin/analytics.html", 
@@ -1143,11 +1060,11 @@ async def admin_activity(
         )
         daily_data = [
             {
-                "date": str(row.date),
-                "unique_users": row.unique_users,
-                "total_activities": row.total_activities
+                "date": str(row['date']),
+                "unique_users": row['unique_users'],
+                "total_activities": row['total_activities']
             }
-            for row in daily_stats.fetchall()
+            for row in daily_stats.mappings().all()
         ]
         
         # Топ страниц
@@ -1165,8 +1082,8 @@ async def admin_activity(
             .limit(10)
         )
         pages_data = [
-            {"page": row.page, "count": row.count}
-            for row in top_pages.fetchall()
+            {"page": row['page'], "count": row['count']}
+            for row in top_pages.mappings().all()
         ]
         
         # Типы активностей
@@ -1180,8 +1097,8 @@ async def admin_activity(
             .order_by(desc('count'))
         )
         types_data = [
-            {"type": row.activity_type, "count": row.count}
-            for row in activity_types.fetchall()
+            {"type": row['activity_type'], "count": row['count']}
+            for row in activity_types.mappings().all()
         ]
         
         # Последние активности
