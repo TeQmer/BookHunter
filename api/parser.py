@@ -52,7 +52,7 @@ def check_request_limit(sync_db: Session, telegram_id: int) -> tuple[bool, Optio
         return True, None, ""
 
 
-def search_books_in_db(query: str, db: AsyncSession, limit: int = 50) -> tuple[List[dict], int]:
+async def search_books_in_db(query: str, db: AsyncSession, limit: int = 50) -> tuple[List[dict], int]:
     """
     Ищет книги в базе данных по запросу.
     
