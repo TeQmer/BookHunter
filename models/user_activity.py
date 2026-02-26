@@ -1,7 +1,7 @@
 """Модель для отслеживания активности пользователей"""
 from sqlalchemy import Column, Integer, String, DateTime, Text, Float, Boolean
 from sqlalchemy.sql import func
-from database.base import Base
+from models.base import Base
 
 
 class UserActivity(Base):

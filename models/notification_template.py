@@ -1,7 +1,7 @@
 """Модель для хранения шаблонов уведомлений"""
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean
 from sqlalchemy.sql import func
-from database.base import Base
+from models.base import Base
 
 
 class NotificationTemplate(Base):
