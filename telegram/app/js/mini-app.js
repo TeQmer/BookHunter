@@ -46,9 +46,6 @@ class BookHunterApp {
         // Загружаем начальные данные
         await this.loadInitialData();
 
-        // Показываем главную страницу
-        this.navigate('home');
-
         // Настраиваем главную кнопку
         this.setupMainButton();
 
@@ -2146,4 +2143,45 @@ class BookHunterApp {
     }
 
     /**
-     * Показать состояние загрузк
+     * Показать состояние загрузки
+     */
+    showLoading(message = 'Загрузка...') {
+        const container = document.getElementById('books-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="loading__spinner"></div>
+                    <div class="loading__text">${message}</div>
+                </div>
+            `;
+        }
+    }
+        
+    /**
+     * Экранирование HTML
+     */
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Получить HTML пустого состояния
+     */
+    getEmptyState(title, text) {
+        return `
+            <div class="empty">
+                <div class="empty__icon"><i class="fas fa-inbox"></i></div>
+                <h3 class="empty__title">${title}</h3>
+                <p class="empty__text">${text}</p>
+            </div>
+        `;
+    }
+}
+
+// Инициализация приложения
+const app = new BookHunterApp();
+console.log('Приложение инициализировано:', app);
+        
