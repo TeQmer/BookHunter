@@ -26,6 +26,7 @@ class BookHunterApp {
         this.booksPerPage = 15; // Количество книг на странице
         this.currentAlert = null; // Текущая подписка для редактирования
         this.currentSearchQuery = null; // Текущий поисковый запрос
+        this.catalogFilters = {}; // Текущие фильтры каталога (для сохранения при пагинации)
         this.init();
     }
 
@@ -523,8 +524,11 @@ class BookHunterApp {
             currentPage = currentPage + 1;
         }
 
-        // Загружаем новую страницу
-        await this.loadBooks({ page: currentPage });
+        // Загружаем новую страницу с сохранёнными фильтрами
+        await this.loadBooks({ 
+            page: currentPage,
+            ...this.catalogFilters 
+        });
 
         // Анимация скроллинга к заголовку "Каталог книг" с небольшим отступом
         setTimeout(() => {
@@ -1267,6 +1271,16 @@ class BookHunterApp {
             query: queryValue
         });
 
+        // Сохраняем фильтры для пагинации и сбрасываем страницу на 1
+        this.catalogFilters = {
+            query: queryValue || undefined,
+            source: sourceValue || undefined,
+            discount: discountValue || undefined,
+            price: priceValue || undefined,
+            binding: bindingValue || undefined
+        };
+        this.catalogBooksPage = 1; // Сбрасываем на первую страницу при смене фильтров
+
         // Показываем загрузку только в контейнере книг
         const container = document.getElementById('books-container');
         if (container) {
@@ -1283,11 +1297,8 @@ class BookHunterApp {
             // Если есть поисковый запрос - используем поиск
             // Если нет поискового запроса - используем фильтрацию всех книг
             await this.loadBooks({
-                query: queryValue || undefined,
-                source: sourceValue || undefined,
-                discount: discountValue || undefined,
-                price: priceValue || undefined,
-                binding: bindingValue || undefined
+                page: 1, // Загружаем первую страницу
+                ...this.catalogFilters
             });
         } catch (error) {
             console.error('[applyFilters] Ошибка:', error);
@@ -2135,45 +2146,4 @@ class BookHunterApp {
     }
 
     /**
-     * Показать состояние загрузки
-     */
-    showLoading(message = 'Загрузка...') {
-        const container = document.getElementById('books-container');
-        if (container) {
-            container.innerHTML = `
-                <div class="loading">
-                    <div class="loading__spinner"></div>
-                    <div class="loading__text">${message}</div>
-                </div>
-            `;
-        }
-    }
-        
-    /**
-     * Экранирование HTML
-     */
-    escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    /**
-     * Получить HTML пустого состояния
-     */
-    getEmptyState(title, text) {
-        return `
-            <div class="empty">
-                <div class="empty__icon"><i class="fas fa-inbox"></i></div>
-                <h3 class="empty__title">${title}</h3>
-                <p class="empty__text">${text}</p>
-            </div>
-        `;
-    }
-}
-
-// Инициализация приложения
-const app = new BookHunterApp();
-console.log('Приложение инициализировано:', app);
-        
+     * Показать состояние загрузк

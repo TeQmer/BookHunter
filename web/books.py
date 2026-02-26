@@ -346,7 +346,8 @@ async def get_all_books(
         if limit is not None:
             query = query.limit(limit)
 
-        query = query.order_by(Book.parsed_at.desc())
+        # Сортировка по возрастанию цены (самая дешёвая - первая)
+        query = query.order_by(Book.current_price.asc())
         result = await db.execute(query)
         books = result.scalars().all()
         
@@ -355,7 +356,7 @@ async def get_all_books(
         for book in books:
             books_list.append(book.to_dict())
         
-        logger.info(f"Загружено {len(books_list)} книг для каталога (всего: {total})")
+        logger.info(f"Загружено {len(books_list)} книг для каталога (всего: {total}), сортировка по цене")
 
         return JSONResponse({
             "success": True,
