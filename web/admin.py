@@ -605,26 +605,26 @@ async def admin_analytics(
         
         # Формируем данные для шаблона
         analytics_data = {
-            'stores_stats': [{'store': store, 'count': count} for store, count in stores_data],
-            'authors_stats': [{'author': author, 'count': count} for author, count in authors_data],
+            'stores_stats': [{'store': row[0], 'count': row[1]} for row in stores_data],
+            'authors_stats': [{'author': row[0], 'count': row[1]} for row in authors_data],
             'price_stats': {
-                'under_500': getattr(price_stats, 'under_500', 0) if price_stats else 0,
-                '500_1000': getattr(price_stats, '500_1000', 0) if price_stats else 0,
-                '1000_2000': getattr(price_stats, '1000_2000', 0) if price_stats else 0,
-                'over_2000': getattr(price_stats, 'over_2000', 0) if price_stats else 0
+                'under_500': price_stats[0] if price_stats else 0,
+                '500_1000': price_stats[1] if price_stats else 0,
+                '1000_2000': price_stats[2] if price_stats else 0,
+                'over_2000': price_stats[3] if price_stats else 0
             },
             'discount_stats': {
-                'avg_discount': round(discount_data.avg_discount, 1) if discount_data and discount_data.avg_discount else 0,
-                'max_discount': discount_data.max_discount if discount_data else 0,
-                'discounted_books': discount_data.discounted_books if discount_data else 0,
-                'total_books': discount_data.total_books if discount_data else 0,
-                'discount_percentage': round((discount_data.discounted_books / discount_data.total_books * 100), 1) if discount_data and discount_data.total_books > 0 else 0
+                'avg_discount': round(discount_data[0], 1) if discount_data and discount_data[0] else 0,
+                'max_discount': discount_data[1] if discount_data else 0,
+                'discounted_books': discount_data[2] if discount_data else 0,
+                'total_books': discount_data[3] if discount_data else 0,
+                'discount_percentage': round((discount_data[2] / discount_data[3] * 100), 1) if discount_data and discount_data[3] and discount_data[3] > 0 else 0
             },
             'user_stats': {
                 'new_users_30d': new_users_30d
             },
-            'alerts_stats': [{'is_active': is_active, 'count': count} for is_active, count in alerts_data],
-            'parsing_stats': [{'status': status, 'count': count} for status, count in parsing_data]
+            'alerts_stats': [{'is_active': row[0], 'count': row[1]} for row in alerts_data],
+            'parsing_stats': [{'status': row[0], 'count': row[1]} for row in parsing_data]
         }
         
         return templates.TemplateResponse(
