@@ -107,7 +107,8 @@ async def list_books(
         
         # Пагинация
         offset = (page - 1) * per_page
-        query = query.offset(offset).limit(per_page).order_by(Book.parsed_at.desc())
+        # Сортировка по возрастанию цены (самая дешёвая - первая)
+        query = query.offset(offset).limit(per_page).order_by(Book.current_price.asc())
         
         # Выполняем запрос
         result = await db.execute(query)

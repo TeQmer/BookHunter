@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
+from sqlalchemy import select, func, or_
 from typing import Optional, List
 from celery.result import AsyncResult
 import uuid
@@ -11,6 +12,8 @@ from database.config import get_db, get_sync_db
 from services.celery_tasks import parse_books
 from services.logger import logger
 from api.request_limits import RequestLimitChecker
+from models.book import Book
+from models.user import User
 
 router = APIRouter()
 
@@ -28,6 +31,66 @@ def clean_search_words(text: str) -> List[str]:
     cleaned_words = [word.strip(string.punctuation) for word in words]
     # Убираем пустые строки
     return [word for word in cleaned_words if word.strip()]
+
+
+def check_request_limit(sync_db: Session, telegram_id: int) -> tuple[bool, Optional[User], str]:
+    """
+    Проверяет лимит запросов пользователя.
+
+    Returns:
+        tuple: (can_parse: bool, user: Optional[User], message: str)
+    """
+    try:
+        user = RequestLimitChecker.check_and_increment_request(sync_db, telegram_id)
+        return True, user, ""
+    except HTTPException as e:
+        # Лимит исчерпан
+        return False, None, e.detail
+    except Exception as e:
+        logger.error(f"Ошибка проверки лимитов: {e}")
+        # При ошибке позволяем парсить (лучше разрешить, чем заблокировать)
+        return True, None, ""
+
+
+def search_books_in_db(query: str, db: AsyncSession, limit: int = 50) -> tuple[List[dict], int]:
+    """
+    Ищет книги в базе данных по запросу.
+    
+    Returns:
+        tuple: (books_list: List[dict], total: int)
+    """
+    search_words = clean_search_words(query)
+    stop_words = {"и", "в", "на", "с", "от", "до", "по", "о", "об", "а", "но", "или"}
+    search_words = [word for word in search_words if word.strip() and word not in stop_words]
+    
+    if search_words:
+        word_conditions = []
+        for word in search_words:
+            word_conditions.append(
+                or_(
+                    func.lower(Book.title).like(f"%{word}%"),
+                    func.lower(Book.author).like(f"%{word}%")
+                )
+            )
+        db_query = select(Book).where(or_(*word_conditions))
+    else:
+        db_query = select(Book)
+            
+    # Подсчёт общего количества
+    count_result = await db.execute(select(func.count()).select_from(db_query.subquery()))
+    total = count_result.scalar() or 0
+    
+    # Получаем книги
+    db_query = db_query.order_by(Book.current_price.asc()).limit(limit)
+    result = await db.execute(db_query)
+    books = result.scalars().all()
+    
+    books_list = []
+    for book in books:
+        books_dict = book.to_dict()
+        books_list.append(books_dict)
+    
+    return books_list, total
 
 @router.post("/parse")
 async def parse_books_on_demand(
@@ -79,24 +142,37 @@ async def parse_books_from_body(
         if not query:
             raise HTTPException(status_code=400, detail="Поле 'query' обязательно")
         
-        # Проверяем лимиты запросов пользователя (задача #6)
+        # Проверяем лимиты запросов пользователя
         if telegram_id:
-            try:
-                user = RequestLimitChecker.check_and_increment_request(sync_db, telegram_id)
-                logger.info(f"Пользователь {telegram_id} использует запрос ({user.daily_requests_used}/{user.daily_requests_limit})")
-            except HTTPException as limit_error:
-                # Если превышен лимит, возвращаем ошибку
-                logger.warning(f"Превышен лимит запросов для пользователя {telegram_id}")
-                raise limit_error
-            except Exception as e:
-                logger.error(f"Ошибка проверки лимитов: {e}")
-                # Продолжаем без проверки лимитов при ошибке
-                pass
+            can_parse, user, error_message = check_request_limit(sync_db, telegram_id)
+            
+            if not can_parse:
+                # Лимит исчерпан - ищем только в базе данных
+                logger.info(f"Лимит исчерпан для пользователя {telegram_id}. Ищем только в базе данных.")
+                
+                books_list, total = await search_books_in_db(query, db)
+                
+                return {
+                    "status": "limit_exceeded",
+                    "message": error_message,
+                    "query": query,
+                    "source": source,
+                    "books": books_list,
+                    "total": total,
+                    "found_in_db": True,
+                    "parsed": False,
+                    "limit_exceeded": True
+                }
+            
+            logger.info(f"Пользователь {telegram_id} использует запрос ({user.daily_requests_used}/{user.daily_requests_limit})")
 
         # Запускаем фоновую задачу парсинга с использованием ключевых слов
         task = parse_books.delay(query=query, source=source, fetch_details=fetch_details)
 
         logger.info(f"Запущен парсинг для запроса: '{query}' (task_id: {task.id}, fetch_details={fetch_details})")
+
+        # Также возвращаем книги из базы данных (они отобразятся сразу)
+        books_list, total = await search_books_in_db(query, db)
 
         return {
             "task_id": task.id,
@@ -104,9 +180,13 @@ async def parse_books_from_body(
             "message": f"Парсинг запущен для запроса: '{query}'" + (" с извлечением характеристик" if fetch_details else ""),
             "query": query,
             "source": source,
-            "fetch_details": fetch_details
+            "fetch_details": fetch_details,
+            "books": books_list,
+            "total": total,
+            "found_in_db": True,
+            "parsed": True
         }
-
+        
     except HTTPException:
         raise
     except Exception as e:

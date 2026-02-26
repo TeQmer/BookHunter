@@ -344,8 +344,8 @@ class BookHunterApp {
             // Загружаем статистику
             await this.loadStats();
 
-            // Недавние книги загружаются только при открытии главной страницы
-            // в loadPageData(), чтобы не показывать пагинацию на других страницах
+            // Загружаем недавние книги при входе в приложение (ИСПРАВЛЕНИЕ #4)
+            await this.loadRecentBooks(this.recentBooksPage);
         } catch (error) {
             console.error('Ошибка загрузки начальных данных:', error);
             this.showError('Не удалось загрузить данные. Проверьте соединение.');
@@ -506,7 +506,7 @@ class BookHunterApp {
     }
 
     /**
-     * Загрузка страницы каталога книг (пагинация)
+     * Загрузка страницы каталога книг (пагинация) - ИСПРАВЛЕНИЕ #1: применяем фильтры со всех страниц
      */
     async loadCatalogBooksPage(direction) {
         console.log('[loadCatalogBooksPage] Загрузка страницы:', direction);
@@ -520,8 +520,19 @@ class BookHunterApp {
             currentPage = currentPage + 1;
         }
 
-        // Загружаем новую страницу
-        await this.loadBooks({ page: currentPage });
+        // Загружаем сохранённые фильтры из localStorage
+        const savedFilters = this.loadFiltersFromStorage();
+        console.log('[loadCatalogBooksPage] Сохранённые фильтры:', savedFilters);
+
+        // Загружаем новую страницу с применением фильтров
+        await this.loadBooks({ 
+            page: currentPage,
+            query: savedFilters?.query || undefined,
+            source: savedFilters?.source || undefined,
+            discount: savedFilters?.discount || undefined,
+            price: savedFilters?.price || undefined,
+            binding: savedFilters?.binding || undefined
+        });
 
         // Анимация скроллинга к заголовку "Каталог книг" с небольшим отступом
         setTimeout(() => {
@@ -695,7 +706,7 @@ class BookHunterApp {
     }
 
     /**
-     * Запуск парсинга книг
+     * Запуск парсинга книг (ИСПРАВЛЕНИЕ #5: обработка limit_exceeded)
      */
     async startParsing(query, source = 'chitai-gorod') {
         try {
@@ -726,16 +737,45 @@ class BookHunterApp {
                 body: JSON.stringify(requestBody)
             });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || 'Ошибка запуска парсинга');
-            }
-
             const data = await response.json();
             console.log('[startParsing] Ответ:', data);
 
-            // Показываем сообщение о парсинге
-            if (data.task_id) {
+            // Проверяем, если лимит исчерпан
+            if (data.limit_exceeded) {
+                console.log('[startParsing] Лимит исчерпан, показываем книги из базы');
+                
+                // Показываем книги из базы данных
+                if (data.books && data.books.length > 0) {
+                    this.data.books = data.books;
+                    this.catalogBooksTotal = data.total || data.books.length;
+                    this.renderBooks(this.data.books, true);
+                    
+                    // Показываем сообщение о лимите
+                    this.showToast(data.message || 'Дневной лимит запросов исчерпан. Показаны книги из базы данных.', 'warning');
+                } else {
+                    // Книг в базе нет
+                    this.showError(data.message || 'Дневной лимит запросов исчерпан. Новые книги искать нельзя, в базе данных ничего не найдено.');
+                }
+                return;
+            }
+
+            if (!response.ok) {
+                const errorData = data || {};
+                throw new Error(errorData.detail || 'Ошибка запуска парсинга');
+            }
+
+            // Если книги уже есть в базе данных (вернул сервер)
+            if (data.found_in_db && data.books && data.books.length > 0) {
+                this.data.books = data.books;
+                this.catalogBooksTotal = data.total || data.books.length;
+                this.renderBooks(this.data.books, true);
+                
+                // Если парсинг тоже запущен - показываем статус
+                if (data.task_id && data.parsed) {
+                    this.showParsingStatus(data.task_id, query);
+                }
+            } else if (data.task_id) {
+                // Запускаем отслеживание статуса парсинга
                 this.showParsingStatus(data.task_id, query);
             } else {
                 this.showError('Не удалось запустить поиск книг');
@@ -747,7 +787,7 @@ class BookHunterApp {
     }
 
     /**
-     * Показать статус парсинга и периодически обновлять
+     * Показать статус парсинга и периодически обновлять (ИСПРАВЛЕНИЕ #5: анимация скролла к загрузке)
      */
     async showParsingStatus(taskId, query) {
         console.log('[showParsingStatus] Показываем статус парсинга:', taskId);
@@ -767,6 +807,16 @@ class BookHunterApp {
                 </p>
             </div>
         `;
+
+        // Анимация скролла к контейнеру загрузки
+        setTimeout(() => {
+            const booksPageTitle = document.getElementById('books-page-title');
+            if (booksPageTitle) {
+                booksPageTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else if (container) {
+                container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 100);
 
         // Периодически проверяем статус
         const checkInterval = setInterval(async () => {
@@ -1218,7 +1268,7 @@ class BookHunterApp {
     }
 
     /**
-     * Поиск книг
+     * Поиск книг (ИСПРАВЛЕНИЕ #5: анимация скролла к загрузке)
      */
     async searchBooks(query) {
         if (!query.trim()) {
@@ -1230,10 +1280,51 @@ class BookHunterApp {
         // navigate автоматически вызовет loadPageData, который загрузит книги
         console.log('[searchBooks] Переключаемся на страницу books с query:', query);
         this.navigate('books', { query });
+        
+        // Анимация скролла к контейнеру книг после переключения
+        setTimeout(() => {
+            const booksContainer = document.getElementById('books-container');
+            const booksPageTitle = document.getElementById('books-page-title');
+            
+            if (booksPageTitle) {
+                booksPageTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else if (booksContainer) {
+                booksContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 300);
     }
 
     /**
-     * Применение фильтров
+     * Сохранение фильтров в localStorage
+     */
+    saveFiltersToStorage(filters) {
+        try {
+            localStorage.setItem('bookhunter_filters', JSON.stringify(filters));
+            console.log('[saveFiltersToStorage] Фильтры сохранены:', filters);
+        } catch (e) {
+            console.error('[saveFiltersToStorage] Ошибка сохранения:', e);
+        }
+    }
+
+    /**
+     * Загрузка фильтров из localStorage
+     */
+    loadFiltersFromStorage() {
+        try {
+            const saved = localStorage.getItem('bookhunter_filters');
+            if (saved) {
+                const filters = JSON.parse(saved);
+                console.log('[loadFiltersFromStorage] Фильтры загружены:', filters);
+                return filters;
+            }
+        } catch (e) {
+            console.error('[loadFiltersFromStorage] Ошибка загрузки:', e);
+        }
+        return null;
+    }
+
+    /**
+     * Применение фильтров (ИСПРАВЛЕНИЕ #1 - сохранение фильтров для всех страниц)
      */
     async applyFilters() {
         console.log('[applyFilters] Применение фильтров');
@@ -1256,6 +1347,15 @@ class BookHunterApp {
         const bindingValue = binding ? binding.value : undefined;
         const queryValue = searchInput.value;
 
+        // Сохраняем фильтры в localStorage для применения на всех страницах
+        this.saveFiltersToStorage({
+            query: queryValue,
+            source: sourceValue,
+            discount: discountValue,
+            price: priceValue,
+            binding: bindingValue
+        });
+
         console.log('[applyFilters] Параметры фильтров:', {
             source: sourceValue,
             discount: discountValue,
@@ -1276,9 +1376,10 @@ class BookHunterApp {
         }
 
         try {
+            // Сбрасываем страницу на 1 при новом поиске/фильтрации
+            this.catalogBooksPage = 1;
+            
             // Загружаем книги с фильтрацией
-            // Если есть поисковый запрос - используем поиск
-            // Если нет поискового запроса - используем фильтрацию всех книг
             await this.loadBooks({
                 query: queryValue || undefined,
                 source: sourceValue || undefined,
@@ -2135,42 +2236,4 @@ class BookHunterApp {
      * Показать состояние загрузки
      */
     showLoading(message = 'Загрузка...') {
-        const container = document.getElementById('books-container');
-        if (container) {
-            container.innerHTML = `
-                <div class="loading">
-                    <div class="loading__spinner"></div>
-                    <div class="loading__text">${message}</div>
-                </div>
-            `;
-        }
-    }
-        
-    /**
-     * Экранирование HTML
-     */
-    escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    /**
-     * Получить HTML пустого состояния
-     */
-    getEmptyState(title, text) {
-        return `
-            <div class="empty">
-                <div class="empty__icon"><i class="fas fa-inbox"></i></div>
-                <h3 class="empty__title">${title}</h3>
-                <p class="empty__text">${text}</p>
-            </div>
-        `;
-    }
-}
-
-// Инициализация приложения
-const app = new BookHunterApp();
-console.log('Приложение инициализировано:', app);
-        
+        const container = document
