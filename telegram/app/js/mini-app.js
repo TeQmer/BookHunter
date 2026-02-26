@@ -1148,8 +1148,11 @@ class BookHunterApp {
      * Создание элемента подписки
      */
     createAlertItem(alert) {
+        // Проверяем есть ли book_id для открытия деталей книги
+        const hasBookId = alert.book_id && alert.book_id > 0;
+        
         return `
-            <div class="alert-item" data-alert-id="${alert.id}">
+            <div class="alert-item" data-alert-id="${alert.id}" ${hasBookId ? `data-book-id="${alert.book_id}" onclick="app.showBookDetails(${alert.book_id})" style="cursor: pointer;"` : ''}>
                 <!-- Основная информация -->
                 <div class="alert-item__content" id="alert-content-${alert.id}">
                     <h4 class="alert-item__title">${this.escapeHtml(alert.book_title || 'Без названия')}</h4>
@@ -1161,7 +1164,8 @@ class BookHunterApp {
                     <span class="alert-item__status ${alert.is_active ? 'alert-item__status--active' : 'alert-item__status--inactive'}">
                         ${alert.is_active ? 'Активна' : 'Неактивна'}
                     </span>
-                    <div class="alert-item__actions">
+                    ${hasBookId ? '<p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;"><i class="fas fa-info-circle"></i> Нажмите, чтобы увидеть подробности</p>' : ''}
+                    <div class="alert-item__actions" onclick="event.stopPropagation()">
                         <button class="btn btn--small btn--secondary" onclick="app.editAlert(${alert.id})">
                             <i class="fas fa-edit"></i> Изменить
                         </button>
@@ -1925,6 +1929,14 @@ class BookHunterApp {
                                     ${this.currentAlert.min_discount ? ` Скидка: от ${this.currentAlert.min_discount}%` : ''}
                                 </small>
                             </div>
+                            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                <button class="btn btn--small btn--secondary" onclick="app.editAlertFromDetail(${this.currentAlert.id})" style="flex: 1; padding: 10px;">
+                                    <i class="fas fa-edit"></i> Изменить
+                                </button>
+                                <button class="btn btn--small btn--danger" onclick="app.deleteAlertFromDetail(${this.currentAlert.id})" style="flex: 1; padding: 10px;">
+                                    <i class="fas fa-trash"></i> Удалить
+                                </button>
+                            </div>
                         ` : ''}
                     </div>
 
@@ -2113,6 +2125,80 @@ class BookHunterApp {
             console.error('[createAlertFromBook] Ошибка:', error);
             window.tg.hapticError();
             throw error;
+        }
+    }
+
+    /**
+     * Редактирование подписки из деталей книги
+     */
+    async editAlertFromDetail(alertId) {
+        console.log('[editAlertFromDetail] Редактирование подписки из деталей:', alertId);
+        
+        // Находим подписку в списке
+        const alert = this.data.alerts.find(a => a.id === alertId);
+        if (!alert) {
+            // Пробуем загрузить через API
+            try {
+                const user = window.tg.getUser();
+                if (!user || !user.id) {
+                    throw new Error('Не удалось получить Telegram ID');
+                }
+                const response = await fetch(`${this.apiBaseUrl}/api/alerts/book/${this.currentBook.id}?telegram_id=${user.id}`);
+                const data = await response.json();
+                if (data.alert) {
+                    this.openAlertModal(data.alert);
+                } else {
+                    this.showError('Подписка не найдена');
+                }
+            } catch (error) {
+                console.error('[editAlertFromDetail] Ошибка:', error);
+                this.showError('Не удалось загрузить подписку');
+            }
+            return;
+        }
+
+        // Открываем модальное окно редактирования
+        this.openAlertModal(alert);
+    }
+
+    /**
+     * Удаление подписки из деталей книги
+     */
+    async deleteAlertFromDetail(alertId) {
+        console.log('[deleteAlertFromDetail] Удаление подписки из деталей:', alertId);
+        
+        const confirmed = confirm('Удалить эту подписку?');
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const url = `${this.apiBaseUrl}/api/alerts/${alertId}`;
+            const response = await fetch(url, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                throw new Error('Ошибка удаления подписки');
+            }
+
+            window.tg.hapticSuccess();
+            this.showSuccess('Подписка удалена');
+
+            // Удаляем из карты подписок
+            if (this.currentBook && this.currentBook.id && this.data.userAlertsMap[this.currentBook.id]) {
+                delete this.data.userAlertsMap[this.currentBook.id];
+            }
+
+            // Обновляем детали книги
+            await this.checkAlertForBook(this.currentBook.id);
+
+            // Обновляем список подписок
+            await this.loadAlerts();
+        } catch (error) {
+            console.error('[deleteAlertFromDetail] Ошибка:', error);
+            window.tg.hapticError();
+            this.showError('Не удалось удалить подписку');
         }
     }
 
