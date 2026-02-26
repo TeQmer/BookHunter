@@ -109,6 +109,9 @@ async def init_db():
     """Инициализация базы данных с импортом моделей"""
     # Импортируем модели для их регистрации в Base.metadata
     from models import User, Book, Alert, Notification, ParsingLog, Base
+    from models.user_activity import UserActivity
+    from models.settings import Settings
+    from models.notification_template import NotificationTemplate
     
     async with get_engine().begin() as conn:
         # Создаем все таблицы (checkfirst=True пропускает уже существующие)

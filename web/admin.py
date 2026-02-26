@@ -1006,3 +1006,306 @@ async def admin_parsing_status(db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error(f"Ошибка получения статуса парсинга: {e}")
         return JSONResponse({"success": False, "error": str(e)})
+
+# ========== МЕТРИКИ АКТИВНОСТИ ПОЛЬЗОВАТЕЛЕЙ ==========
+
+@router.get("/activity", response_class=HTMLResponse)
+async def admin_activity(
+    request: Request,
+    days: int = 7,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Метрики активности пользователей"""
+    try:
+        from models.user_activity import UserActivity
+        from datetime import datetime, timedelta
+        
+        since = datetime.utcnow() - timedelta(days=days)
+        
+        # Всего уникальных пользователей
+        unique_users = await db.execute(
+            select(func.count(func.distinct(UserActivity.user_id)))
+            .where(UserActivity.created_at >= since)
+        )
+        total_unique = unique_users.scalar() or 0
+        
+        # Всего активностей
+        total_activities = await db.execute(
+            select(func.count(UserActivity.id))
+            .where(UserActivity.created_at >= since)
+        )
+        total_count = total_activities.scalar() or 0
+        
+        # Средняя продолжительность сессии
+        avg_duration = await db.execute(
+            select(func.avg(UserActivity.duration_seconds))
+            .where(
+                UserActivity.created_at >= since,
+                UserActivity.duration_seconds.isnot(None)
+            )
+        )
+        avg_session_duration = avg_duration.scalar() or 0
+        
+        # Активность по дням
+        daily_stats = await db.execute(
+            select(
+                func.date(UserActivity.created_at).label('date'),
+                func.count(func.distinct(UserActivity.user_id)).label('unique_users'),
+                func.count(UserActivity.id).label('total_activities')
+            )
+            .where(UserActivity.created_at >= since)
+            .group_by(func.date(UserActivity.created_at))
+            .order_by(desc('date'))
+        )
+        daily_data = [
+            {
+                "date": str(row.date),
+                "unique_users": row.unique_users,
+                "total_activities": row.total_activities
+            }
+            for row in daily_stats.fetchall()
+        ]
+        
+        # Топ страниц
+        top_pages = await db.execute(
+            select(
+                UserActivity.page,
+                func.count(UserActivity.id).label('count')
+            )
+            .where(
+                UserActivity.created_at >= since,
+                UserActivity.page.isnot(None)
+            )
+            .group_by(UserActivity.page)
+            .order_by(desc('count'))
+            .limit(10)
+        )
+        pages_data = [
+            {"page": row.page, "count": row.count}
+            for row in top_pages.fetchall()
+        ]
+        
+        # Типы активностей
+        activity_types = await db.execute(
+            select(
+                UserActivity.activity_type,
+                func.count(UserActivity.id).label('count')
+            )
+            .where(UserActivity.created_at >= since)
+            .group_by(UserActivity.activity_type)
+            .order_by(desc('count'))
+        )
+        types_data = [
+            {"type": row.activity_type, "count": row.count}
+            for row in activity_types.fetchall()
+        ]
+        
+        # Последние активности
+        recent = await db.execute(
+            select(UserActivity)
+            .where(UserActivity.created_at >= since)
+            .order_by(desc(UserActivity.created_at))
+            .limit(20)
+        )
+        recent_activities = recent.scalars().all()
+        
+        return templates.TemplateResponse(
+            "admin/activity.html", 
+            {
+                "request": request, 
+                "title": "Активность пользователей",
+                "days": days,
+                "stats": {
+                    "total_unique_users": total_unique,
+                    "total_activities": total_count,
+                    "avg_session_duration_seconds": round(avg_session_duration, 1),
+                },
+                "daily_data": daily_data,
+                "pages_data": pages_data,
+                "types_data": types_data,
+                "recent_activities": recent_activities
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки активности: {e}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request, 
+                "title": "Ошибка",
+                "error": f"Не удалось загрузить активность: {str(e)}"
+            }
+        )
+
+# ========== НАСТРОЙКИ СИСТЕМЫ ==========
+
+@router.get("/settings", response_class=HTMLResponse)
+async def admin_settings(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Управление настройками системы"""
+    try:
+        from models.settings import Settings
+        from sqlalchemy import select
+        
+        # Получаем все настройки
+        result = await db.execute(select(Settings).order_by(Settings.category, Settings.key))
+        settings = result.scalars().all()
+        
+        # Группируем по категориям
+        settings_by_category = {}
+        for s in settings:
+            cat = s.category or "Другие"
+            if cat not in settings_by_category:
+                settings_by_category[cat] = []
+            settings_by_category[cat].append({
+                "key": s.key,
+                "value": s.get_value(),
+                "value_type": s.value_type,
+                "description": s.description,
+                "id": s.id
+            })
+        
+        return templates.TemplateResponse(
+            "admin/settings.html", 
+            {
+                "request": request, 
+                "title": "Настройки системы",
+                "settings_by_category": settings_by_category
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки настроек: {e}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request, 
+                "title": "Ошибка",
+                "error": f"Не удалось загрузить настройки: {str(e)}"
+            }
+        )
+
+@router.post("/api/settings/update")
+async def admin_update_setting(
+    key: str,
+    value: str,
+    value_type: str = "string",
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Обновление настройки"""
+    try:
+        from models.settings import Settings
+        from sqlalchemy import select
+        from datetime import datetime
+        
+        result = await db.execute(
+            select(Settings).where(Settings.key == key)
+        )
+        setting = result.scalar_one_or_none()
+        
+        if setting:
+            setting.value = value
+            setting.value_type = value_type
+            setting.updated_at = datetime.utcnow()
+        else:
+            new_setting = Settings(key=key, value=value, value_type=value_type)
+            db.add(new_setting)
+        
+        await db.commit()
+        
+        return JSONResponse({"success": True, "message": "Настройка обновлена"})
+        
+    except Exception as e:
+        logger.error(f"Ошибка обновления настройки: {e}")
+        return JSONResponse({"success": False, "error": str(e)})
+
+# ========== ШАБЛОНЫ УВЕДОМЛЕНИЙ ==========
+
+@router.get("/templates", response_class=HTMLResponse)
+async def admin_templates(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Управление шаблонами уведомлений"""
+    try:
+        from models.notification_template import NotificationTemplate
+        from sqlalchemy import select
+        
+        result = await db.execute(
+            select(NotificationTemplate).order_by(NotificationTemplate.template_type, NotificationTemplate.name)
+        )
+        templates = result.scalars().all()
+        
+        # Группируем по типам
+        templates_by_type = {}
+        for t in templates:
+            if t.template_type not in templates_by_type:
+                templates_by_type[t.template_type] = []
+            templates_by_type[t.template_type].append(t)
+        
+        return templates.TemplateResponse(
+            "admin/templates.html", 
+            {
+                "request": request, 
+                "title": "Шаблоны уведомлений",
+                "templates_by_type": templates_by_type,
+                "templates": templates
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка загрузки шаблонов: {e}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request, 
+                "title": "Ошибка",
+                "error": f"Не удалось загрузить шаблоны: {str(e)}"
+            }
+        )
+
+@router.post("/api/templates/update")
+async def admin_update_template(
+    template_id: int,
+    title: str = None,
+    message: str = None,
+    is_active: bool = None,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Обновление шаблона"""
+    try:
+        from models.notification_template import NotificationTemplate
+        from sqlalchemy import select
+        from datetime import datetime
+        
+        result = await db.execute(
+            select(NotificationTemplate).where(NotificationTemplate.id == template_id)
+        )
+        template = result.scalar_one_or_none()
+        
+        if not template:
+            return JSONResponse({"success": False, "error": "Шаблон не найден"})
+        
+        if title is not None:
+            template.title = title
+        if message is not None:
+            template.message = message
+        if is_active is not None:
+            template.is_active = is_active
+        
+        template.updated_at = datetime.utcnow()
+        await db.commit()
+        
+        return JSONResponse({"success": True, "message": "Шаблон обновлён"})
+        
+    except Exception as e:
+        logger.error(f"Ошибка обновления шаблона: {e}")
+        return JSONResponse({"success": False, "error": str(e)})
