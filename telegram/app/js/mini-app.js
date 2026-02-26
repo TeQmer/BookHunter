@@ -45,6 +45,9 @@ class BookHunterApp {
         // Загружаем начальные данные
         await this.loadInitialData();
 
+        // Показываем главную страницу
+        this.navigate('home');
+
         // Настраиваем главную кнопку
         this.setupMainButton();
 
