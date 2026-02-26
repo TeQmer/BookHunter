@@ -37,15 +37,10 @@ def setup_celery() -> Celery:
         
         # Настройки для периодических задач
         CELERY_BEAT_SCHEDULE={
-            # Проверка цен подписок каждые 4 часа (из базы данных)
+            # Проверка цен подписок каждые 4 часа (с парсингом по ссылкам)
             'check-subscriptions-prices-every-4-hours': {
                 'task': 'services.celery_tasks.check_subscriptions_prices',
                 'schedule': 14400.0,  # 4 часа в секундах
-            },
-            # Проверка подписок с реальным парсингом каждые 30 минут
-            'check-all-alerts-every-30-minutes': {
-                'task': 'services.celery_tasks.check_all_alerts',
-                'schedule': 1800.0,  # 30 минут в секундах
             },
             # Сканирование скидок каждый час
             'scan-discounts-every-hour': {

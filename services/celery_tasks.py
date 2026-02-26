@@ -1377,12 +1377,13 @@ async def _update_chitai_gorod_token_async():
 
 
 # =============================================================================
-# Задача проверки подписок по ценам из БД (каждые 4 часа)
+# Задача проверки подписок по ценам с парсингом (каждые 4 часа)
 # =============================================================================
 
 def check_subscriptions_prices():
     """
-    Проверка активных подписок по ценам из базы данных.
+    Проверка активных подписок по ценам с реальным парсингом книг.
+    Для каждой подписки с book_id - парсим книгу по source_id для получения актуальной цены.
     Если цена книги соответствует условиям подписки - отправляем уведомление и деактивируем подписку.
     """
     
@@ -1413,85 +1414,131 @@ check_subscriptions_prices_task = celery_app.task(
 
 async def _check_subscriptions_prices_async():
     """
-    Асинхронная функция проверки цен подписок из базы данных.
-    Проверяет книги в БД (без парсинга) и отправляет уведомления при совпадении условий.
+    Асинхронная функция проверки цен подписок с реальным парсингом.
+    Для каждой подписки с book_id:
+    1. Находит книгу в БД
+    2. Парсит книгу по source_id для получения актуальной цены
+    3. Проверяет условия подписки
+    4. Отправляет уведомление и деактивирует подписку при совпадении
     """
     
     session_factory = get_session_factory()
     async with session_factory() as db:
         try:
-            # Получаем все активные подписки
+            # Импортируем парсер
+            try:
+                import sys
+                import os
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                root_dir = os.path.dirname(os.path.dirname(current_dir))
+                if root_dir not in sys.path:
+                    sys.path.append(root_dir)
+                
+                from parsers.chitai_gorod import ChitaiGorodParser
+                parser = ChitaiGorodParser()
+            except ImportError as e:
+                celery_logger.warning(f"Не удалось импортировать парсер: {e}")
+                parser = MockParser()
+            
+            # Получаем все активные подписки с book_id
             result = await db.execute(
-                select(Alert).where(Alert.is_active == True)
+                select(Alert).where(
+                    and_(
+                        Alert.is_active == True,
+                        Alert.book_id != None
+                    )
+                )
             )
             alerts = result.scalars().all()
             
             if not alerts:
-                celery_logger.info("Нет активных подписок для проверки цен")
+                celery_logger.info("Нет активных подписок с book_id для проверки цен")
                 return 0
+            
+            celery_logger.info(f"Начинаем проверку цен для {len(alerts)} подписок")
             
             notifications_sent = 0
             
             for alert in alerts:
                 try:
-                    # Ищем книги в БД по названию и автору
-                    search_conditions = []
+                    # Находим книгу в БД по book_id
+                    book_result = await db.execute(
+                        select(DBBook).where(DBBook.id == alert.book_id)
+                    )
+                    db_book = book_result.scalar_one_or_none()
                     
-                    if alert.book_title:
-                        # Ищем по названию (частичное совпадение)
-                        search_conditions.append(
-                            DBBook.title.ilike(f"%{alert.book_title}%")
-                        )
-                    
-                    if alert.book_author:
-                        # Ищем по автору (частичное совпадение)
-                        search_conditions.append(
-                            DBBook.author.ilike(f"%{alert.book_author}%")
-                        )
-                    
-                    if not search_conditions:
-                        celery_logger.warning(f"Подписка {alert.id} не имеет названия или автора для поиска")
+                    if not db_book:
+                        celery_logger.warning(f"Книга {alert.book_id} не найдена в БД для подписки {alert.id}")
                         continue
                     
-                    # Выполняем поиск в БД
-                    query = select(DBBook).where(or_(*search_conditions))
-                    result = await db.execute(query.limit(10))
-                    books = result.scalars().all()
+                    celery_logger.info(f"Проверяем подписку {alert.id}: {db_book.title} (source_id: {db_book.source_id})")
                     
-                    if not books:
-                        celery_logger.info(f"Книги не найдены в БД для подписки {alert.id}")
+                    # Парсим книгу по source_id для получения актуальной цены
+                    # Используем source_id как поисковый запрос
+                    try:
+                        parsed_books = await parser.search_books(
+                            db_book.source_id, 
+                            max_pages=1, 
+                            limit=1
+                        )
+                    except Exception as parse_error:
+                        celery_logger.error(f"Ошибка парсинга для {db_book.source_id}: {parse_error}")
+                        parsed_books = []
+                    
+                    if not parsed_books:
+                        celery_logger.info(f"Не удалось получить актуальные данные для книги: {db_book.title}")
                         continue
                     
-                    # Проверяем каждую книгу на соответствие условиям подписки
-                    for book in books:
-                        # Проверяем цену
-                        price_match = True
-                        if alert.target_price and book.current_price > alert.target_price:
-                            price_match = False
+                    # Берём первую найденную книгу (она должна соответствовать source_id)
+                    parsed_book = parsed_books[0]
+                    
+                    celery_logger.info(
+                        f"Актуальная цена для {parsed_book.title}: {parsed_book.current_price}₽ "
+                        f"(скидка {parsed_book.discount_percent}%)"
+                    )
+                    
+                    # Проверяем условия подписки
+                    price_match = True
+                    if alert.target_price and parsed_book.current_price > float(alert.target_price):
+                        price_match = False
+                    
+                    discount_match = True
+                    if alert.min_discount and (parsed_book.discount_percent or 0) < alert.min_discount:
+                        discount_match = False
+                    
+                    # Если оба условия выполняются
+                    if price_match and discount_match:
+                        celery_logger.info(
+                            f"✅ Найдена книга по подписке {alert.id}: {parsed_book.title} - "
+                            f"{parsed_book.current_price}₽ (скидка {parsed_book.discount_percent}%)"
+                        )
                         
-                        # Проверяем скидку
-                        discount_match = True
-                        if alert.min_discount and (book.discount_percent or 0) < alert.min_discount:
-                            discount_match = False
+                        # Обновляем цену в БД
+                        db_book.current_price = parsed_book.current_price
+                        db_book.original_price = parsed_book.original_price
+                        db_book.discount_percent = parsed_book.discount_percent
+                        db_book.parsed_at = parsed_book.parsed_at
+                        await db.commit()
                         
-                        # Если оба условия выполняются
-                        if price_match and discount_match:
-                            celery_logger.info(
-                                f"Найдена книга по подписке {alert.id}: {book.title} - "
-                                f"{book.current_price}₽ (скидка {book.discount_percent}%)"
-                            )
-                            
-                            # Отправляем уведомление
-                            await _send_subscription_notification(db, alert, book)
-                            
-                            # Деактивируем подписку
-                            alert.is_active = False
-                            alert.updated_at = datetime.now()
-                            await db.commit()
-                            
-                            notifications_sent += 1
-                            celery_logger.info(f"Подписка {alert.id} деактивирована")
-                            break  # Останавливаем проверку для этой подписки
+                        # Отправляем уведомление
+                        await _send_subscription_notification_from_parser(db, alert, parsed_book, db_book)
+                        
+                        # Деактивируем подписку
+                        alert.is_active = False
+                        alert.updated_at = datetime.now()
+                        await db.commit()
+                        
+                        notifications_sent += 1
+                        celery_logger.info(f"Подписка {alert.id} деактивирована после уведомления")
+                    else:
+                        celery_logger.info(
+                            f"Книга {parsed_book.title} не соответствует условиям подписки: "
+                            f"цена={parsed_book.current_price}₽ (нужно<={alert.target_price}), "
+                            f"скидка={parsed_book.discount_percent}% (нужно>={alert.min_discount}%)"
+                        )
+                    
+                    # Задержка между запросами
+                    await asyncio.sleep(2)
                     
                 except Exception as e:
                     celery_logger.error(f"Ошибка обработки подписки {alert.id}: {e}")
@@ -1504,9 +1551,9 @@ async def _check_subscriptions_prices_async():
             celery_logger.error(f"Критическая ошибка при проверке цен подписок: {e}")
             raise
 
-async def _send_subscription_notification(db: AsyncSession, alert: Alert, book: DBBook):
+async def _send_subscription_notification_from_parser(db: AsyncSession, alert: Alert, parsed_book: Book, db_book: DBBook):
     """
-    Отправка уведомления о книге по подписке.
+    Отправка уведомления о книге по подписке (с данными из парсера).
     Формат сообщения:
     🔔 Книга поступила в продажу!
     
@@ -1529,17 +1576,17 @@ async def _send_subscription_notification(db: AsyncSession, alert: Alert, book: 
         
         # Формируем сообщение
         message = "🔔 <b>Книга поступила в продажу!</b>\n\n"
-        message += f"📖 <b>{book.title}</b>\n"
+        message += f"📖 <b>{parsed_book.title}</b>\n"
         
-        if book.author:
-            message += f"✍️ Автор: {book.author}\n"
+        if parsed_book.author:
+            message += f"✍️ Автор: {parsed_book.author}\n"
         
         # Цена и скидка
-        if book.original_price and book.original_price > book.current_price:
-            discount = int((1 - book.current_price / book.original_price) * 100)
-            message += f"💰 Цена: <b>{int(book.current_price)} ₽</b> (было {int(book.original_price)} ₽, скидка {discount}%)\n"
+        if parsed_book.original_price and parsed_book.original_price > parsed_book.current_price:
+            discount = int((1 - parsed_book.current_price / parsed_book.original_price) * 100)
+            message += f"💰 Цена: <b>{int(parsed_book.current_price)} ₽</b> (было {int(parsed_book.original_price)} ₽, скидка {discount}%)\n"
         else:
-            message += f"💰 Цена: <b>{int(book.current_price)} ₽</b>\n"
+            message += f"💰 Цена: <b>{int(parsed_book.current_price)} ₽</b>\n"
         
         # Условие подписки
         if alert.target_price:
@@ -1548,15 +1595,15 @@ async def _send_subscription_notification(db: AsyncSession, alert: Alert, book: 
             message += f"🎯 Ваше условие: скидка от {int(alert.min_discount)}%\n"
         
         # Ссылка на книгу
-        if book.url:
-            message += f"\n👉 <a href='{book.url}'>Купить</a>"
+        if parsed_book.url:
+            message += f"\n👉 <a href='{parsed_book.url}'>Купить</a>"
         
         # Отправляем через Telegram Bot
         try:
             from app.bot.telegram_bot import TelegramBot
             bot = TelegramBot()
             await bot.send_message(user.telegram_id, message)
-            celery_logger.info(f"Уведомление отправлено пользователю {user.telegram_id} для книги {book.title}")
+            celery_logger.info(f"Уведомление отправлено пользователю {user.telegram_id} для книги {parsed_book.title}")
         except Exception as bot_error:
             celery_logger.error(f"Ошибка отправки Telegram уведомления: {bot_error}")
         
@@ -1564,15 +1611,15 @@ async def _send_subscription_notification(db: AsyncSession, alert: Alert, book: 
         try:
             notification = Notification(
                 user_id=user.id,
-                book_id=book.id,
+                book_id=db_book.id,
                 alert_id=alert.id,
-                title=book.title,
-                author=book.author,
-                current_price=book.current_price,
-                original_price=book.original_price,
-                discount_percent=book.discount_percent,
-                url=book.url,
-                image_url=book.image_url
+                title=parsed_book.title,
+                author=parsed_book.author,
+                current_price=parsed_book.current_price,
+                original_price=parsed_book.original_price,
+                discount_percent=parsed_book.discount_percent,
+                url=parsed_book.url,
+                image_url=parsed_book.image_url
             )
             db.add(notification)
             await db.commit()
