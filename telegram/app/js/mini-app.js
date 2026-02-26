@@ -1257,7 +1257,19 @@ class BookHunterApp {
         // Переключаемся на страницу books
         // navigate автоматически вызовет loadPageData, который загрузит книги
         console.log('[searchBooks] Переключаемся на страницу books с query:', query);
-        this.navigate('books', { query });
+        await this.navigate('books', { query });
+
+        // Анимация скроллинга к каталогу книг
+        setTimeout(() => {
+            const booksPageTitle = document.getElementById('books-page-title');
+            if (booksPageTitle) {
+                const titlePosition = booksPageTitle.getBoundingClientRect().top + window.scrollY;
+                window.scrollTo({
+                    top: titlePosition - 80,
+                    behavior: 'smooth'
+                });
+            }
+        }, 150);
     }
 
     /**
@@ -1273,6 +1285,18 @@ class BookHunterApp {
 
         // Переключаемся на страницу книг
         await this.navigate('books');
+
+        // Анимация скроллинга к каталогу книг
+        setTimeout(() => {
+            const booksPageTitle = document.getElementById('books-page-title');
+            if (booksPageTitle) {
+                const titlePosition = booksPageTitle.getBoundingClientRect().top + window.scrollY;
+                window.scrollTo({
+                    top: titlePosition - 80,
+                    behavior: 'smooth'
+                });
+            }
+        }, 150);
 
         // Показываем индикатор загрузки
         const container = document.getElementById('books-container');
@@ -1294,7 +1318,7 @@ class BookHunterApp {
         // Сразу запускаем парсинг (без проверки базы данных)
         await this.startParsing(query, 'chitai-gorod');
     }
-
+        
     /**
      * Применение фильтров
      */
