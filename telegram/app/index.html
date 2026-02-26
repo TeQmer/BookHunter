@@ -154,13 +154,40 @@
 
         <!-- Books Page (hidden by default) -->
         <div id="books-page" style="display: none;">
+            <!-- Пояснения для пользователей -->
+            <div class="card" style="margin-bottom: 16px; background: linear-gradient(135deg, #3d2e26 0%, #4a3a30 100%); border: 1px solid #f5deb3;">
+                <div style="padding: 4px;">
+                    <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px;">
+                        <span style="font-size: 1.1rem;">🔍</span>
+                        <div>
+                            <strong style="color: #e8a85c;">Поиск</strong>
+                            <p style="font-size: 0.8rem; color: #a1887f; margin: 2px 0 0;">Ищет книги в нашей базе данных. Быстрый результат, если книга уже есть у нас.</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: flex-start; gap: 10px;">
+                        <span style="font-size: 1.1rem;">📡</span>
+                        <div>
+                            <strong style="color: #e8a85c;">Подробный поиск</strong>
+                            <p style="font-size: 0.8rem; color: #a1887f; margin: 2px 0 0;">Ищет книги на сайте магазина. Находит больше вариантов, включая новые поступления.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="search">
                 <div class="search__input">
                     <input type="text" id="search-input" placeholder="Поиск книг по названию или автору...">
-                    <button onclick="app.searchBooks(document.getElementById('search-input').value)">
-                        <i class="fas fa-search"></i>
-                    </button>
                 </div>
+            </div>
+
+            <!-- Кнопки поиска -->
+            <div style="display: flex; gap: 10px; margin-top: 12px;">
+                <button class="btn" onclick="app.searchBooksDeep(document.getElementById('search-input').value)" style="flex: 1; background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%); border: 2px solid #f5deb3;">
+                    <i class="fas fa-broadcast-tower"></i> Подробный поиск
+                </button>
+                <button class="btn" onclick="app.searchBooks(document.getElementById('search-input').value)" style="flex: 1; background: linear-gradient(135deg, #e8a85c 0%, #d47e5a 100%); border: 2px solid #f5deb3;">
+                    <i class="fas fa-search"></i> Поиск
+                </button>
             </div>
 
             <div class="card" style="margin-top: 16px;">
@@ -353,8 +380,8 @@
     <div class="footer-space"></div>
 
     <!-- Scripts -->
-    <script src="js/config.js?v=1738000200"></script>
-    <script src="js/telegram.js?v=1738000200"></script>
-    <script src="js/mini-app.js?v=1738000200"></script>
+    <script src="js/config.js?v=1738000300"></script>
+    <script src="js/telegram.js?v=1738000300"></script>
+    <script src="js/mini-app.js?v=1738000300"></script>
 </body>
 </html>

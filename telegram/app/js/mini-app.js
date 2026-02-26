@@ -1246,7 +1246,7 @@ class BookHunterApp {
     }
 
     /**
-     * Поиск книг
+     * Поиск книг (по базе данных)
      */
     async searchBooks(query) {
         if (!query.trim()) {
@@ -1258,6 +1258,41 @@ class BookHunterApp {
         // navigate автоматически вызовет loadPageData, который загрузит книги
         console.log('[searchBooks] Переключаемся на страницу books с query:', query);
         this.navigate('books', { query });
+    }
+
+    /**
+     * Подробный поиск (всегда парсит с сайта магазина)
+     */
+    async searchBooksDeep(query) {
+        if (!query.trim()) {
+            this.showError('Введите поисковый запрос');
+            return;
+        }
+
+        console.log('[searchBooksDeep] Запускаем подробный поиск для:', query);
+
+        // Переключаемся на страницу книг
+        await this.navigate('books');
+
+        // Показываем индикатор загрузки
+        const container = document.getElementById('books-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="card" style="text-align: center; padding: 24px;">
+                    <div class="loading__spinner" style="margin: 0 auto 16px;"></div>
+                    <h4 style="margin-bottom: 8px;">Подробный поиск...</h4>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        Ищем книги по запросу "${query}" на сайте магазина...
+                    </p>
+                    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 12px;">
+                        Это может занять несколько секунд
+                    </p>
+                </div>
+            `;
+        }
+
+        // Сразу запускаем парсинг (без проверки базы данных)
+        await this.startParsing(query, 'chitai-gorod');
     }
 
     /**
@@ -1326,7 +1361,7 @@ class BookHunterApp {
             this.showError(error.message || 'Не удалось применить фильтры');
         }
     }
-
+        
     /**
      * Загрузить еще книг
      */
