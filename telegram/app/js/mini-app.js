@@ -52,6 +52,9 @@ class BookHunterApp {
         // Применяем тему
         this.applyTheme();
 
+        // Переходим на главную страницу и ждём загрузки данных
+        await this.navigate('home');
+
         console.log('BookHunter Mini App инициализирован');
     }
 
@@ -61,10 +64,10 @@ class BookHunterApp {
     setupNavigation() {
         // Обработка кликов по навигации
         document.querySelectorAll('.nav__item').forEach(item => {
-            item.addEventListener('click', (e) => {
+            item.addEventListener('click', async (e) => {
                 const route = e.target.dataset.route;
                 if (route) {
-                    this.navigate(route);
+                    await this.navigate(route);
                     window.tg.hapticClick();
                 }
             });
@@ -83,7 +86,7 @@ class BookHunterApp {
     /**
      * Навигация между страницами
      */
-    navigate(route, params = {}) {
+    async navigate(route, params = {}) {
         console.log('[navigate] Навигация на:', route, params);
 
         // Скрываем все страницы
@@ -132,7 +135,7 @@ class BookHunterApp {
 
         // Загружаем данные для страницы (кроме book-detail, он загружается отдельно)
         if (route !== 'book-detail') {
-            this.loadPageData(route, params);
+            await this.loadPageData(route, params);
         }
     }
 
