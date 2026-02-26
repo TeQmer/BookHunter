@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, case
 from typing import List
 import logging
 from datetime import datetime, timedelta
@@ -560,10 +560,10 @@ async def admin_analytics(
         # Статистика по ценовым диапазонам
         price_ranges = await db.execute(
             select(
-                func.sum(func.case((Book.current_price < 500, 1), else_=0)).label('under_500'),
-                func.sum(func.case((Book.current_price >= 500, Book.current_price < 1000, 1), else_=0)).label('500_1000'),
-                func.sum(func.case((Book.current_price >= 1000, Book.current_price < 2000, 1), else_=0)).label('1000_2000'),
-                func.sum(func.case((Book.current_price >= 2000, 1), else_=0)).label('over_2000')
+                func.sum(case((Book.current_price < 500, 1), else_=0)).label('under_500'),
+                func.sum(case((Book.current_price >= 500, Book.current_price < 1000, 1), else_=0)).label('500_1000'),
+                func.sum(case((Book.current_price >= 1000, Book.current_price < 2000, 1), else_=0)).label('1000_2000'),
+                func.sum(case((Book.current_price >= 2000, 1), else_=0)).label('over_2000')
             )
         )
         price_stats = price_ranges.fetchone() if price_ranges else None
@@ -573,7 +573,7 @@ async def admin_analytics(
             select(
                 func.avg(Book.discount_percent).label('avg_discount'),
                 func.max(Book.discount_percent).label('max_discount'),
-                func.sum(func.case((Book.discount_percent > 0, 1), else_=0)).label('discounted_books'),
+                func.sum(case((Book.discount_percent > 0, 1), else_=0)).label('discounted_books'),
                 func.count(Book.id).label('total_books')
             )
         )
