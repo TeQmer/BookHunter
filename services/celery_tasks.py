@@ -1551,7 +1551,7 @@ async def _check_subscriptions_prices_async():
             celery_logger.error(f"Критическая ошибка при проверке цен подписок: {e}")
             raise
 
-async def _send_subscription_notification_from_parser(db: AsyncSession, alert: Alert, parsed_book: Book, db_book: DBBook):
+async def _send_subscription_notification_from_parser(db: AsyncSession, alert: Alert, parsed_book: ParserBook, db_book: DBBook):
     """
     Отправка уведомления о книге по подписке (с данными из парсера).
     Формат сообщения:
