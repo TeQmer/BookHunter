@@ -65,7 +65,8 @@ class BookHunterApp {
         // Обработка кликов по навигации
         document.querySelectorAll('.nav__item').forEach(item => {
             item.addEventListener('click', async (e) => {
-                const route = e.target.dataset.route;
+                // Используем dataset самого элемента, а не e.target
+                const route = item.dataset.route;
                 if (route) {
                     await this.navigate(route);
                     window.tg.hapticClick();
