@@ -30,7 +30,8 @@ from services.search_utils import (
     PARSE_LIMIT_LOADED
 )
 
-def check_all_alerts():
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3})
+def check_all_alerts(self):
     """Проверка всех активных подписок пользователей с реальным парсером"""
     
     def run_async_task():
