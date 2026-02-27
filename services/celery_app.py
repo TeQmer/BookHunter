@@ -71,6 +71,8 @@ def setup_celery() -> Celery:
         
         # Настройки для периодических задач
         beat_schedule=CELERY_BEAT_SCHEDULE,
+        # Используем встроенный scheduler (без файлов)
+        beat_scheduler='celery.beat:Scheduler',
 
         # Отключаем проблемные настройки
         task_send_sent_event=False,
