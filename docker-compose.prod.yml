@@ -194,7 +194,7 @@ services:
       - ./:/app
     networks:
       - bookhunter_network
-    command: celery -A services.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule --scheduler=celery.beat.PersistentScheduler
+    command: celery -A services.celery_app beat --loglevel=info --scheduler=celery.beat.Scheduler
     logging:
       driver: "json-file"
       options:
