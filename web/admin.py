@@ -637,7 +637,8 @@ async def admin_analytics(
         )
         
     except Exception as e:
-        logger.error(f"Ошибка загрузки аналитики: {e}")
+        import traceback
+        logger.error(f"Ошибка загрузки аналитики: {e}\n{traceback.format_exc()}")
         return templates.TemplateResponse(
             "error.html", 
             {
