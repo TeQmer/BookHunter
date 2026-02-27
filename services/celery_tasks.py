@@ -209,7 +209,7 @@ async def _was_notification_sent_recently(db, alert_id: int, book_source_id: str
     for notification in recent_notifications:
         # Здесь можно добавить логику сравнения с source_id книги
         # Пока просто проверяем по URL или другим признакам
-        if notification.url and "product" in notification.url and book_source_id in notification.url:
+        if notification.book_url and "product" in notification.book_url and book_source_id in notification.book_url:
             return True
     
     return False
