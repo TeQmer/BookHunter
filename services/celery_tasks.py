@@ -314,17 +314,27 @@ async def _create_notification(db: AsyncSession, alert: Alert, book: ParserBook)
         result = await db.execute(select(User).where(User.id == alert.user_id))
         user = result.scalar_one()
         
+        # Формируем текст сообщения
+        message = f"📚 Найдена книга: {book.title}\n"
+        if book.author:
+            message += f"👤 Автор: {book.author}\n"
+        message += f"💰 Цена: {book.current_price} руб."
+        if book.original_price:
+            message += f" (было {book.original_price} руб.)\n"
+        if book.discount_percent:
+            message += f"🔥 Скидка: {book.discount_percent}%\n"
+        message += f"\n🔗 {book.url}"
+        
         notification = Notification(
             user_id=user.id,
-            book_id=None,  # Будет заполнено после сохранения книги
             alert_id=alert.id,
-            title=book.title,
-            author=book.author,
-            current_price=book.current_price,
-            original_price=book.original_price,
-            discount_percent=book.discount_percent,
-            url=book.url,
-            image_url=book.image_url
+            book_title=book.title,
+            book_author=book.author or "",
+            book_price=f"{book.current_price} руб.",
+            book_discount=f"{book.discount_percent}%" if book.discount_percent else "",
+            book_url=book.url,
+            message=message,
+            status="pending"
         )
 
         db.add(notification)
@@ -339,7 +349,7 @@ async def _create_notification(db: AsyncSession, alert: Alert, book: ParserBook)
 
 async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Alert):
     """Отправка уведомления через Telegram Bot"""
-    
+
     try:
         from app.bot.telegram_bot import TelegramBot
         bot = TelegramBot()
