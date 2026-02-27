@@ -19,6 +19,9 @@ from parsers.base import Book as ParserBook
 # Импортируем celery_app после создания, чтобы избежать циклического импорта
 from services.celery_app import celery_app
 
+# Глобальная переменная для хранения фабрики сессий в Celery задачах
+_task_session_factory = None
+
 # Импортируем утилиты умного поиска
 from services.search_utils import (
     is_book_similar, 
@@ -36,6 +39,13 @@ def check_all_alerts(self):
     
     def run_async_task():
         """Запуск асинхронной задачи в синхронном контексте Celery"""
+        # Импортируем внутри функции, чтобы избежать проблем с асинхронным движком
+        from database.config import get_session_factory
+        
+        # Сохраняем фабрику в глобальной переменной для использования в async функциях
+        global _task_session_factory
+        _task_session_factory = get_session_factory()
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -58,7 +68,8 @@ check_all_alerts_task = celery_app.task(check_all_alerts, bind=True, autoretry_f
 async def _check_all_alerts_async():
     """Асинхронная функция проверки подписок с реальным парсингом"""
     
-    session_factory = get_session_factory()
+    # Используем фабрику, установленную в run_async_task
+    session_factory = _task_session_factory
     async with session_factory() as db:
         try:
             # Получаем все активные подписки
