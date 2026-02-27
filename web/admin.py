@@ -603,28 +603,34 @@ async def admin_analytics(
         )
         parsing_data = parsing_stats.mappings().all()
         
-        # Формируем данные для шаблона - используем .mappings() которые сразу возвращают словари
+        # Формируем данные для шаблона - явно преобразуем к словарям
+        def row_to_dict(row):
+            """Безопасное преобразование строки результата в словарь"""
+            if hasattr(row, '_mapping'):
+                return dict(row._mapping)
+            return dict(row) if hasattr(row, 'keys') else row
+        
         analytics_data = {
-            'stores_stats': [{'store': row['source'], 'count': row['count']} for row in stores_data],
-            'authors_stats': [{'author': row['author'], 'count': row['count']} for row in authors_data],
+            'stores_stats': [row_to_dict(row) for row in stores_data],
+            'authors_stats': [row_to_dict(row) for row in authors_data],
             'price_stats': {
-                'under_500': price_stats.get('under_500', 0) if price_stats else 0,
-                '500_1000': price_stats.get('500_1000', 0) if price_stats else 0,
-                '1000_2000': price_stats.get('1000_2000', 0) if price_stats else 0,
-                'over_2000': price_stats.get('over_2000', 0) if price_stats else 0
+                'under_500': int(price_stats['under_500']) if price_stats and price_stats.get('under_500') else 0,
+                '500_1000': int(price_stats['500_1000']) if price_stats and price_stats.get('500_1000') else 0,
+                '1000_2000': int(price_stats['1000_2000']) if price_stats and price_stats.get('1000_2000') else 0,
+                'over_2000': int(price_stats['over_2000']) if price_stats and price_stats.get('over_2000') else 0
             },
             'discount_stats': {
-                'avg_discount': round(discount_data.get('avg_discount', 0) or 0, 1) if discount_data else 0,
-                'max_discount': discount_data.get('max_discount', 0) if discount_data else 0,
-                'discounted_books': discount_data.get('discounted_books', 0) if discount_data else 0,
-                'total_books': discount_data.get('total_books', 0) if discount_data else 0,
-                'discount_percentage': round((discount_data.get('discounted_books', 0) / discount_data.get('total_books', 1) * 100), 1) if discount_data and discount_data.get('total_books', 0) > 0 else 0
+                'avg_discount': round(float(discount_data['avg_discount']), 1) if discount_data and discount_data.get('avg_discount') else 0,
+                'max_discount': int(discount_data['max_discount']) if discount_data and discount_data.get('max_discount') else 0,
+                'discounted_books': int(discount_data['discounted_books']) if discount_data and discount_data.get('discounted_books') else 0,
+                'total_books': int(discount_data['total_books']) if discount_data and discount_data.get('total_books') else 0,
+                'discount_percentage': round((int(discount_data['discounted_books']) / int(discount_data['total_books']) * 100), 1) if discount_data and discount_data.get('total_books') and int(discount_data['total_books']) > 0 else 0
             },
             'user_stats': {
                 'new_users_30d': new_users_30d
             },
-            'alerts_stats': [{'is_active': row['is_active'], 'count': row['count']} for row in alerts_data],
-            'parsing_stats': [{'status': row['status'], 'count': row['count']} for row in parsing_data]
+            'alerts_stats': [row_to_dict(row) for row in alerts_data],
+            'parsing_stats': [row_to_dict(row) for row in parsing_data]
         }
         
         return templates.TemplateResponse(
