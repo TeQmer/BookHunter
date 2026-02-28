@@ -147,6 +147,7 @@ services:
       - LOG_LEVEL=INFO
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_NOTIFICATION_CHAT_ID=${TELEGRAM_NOTIFICATION_CHAT_ID}
+      - PYTHONPATH=/app
     volumes:
       - ./:/app
     networks:
@@ -190,6 +191,7 @@ services:
       - CELERY_BEAT_SCHEDULE_FILENAME=/tmp/celerybeat-schedule
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_NOTIFICATION_CHAT_ID=${TELEGRAM_NOTIFICATION_CHAT_ID}
+      - PYTHONPATH=/app
     volumes:
       - ./:/app
     networks:
