@@ -2029,7 +2029,7 @@ async def _cleanup_books_async():
     session_factory = get_session_factory()
     
     # Импортируем модель Alert для проверки подписок
-    from models.alert import DBAlert
+    from models.alert import Alert
     
     # Счётчики удалённых книг
     books_removed_no_author = 0
@@ -2048,7 +2048,7 @@ async def _cleanup_books_async():
             # Сначала получаем ID книг для удаления
             # Получаем ID книг с активными подписками (их не удаляем)
             subscribed_books_result = await db.execute(
-                select(DBAlert.book_id).distinct()
+                select(Alert.book_id).distinct()
             )
             subscribed_book_ids = set(subscribed_books_result.scalars().all() or [])
             celery_logger.info(f"Найдено книг с подписками: {len(subscribed_book_ids)}")
