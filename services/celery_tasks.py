@@ -109,15 +109,50 @@ async def _check_all_alerts_async():
             
             for alert in alerts:
                 try:
-                    # Формируем запрос для поиска
-                    search_query = alert.book_title
-                    if alert.book_author:
-                        search_query += f" {alert.book_author}"
+                    # Если есть URL книги - парсим её напрямую
+                    books = []
+                    if alert.book_url:
+                        celery_logger.info(f"Парсим конкретную книгу по URL для подписки {alert.id}: {alert.book_url}")
+                        try:
+                            # Парсим книгу по URL
+                            book = await parser.get_book_details(alert.book_url)
+                            if book:
+                                # Конвертируем Book в ParserBook
+                                from dataclasses import replace
+                                parser_book = ParserBook(
+                                    source="chitai-gorod",
+                                    source_id=book.source_id or "",
+                                    title=book.title or "",
+                                    author=book.author or "",
+                                    publisher=book.publisher,
+                                    binding=book.binding,
+                                    current_price=book.current_price or 0,
+                                    original_price=book.original_price or 0,
+                                    discount_percent=book.discount_percent or 0,
+                                    url=book.url or "",
+                                    image_url=book.image_url or "",
+                                    genres=book.genres,
+                                    isbn=book.isbn,
+                                    parsed_at=datetime.now()
+                                )
+                                books = [parser_book]
+                                celery_logger.info(f"Получена книга по URL: {book.title} - {book.current_price} руб.")
+                        except Exception as e:
+                            celery_logger.error(f"Ошибка парсинга книги по URL: {e}")
+                            # Если не удалось распарсить по URL, пробуем поиск по названию
+                            books = []
                     
-                    celery_logger.info(f"Поиск книг для подписки {alert.id}: '{search_query}'")
-                    
-                    # Реальный поиск книг
-                    books = await parser.search_books(search_query)
+                    # Если книга не найдена по URL или URL нет - ищем по названию
+                    if not books:
+                        # Формируем запрос для поиска
+                        search_query = alert.book_title
+                        if alert.book_author:
+                            search_query += f" {alert.book_author}"
+                        
+                        celery_logger.info(f"Поиск книг для подписки {alert.id}: '{search_query}'")
+                        
+                        # Реальный поиск книг
+                        books = await parser.search_books(search_query)
                     
                     if not books:
                         celery_logger.info(f"Книги не найдены для запроса: {search_query}")

@@ -1416,6 +1416,7 @@ class BookHunterApp {
                     book_title: bookData.title,
                     book_author: bookData.author,
                     book_source: bookData.source,
+                    book_url: bookData.url,
                     target_price: bookData.current_price,
                     min_discount: bookData.discount_percent || 0
                 })
@@ -1707,6 +1708,7 @@ class BookHunterApp {
                         book_title: book.title,
                         book_author: book.author,
                         book_source: book.source,
+                        book_url: book.url,
                         target_price: maxPrice ? parseFloat(maxPrice) : null,
                         min_discount: minDiscount ? parseFloat(minDiscount) : null,
                         notification_type: type

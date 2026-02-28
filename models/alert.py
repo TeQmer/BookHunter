@@ -26,6 +26,7 @@ class Alert(Base):
     book_title = Column(String(500), nullable=False, comment="Название книги")
     book_author = Column(String(255), nullable=True, comment="Автор книги")
     book_source = Column(String(50), nullable=False, comment="Источник книги")
+    book_url = Column(String(1000), nullable=True, comment="URL книги в магазине")
     
     # Параметры уведомления
     target_price = Column(Float, nullable=True, comment="Целевая цена для уведомления")
@@ -121,6 +122,7 @@ class Alert(Base):
             "book_title": self.book_title,
             "book_author": self.book_author,
             "book_source": self.book_source,
+            "book_url": self.book_url,
             "target_price": self.target_price,
             "display_price": self.display_price,
             "target_discount": self.target_discount,

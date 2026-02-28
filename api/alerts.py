@@ -110,6 +110,7 @@ async def get_alerts(
                 "book_title": alert.book_title,
                 "book_author": alert.book_author,
                 "book_source": alert.book_source,
+                "book_url": alert.book_url,
                 "target_price": alert.target_price,
                 "min_discount": alert.min_discount,
                 "is_active": alert.is_active,
@@ -158,6 +159,7 @@ async def create_alert(
         book_title = validate_string_field(alert_data.get("book_title"), "Название книги", 500)
         book_author = validate_string_field(alert_data.get("book_author"), "Автор книги", 300)
         book_source = validate_string_field(alert_data.get("book_source"), "Источник", 100)
+        book_url = validate_string_field(alert_data.get("book_url"), "URL книги", 1000)
         notification_type = validate_string_field(alert_data.get("notification_type"), "Тип уведомления", 50)
 
         # Проверяем, что указана хотя бы цена или скидка
@@ -181,6 +183,7 @@ async def create_alert(
             book_title=book_title or "",
             book_author=book_author,
             book_source=book_source or "chitai-gorod",
+            book_url=book_url,
             target_price=target_price,
             min_discount=min_discount,
             is_active=True,
@@ -358,6 +361,7 @@ async def create_alert_from_book(
         # Валидация цены и скидки
         target_price = validate_price(data.get('target_price'))
         min_discount = validate_discount(data.get('min_discount'))
+        book_url = validate_string_field(data.get('book_url'), "URL книги", 1000)
 
         # Проверяем, что указана хотя бы цена или скидка
         if target_price is None and min_discount is None:
