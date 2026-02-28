@@ -519,11 +519,25 @@ async def admin_schedule(
         elif schedule_type == 'crontab':
             # Crontab расписание
             try:
-                # Получаем час и минуту
-                hour = getattr(schedule, 'hour', None)
-                minute = getattr(schedule, 'minute', None)
+                # Получаем час и минуту из атрибутов _fields или напрямую
+                hour = None
+                minute = None
                 
-                # Обрабатываем случай когда hour - строка (например '*/3')
+                # Пробуем разные способы получить hour и minute
+                if hasattr(schedule, '_fields'):
+                    # Это namedtuple с полями
+                    for field in schedule._fields:
+                        if field == 'hour':
+                            hour = getattr(schedule, field, None)
+                        elif field == 'minute':
+                            minute = getattr(schedule, field, None)
+                
+                if hour is None:
+                    hour = getattr(schedule, 'hour', None)
+                if minute is None:
+                    minute = getattr(schedule, 'minute', None)
+                
+                # Если это строковый формат (например '*/3')
                 if isinstance(hour, str):
                     if hour.startswith('*/'):
                         hour_interval = int(hour[2:])
@@ -538,14 +552,17 @@ async def admin_schedule(
                         hour = int(hour)
                         next_run = now.replace(hour=hour, minute=0, second=0, microsecond=0)
                 elif hour is not None:
+                    # Конвертируем в int если нужно
                     if isinstance(hour, (list, tuple)):
-                        hour = hour[0] if hour else 0
+                        hour = int(hour[0]) if hour else 0
                     else:
-                        hour = int(hour)
+                        hour = int(hour) if hour else 0
+                        
                     if isinstance(minute, (list, tuple)):
-                        minute = minute[0] if minute else 0
+                        minute = int(minute[0]) if minute else 0
                     else:
                         minute = int(minute) if minute else 0
+                    
                     next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
                     if next_run <= now:
                         next_run = next_run + timedelta(days=1)
