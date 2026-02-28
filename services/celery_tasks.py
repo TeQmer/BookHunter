@@ -171,12 +171,13 @@ async def _check_all_alerts_async():
                 token_manager = TokenManager()
                 active_alerts = len([a for a in alerts if a.is_active])
                 execution_time = time.time() - task_start_time
-                await token_manager.send_subscriptions_check_notification(
+                token_manager.send_subscriptions_check_notification(
                     total_checked=len(alerts),
                     active_count=active_alerts,
                     matched_count=books_found,
-                    notifications_created=notifications_created,
-                    execution_time=execution_time
+                    deactivated_count=0,
+                    notifications_sent=notifications_created,
+                    duration_seconds=execution_time
                 )
             except Exception as e:
                 celery_logger.error(f"Ошибка отправки статистики: {e}")
@@ -402,6 +403,21 @@ async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Ale
         from app.bot.telegram_bot import TelegramBot
         bot = TelegramBot()
         
+        # Получаем telegram_id пользователя из БД
+        session_factory = get_session_factory()
+        async with session_factory() as db:
+            result = await db.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+            
+            if not user or not user.telegram_id:
+                celery_logger.error(f"❌ У пользователя {user_id} нет telegram_id")
+                if notification_id:
+                    await _mark_notification_failed(notification_id, "No telegram_id")
+                return
+            
+            telegram_id = user.telegram_id
+            celery_logger.info(f"📱 Отправляем уведомление пользователю telegram_id={telegram_id}")
+        
         # Формируем сообщение
         message = f"📚 <b>Найдена книга по вашей подписке!</b>\n\n"
         message += f"📖 <b>{book.title}</b>\n"
@@ -414,13 +430,13 @@ async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Ale
             message += f"🔥 Скидка: <b>{book.discount_percent}%</b>\n"
         message += f"\n🔗 <a href='{book.url}'>Ссылка на книгу</a>"
         
-        if alert.max_price:
-            message += f"\n\n✅ Цена соответствует вашему лимиту ({alert.max_price} руб.)"
+        if alert.target_price:
+            message += f"\n\n✅ Цена соответствует вашему лимиту ({alert.target_price} руб.)"
         
         # Отправляем сообщение
-        await bot.send_message(user_id, message)
+        await bot.send_message(telegram_id, message)
         
-        celery_logger.info(f"✅ Уведомление отправлено пользователю {user_id} для книги {book.title}")
+        celery_logger.info(f"✅ Уведомление отправлено пользователю telegram_id={telegram_id} для книги {book.title}")
         
         # Обновляем статус уведомления в БД если есть ID
         if notification_id:
