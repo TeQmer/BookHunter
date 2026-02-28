@@ -1676,10 +1676,11 @@ async def _update_chitai_gorod_token_async():
 # Задача проверки подписок по ценам с парсингом (каждые 4 часа)
 # =============================================================================
 
-def check_subscriptions_prices():
+@celery_app.task(name='services.celery_tasks.check_subscriptions_prices', bind=True)
+def check_subscriptions_prices(self):
     """
     Проверка активных подписок по ценам с реальным парсингом книг.
-    Для каждой подписки с book_id - парсим книгу по source_id для получения актуальной цены.
+    Для каждой подписки с book_id - парсим книгу по URL для получения актуальной цены.
     Если цена книги соответствует условиям подписки - отправляем уведомление и деактивируем подписку.
     """
     
@@ -1693,18 +1694,12 @@ def check_subscriptions_prices():
     
     try:
         result = run_async_task()
-        celery_logger.info(f"Проверка цен подписок завершена. Уведомлений отправлено: {result}")
+        celery_logger.info(f"✅ Проверка цен подписок завершена. Уведомлений отправлено: {result}")
         return result
     except Exception as e:
-        celery_logger.error(f"Ошибка при проверке цен подписок: {e}")
+        celery_logger.error(f"❌ Ошибка при проверке цен подписок: {e}")
         celery_logger.error(traceback.format_exc())
         raise
-
-# Регистрируем задачу с явным именем для celery beat
-@celery_app.task(name='services.celery_tasks.check_subscriptions_prices')
-def check_subscriptions_prices_run():
-    """Обёртка для запуска check_subscriptions_prices из celery beat"""
-    return check_subscriptions_prices()
 
 async def _check_subscriptions_prices_async():
     """
