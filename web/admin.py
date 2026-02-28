@@ -483,17 +483,35 @@ async def admin_schedule(
         if schedule_type in ('int', 'float'):
             # Интервал в секундах
             seconds = int(schedule)
+            from datetime import timedelta
+            
             if seconds >= 3600:
                 hours = seconds // 3600
                 interval_description = f"Каждые {hours} ч."
-                next_run = now.replace(second=0, microsecond=0)
-                # Округляем до ближайшего интервала
-                next_run = next_run.replace(minute=((now.minute // 15) * 15) % 60)
+                # Вычисляем следующий запуск: текущий час + 1 час
+                next_run = now.replace(minute=0, second=0, microsecond=0)
+                next_run = next_run + timedelta(hours=1)
+                # Корректируем до нужного интервала (кратного hours)
+                hours_offset = (next_run.hour // hours) * hours
+                next_run = next_run.replace(hour=hours_offset)
+                # Если время уже прошло - добавляем интервал
+                if next_run <= now:
+                    next_run = next_run + timedelta(hours=hours)
             else:
                 minutes = seconds // 60
                 interval_description = f"Каждые {minutes} мин."
+                # Вычисляем следующий запуск
+                interval_step = 15 if minutes >= 15 else minutes
                 next_run = now.replace(second=0, microsecond=0)
-                next_run = next_run.replace(minute=((now.minute // 15) * 15) % 60)
+                # Округляем до ближайшего интервала В БУДУЩЕМ
+                next_minute = ((now.minute // interval_step) * interval_step) + interval_step
+                if next_minute >= 60:
+                    next_run = next_run + timedelta(hours=1)
+                    next_minute = next_minute % 60
+                next_run = next_run.replace(minute=next_minute)
+                # Если уже прошло - добавляем интервал
+                if next_run <= now:
+                    next_run = next_run + timedelta(minutes=minutes)
         elif schedule_type == 'crontab':
             # Crontab расписание
             try:
