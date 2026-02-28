@@ -1985,3 +1985,197 @@ def send_pending_notifications(self):
         celery_logger.error(f"Ошибка при отправке pending уведомлений: {e}")
         raise self.retry(countdown=300, exc=e)
  
+
+# =============================================================================
+# Задача очистки книг от мусора
+# =============================================================================
+
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3})
+def cleanup_books(self):
+    """
+    Очистка базы данных от "мусора":
+    - Книги без автора (неизвестный автор)
+    - Книги без переплета
+    - Дубликаты книг (одинаковые название + автор + издательство, разная цена - оставляем с меньшей ценой)
+    
+    Запускается ежедневно в 3:00 ночи
+    """
+    
+    def run_async_task():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(_cleanup_books_async())
+        finally:
+            loop.close()
+    
+    try:
+        result = run_async_task()
+        celery_logger.info(f"Очистка книг завершена. Результат: {result}")
+        return result
+    except Exception as e:
+        celery_logger.error(f"Ошибка при очистке книг: {e}")
+        celery_logger.error(traceback.format_exc())
+        raise
+
+
+async def _cleanup_books_async():
+    """
+    Асинхронная функция очистки книг от мусора
+    """
+    from sqlalchemy import func
+    
+    task_start_time = time.time()
+    session_factory = get_session_factory()
+    
+    # Счётчики удалённых книг
+    books_removed_no_author = 0
+    books_removed_no_binding = 0
+    books_removed_duplicates = 0
+    total_checked = 0
+    
+    async with session_factory() as db:
+        try:
+            # ШАГ 1: Подсчитываем общее количество книг
+            total_result = await db.execute(select(func.count(DBBook.id)))
+            total_checked = total_result.scalar() or 0
+            celery_logger.info(f"Начинаем очистку книг. Всего книг в базе: {total_checked}")
+            
+            # ШАГ 2: Удаляем книги без автора (author = null или пустая строка)
+            # Сначала получаем ID книг для удаления
+            no_author_result = await db.execute(
+                select(DBBook.id).where(
+                    or_(
+                        DBBook.author == None,
+                        DBBook.author == '',
+                        DBBook.author == 'Неизвестный автор',
+                        DBBook.author == 'Unknown author',
+                        DBBook.author.ilike('%неизвестн%')
+                    )
+                )
+            )
+            no_author_books = no_author_result.scalars().all()
+            books_removed_no_author = len(no_author_books)
+            
+            if no_author_books:
+                await db.execute(
+                    DBBook.__table__.delete().where(DBBook.id.in_(no_author_books))
+                )
+                celery_logger.info(f"Удалено книг без автора: {books_removed_no_author}")
+            
+            # ШАГ 3: Удаляем книги без переплета (binding = null или пустая строка)
+            no_binding_result = await db.execute(
+                select(DBBook.id).where(
+                    or_(
+                        DBBook.binding == None,
+                        DBBook.binding == '',
+                        DBBook.binding == 'Не указан',
+                        DBBook.binding == 'Неизвестно'
+                    )
+                )
+            )
+            no_binding_books = no_binding_result.scalars().all()
+            books_removed_no_binding = len(no_binding_books)
+            
+            if no_binding_books:
+                await db.execute(
+                    DBBook.__table__.delete().where(DBBook.id.in_(no_binding_books))
+                )
+                celery_logger.info(f"Удалено книг без переплета: {books_removed_no_binding}")
+            
+            # ШАГ 4: Удаляем дубликаты
+            # Дубликат - это книги с одинаковым title, author, publisher, source
+            # но разной ценой. Оставляем ту, у которой цена меньше.
+            
+            # Сначала получаем все книги, группируя по title + author + publisher + source
+            # и выбирая минимальную цену
+            duplicate_query = """
+                SELECT MIN(id) as keep_id, title, author, publisher, source
+                FROM books
+                WHERE title IS NOT NULL 
+                  AND author IS NOT NULL 
+                  AND publisher IS NOT NULL
+                  AND source IS NOT NULL
+                GROUP BY title, author, publisher, source
+                HAVING COUNT(*) > 1
+            """
+            
+            # Выполняем сырой SQL для поиска дубликатов
+            from sqlalchemy import text
+            duplicate_result = await db.execute(text(duplicate_query))
+            duplicate_groups = duplicate_result.fetchall()
+            
+            celery_logger.info(f"Найдено групп дубликатов: {len(duplicate_groups)}")
+            
+            # Для каждой группы дубликатов удаляем все, кроме самого дешёвого
+            for group in duplicate_groups:
+                keep_id = group.keep_id
+                title = group.title
+                author = group.author
+                publisher = group.publisher
+                source = group.source
+                
+                # Находим все книги в этой группе, кроме той, которую оставляем
+                duplicates_to_delete_result = await db.execute(
+                    select(DBBook.id).where(
+                        and_(
+                            DBBook.title == title,
+                            DBBook.author == author,
+                            DBBook.publisher == publisher,
+                            DBBook.source == source,
+                            DBBook.id != keep_id
+                        )
+                    )
+                )
+                duplicate_ids = duplicates_to_delete_result.scalars().all()
+                
+                if duplicate_ids:
+                    # Удаляем дубликаты
+                    await db.execute(
+                        DBBook.__table__.delete().where(DBBook.id.in_(duplicate_ids))
+                    )
+                    books_removed_duplicates += len(duplicate_ids)
+                    celery_logger.info(f"Удалено дубликатов для '{title}': {len(duplicate_ids)}")
+            
+            # Фиксируем все изменения
+            await db.commit()
+            
+            # Общее количество удалённых
+            total_removed = books_removed_no_author + books_removed_no_binding + books_removed_duplicates
+            
+            celery_logger.info(f"Очистка завершена:")
+            celery_logger.info(f"  - Проверено книг: {total_checked}")
+            celery_logger.info(f"  - Удалено (без автора): {books_removed_no_author}")
+            celery_logger.info(f"  - Удалено (без переплета): {books_removed_no_binding}")
+            celery_logger.info(f"  - Удалено (дубликаты): {books_removed_duplicates}")
+            celery_logger.info(f"  - Всего удалено: {total_removed}")
+            
+            # Отправляем уведомление в Telegram
+            try:
+                from services.token_manager import TokenManager
+                token_manager = TokenManager()
+                execution_time = time.time() - task_start_time
+                token_manager.send_cleanup_notification(
+                    books_checked=total_checked,
+                    books_removed_no_author=books_removed_no_author,
+                    books_removed_no_binding=books_removed_no_binding,
+                    books_removed_duplicates=books_removed_duplicates,
+                    total_removed=total_removed,
+                    duration_seconds=execution_time
+                )
+            except Exception as e:
+                celery_logger.error(f"Ошибка отправки уведомления: {e}")
+            
+            return {
+                "books_checked": total_checked,
+                "books_removed_no_author": books_removed_no_author,
+                "books_removed_no_binding": books_removed_no_binding,
+                "books_removed_duplicates": books_removed_duplicates,
+                "total_removed": total_removed
+            }
+            
+        except Exception as e:
+            celery_logger.error(f"Ошибка при очистке книг: {e}")
+            await db.rollback()
+            raise
+ 

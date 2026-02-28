@@ -594,7 +594,8 @@ async def admin_run_task(
         update_popular_books,
         test_task,
         cleanup_old_logs,
-        send_pending_notifications
+        send_pending_notifications,
+        cleanup_books
     )
     from services.celery_app import celery_app
     
@@ -607,6 +608,7 @@ async def admin_run_task(
         'test_task': test_task,
         'cleanup_old_logs': cleanup_old_logs,
         'send_pending_notifications': send_pending_notifications,
+        'cleanup_books': cleanup_books,
     }
     
     task_func = task_mapping.get(task_name)

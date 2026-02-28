@@ -24,6 +24,11 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'services.celery_tasks.cleanup_old_logs',
         'schedule': crontab(hour=3, minute=0),  # Каждый день в 3:00 МСК
     },
+    # Очистка книг от мусора каждый день в 3:30 ночи (МСК)
+    'cleanup-books-daily': {
+        'task': 'services.celery_tasks.cleanup_books',
+        'schedule': crontab(hour=3, minute=30),  # Каждый день в 3:30 МСК
+    },
     # Обновление токена Читай-города каждые 12 часов
     'update-chitai-gorod-token-every-12-hours': {
         'task': 'services.celery_tasks.update_chitai_gorod_token',

@@ -321,6 +321,67 @@ class TokenManager:
         except Exception as e:
             logger.error(f"Ошибка отправки статистики в Telegram: {e}")
 
+    def send_cleanup_notification(
+        self,
+        books_checked: int,
+        books_removed_no_author: int,
+        books_removed_no_binding: int,
+        books_removed_duplicates: int,
+        total_removed: int,
+        duration_seconds: float,
+        errors: str = None
+    ):
+        """
+        Отправка уведомления о результатах очистки книг
+
+        Args:
+            books_checked: Всего книг проверено
+            books_removed_no_author: Удалено книг без автора
+            books_removed_no_binding: Удалено книг без переплета
+            books_removed_duplicates: Удалено дубликатов
+            total_removed: Всего удалено
+            duration_seconds: Время выполнения в секундах
+            errors: Ошибки (опционально)
+        """
+        try:
+            bot_token = os.getenv("TELEGRAM_NOTIFICATION_BOT_TOKEN")
+            chat_id = os.getenv("TELEGRAM_NOTIFICATION_CHAT_ID")
+
+            if not bot_token or not chat_id:
+                logger.warning("Не настроены переменные для Telegram уведомлений")
+                return
+
+            # Формируем сообщение
+            telegram_message = "🧹 <b>Очистка книг завершена</b>\n\n"
+            telegram_message += f"📊 <b>Статистика:</b>\n"
+            telegram_message += f"• Проверено книг: {books_checked}\n"
+            telegram_message += f"• Удалено (нет автора): {books_removed_no_author}\n"
+            telegram_message += f"• Удалено (нет переплета): {books_removed_no_binding}\n"
+            telegram_message += f"• Удалено (дубликаты): {books_removed_duplicates}\n"
+            telegram_message += f"• <b>Всего удалено: {total_removed}</b>\n"
+            telegram_message += f"• Время выполнения: {duration_seconds:.1f} сек\n"
+
+            if errors:
+                telegram_message += f"\n⚠️ <b>Ошибки:</b>\n<code>{errors}</code>"
+
+            # Отправляем сообщение
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            data = {
+                "chat_id": chat_id,
+                "text": telegram_message,
+                "parse_mode": "HTML"
+            }
+
+            response = requests.post(url, json=data, timeout=10)
+
+            if response.status_code == 200:
+                logger.info("Статистика очистки книг отправлена в Telegram")
+            else:
+                logger.error(f"Ошибка отправки статистики: {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"Ошибка отправки статистики в Telegram: {e}")
+
 
 # Глобальный экземпляр для использования в приложении
 _token_manager_instance = None
