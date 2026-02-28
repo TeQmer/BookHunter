@@ -166,26 +166,75 @@ async def parse_books_from_body(
             
             logger.info(f"Пользователь {telegram_id} использует запрос ({user.daily_requests_used}/{user.daily_requests_limit})")
 
-        # Запускаем фоновую задачу парсинга с использованием ключевых слов
-        # max_pages=1 означает парсить только первую страницу (25 книг)
-        task = parse_books.delay(query=query, source=source, fetch_details=fetch_details, max_pages=1)
-
-        logger.info(f"Запущен парсинг для запроса: '{query}' (task_id: {task.id}, fetch_details={fetch_details})")
-
-        # Также возвращаем книги из базы данных (они отобразятся сразу)
+        # Сначала ищем в базе данных
         books_list, total = await search_books_in_db(query, db)
-
+        
+        # Запускаем парсинг ТОЛЬКО если книги НЕ найдены в базе
+        should_parse = total == 0
+        
+        if should_parse:
+            # Проверяем, не запущен ли уже парсинг для этого запроса (дедупликация)
+            import redis
+            import os
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            redis_password = os.getenv("REDIS_PASSWORD")
+            
+            parse_already_running = False
+            if redis_url and redis_password:
+                try:
+                    import re
+                    redis_pattern = r'redis://:(?P<password>[^@]+)@(?P<host>[^:]+):(?P<port>\d+)/\d+'
+                    match = re.match(redis_pattern, redis_url)
+                    if not match:
+                        host = redis_url.split("://")[1].split(":")[0]
+                        port = redis_url.split(":")[-1].split("/")[0]
+                        redis_url = f"redis://:{redis_password}@{host}:{port}/0"
+                    
+                    redis_client = redis.from_url(redis_url, decode_responses=True)
+                    parse_lock_key = f"parse_lock:{query.lower().strip()}"
+                    
+                    if redis_client.exists(parse_lock_key):
+                        parse_already_running = True
+                        logger.info(f"Парсинг для '{query}' уже запущен, пропускаем")
+                    else:
+                        redis_client.setex(parse_lock_key, 300, "1")
+                    
+                    redis_client.close()
+                except Exception as e:
+                    logger.warning(f"Ошибка проверки Redis: {e}")
+            
+            if not parse_already_running:
+                # Запускаем фоновую задачу парсинга с использованием ключевых слов
+                # max_pages=1 означает парсить только первую страницу (25 книг)
+                task = parse_books.delay(query=query, source=source, fetch_details=fetch_details, max_pages=1)
+                logger.info(f"Запущен парсинг для запроса: '{query}' (task_id: {task.id}, fetch_details={fetch_details})")
+                
+                return {
+                    "task_id": task.id,
+                    "status": "started",
+                    "message": f"Книги не найдены в базе. Парсинг запущен для запроса: '{query}'",
+                    "query": query,
+                    "source": source,
+                    "fetch_details": fetch_details,
+                    "books": books_list,
+                    "total": total,
+                    "found_in_db": True,
+                    "parsed": True
+                }
+        
+        # Книги уже есть в базе - не запускаем парсинг
+        logger.info(f"Книги уже есть в базе ({total} шт.). Парсинг не требуется.")
+        
         return {
-            "task_id": task.id,
-            "status": "started",
-            "message": f"Парсинг запущен для запроса: '{query}'" + (" с извлечением характеристик" if fetch_details else ""),
+            "task_id": None,
+            "status": "found_in_db",
+            "message": f"Найдено {total} книг в базе данных",
             "query": query,
             "source": source,
-            "fetch_details": fetch_details,
             "books": books_list,
             "total": total,
             "found_in_db": True,
-            "parsed": True
+            "parsed": False
         }
         
     except HTTPException:
