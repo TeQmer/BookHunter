@@ -480,30 +480,34 @@ async def admin_schedule(
         # Проверяем тип schedule
         schedule_type = type(schedule).__name__
         
+        from datetime import timedelta
+        
         if schedule_type in ('int', 'float'):
             # Интервал в секундах
             seconds = int(schedule)
-            from datetime import timedelta
             
             if seconds >= 3600:
                 hours = seconds // 3600
                 interval_description = f"Каждые {hours} ч."
-                # Вычисляем следующий запуск: текущий час + 1 час
+                # Вычисляем следующий запуск
                 next_run = now.replace(minute=0, second=0, microsecond=0)
+                # Округляем до следующего часа
                 next_run = next_run + timedelta(hours=1)
-                # Корректируем до нужного интервала (кратного hours)
-                hours_offset = (next_run.hour // hours) * hours
-                next_run = next_run.replace(hour=hours_offset)
-                # Если время уже прошло - добавляем интервал
+                # Добавляем нужное количество часов чтобы было в будущем
+                hours_since_midnight = next_run.hour
+                hours_to_add = ((hours - (hours_since_midnight % hours)) % hours)
+                if hours_to_add == 0:
+                    hours_to_add = hours
+                next_run = next_run + timedelta(hours=hours_to_add - 1)
                 if next_run <= now:
                     next_run = next_run + timedelta(hours=hours)
             else:
                 minutes = seconds // 60
                 interval_description = f"Каждые {minutes} мин."
                 # Вычисляем следующий запуск
-                interval_step = 15 if minutes >= 15 else minutes
+                interval_step = 15 if minutes >= 15 else 1
                 next_run = now.replace(second=0, microsecond=0)
-                # Округляем до ближайшего интервала В БУДУЩЕМ
+                # Округляем до ближайшего интервала в будущем
                 next_minute = ((now.minute // interval_step) * interval_step) + interval_step
                 if next_minute >= 60:
                     next_run = next_run + timedelta(hours=1)
@@ -515,16 +519,44 @@ async def admin_schedule(
         elif schedule_type == 'crontab':
             # Crontab расписание
             try:
-                hour = schedule.hour if hasattr(schedule, 'hour') else 0
-                minute = schedule.minute if hasattr(schedule, 'minute') else 0
-                interval_description = f"Ежедневно в {hour:02d}:{minute:02d}"
-                # Вычисляем следующий запуск
-                next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                if next_run <= now:
-                    from datetime import timedelta
-                    next_run = next_run + timedelta(days=1)
-            except Exception:
+                # Получаем час и минуту
+                hour = getattr(schedule, 'hour', None)
+                minute = getattr(schedule, 'minute', None)
+                
+                # Обрабатываем случай когда hour - строка (например '*/3')
+                if isinstance(hour, str):
+                    if hour.startswith('*/'):
+                        hour_interval = int(hour[2:])
+                        current_hour = now.hour
+                        next_hour = ((current_hour // hour_interval) + 1) * hour_interval
+                        if next_hour >= 24:
+                            next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+                            next_run = next_run.replace(hour=next_hour - 24)
+                        else:
+                            next_run = now.replace(hour=next_hour, minute=0, second=0, microsecond=0)
+                    else:
+                        hour = int(hour)
+                        next_run = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+                elif hour is not None:
+                    if isinstance(hour, (list, tuple)):
+                        hour = hour[0] if hour else 0
+                    else:
+                        hour = int(hour)
+                    if isinstance(minute, (list, tuple)):
+                        minute = minute[0] if minute else 0
+                    else:
+                        minute = int(minute) if minute else 0
+                    next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                    if next_run <= now:
+                        next_run = next_run + timedelta(days=1)
+                else:
+                    next_run = None
+                    
+                interval_description = f"Ежедневно в {hour:02d}:{minute:02d}" if hour is not None else "По расписанию"
+            except Exception as e:
+                logger.warning(f"Ошибка вычисления следующего запуска для {task_name}: {e}")
                 interval_description = "По расписанию"
+                next_run = None
         else:
             interval_description = f"Тип: {schedule_type}"
         
