@@ -572,17 +572,49 @@ async def admin_schedule(
     )
     recent_logs = recent_logs_query.scalars().all()
 
-    # Формируем данные о последних запусках
-    last_runs['check_all_alerts'] = {
-        'last_run': None,
-        'status': 'unknown',
-        'duration': None
+    # Формируем данные о последних запусках из логов парсинга
+    # Для каждой задачи CELERY ищем соответствующий source в логах
+    task_source_mapping = {
+        'check_all_alerts': 'alert_check',
+        'update_chitai_gorod_token': 'chitai_gorod_token',
+        'cleanup_old_logs': 'cleanup',
+        'cleanup_books': 'cleanup_books',
+        'send_pending_notifications': 'notifications',
+        'scan_discounts': 'discounts',
     }
-    last_runs['update_chitai_gorod_token'] = {
-        'last_run': None,
-        'status': 'unknown',
-        'duration': None
-    }
+    
+    # Получаем последние логи для каждой задачи
+    for task_key, source in task_source_mapping.items():
+        log_result = await db.execute(
+            select(ParsingLog)
+            .where(ParsingLog.source == source)
+            .order_by(desc(ParsingLog.created_at))
+            .limit(1)
+        )
+        log = log_result.scalar_one_or_none()
+        
+        if log:
+            last_runs[task_key] = {
+                'last_run': log.created_at.strftime('%d.%m.%Y %H:%M') if log.created_at else None,
+                'status': log.status,
+                'duration': log.duration_seconds
+            }
+        else:
+            last_runs[task_key] = {
+                'last_run': None,
+                'status': 'unknown',
+                'duration': None
+            }
+    
+    # Для задач без маппинга - ставим N/A
+    for task_data in schedule_data:
+        task_key = task_data['task_key']
+        if task_key not in last_runs:
+            last_runs[task_key] = {
+                'last_run': None,
+                'status': 'unknown',
+                'duration': None
+            }
     
     return templates.TemplateResponse(
         "admin/schedule.html", 
