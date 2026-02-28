@@ -143,7 +143,7 @@ async def _check_all_alerts_async():
                                 notifications_created += 1
                                 
                                 # Отправляем уведомление через Telegram
-                                await _send_telegram_notification(alert.user_id, best_book, alert)
+                                await _send_telegram_notification(alert.user_id, best_book, alert, notification.id)
                             
                             books_found += 1
                             celery_logger.info(f"Найдена подходящая книга: {best_book.title} - {best_book.current_price}₽ (скидка {best_book.discount_percent}%)")
@@ -172,21 +172,43 @@ async def _check_all_alerts_async():
 async def _is_book_suitable_for_alert(book: ParserBook, alert: Alert) -> bool:
     """Проверка, подходит ли книга под условия подписки"""
     
-    # Проверка максимальной цены
-    if alert.max_price and book.current_price > alert.max_price:
+    celery_logger.info(f"🔍 Проверка книги: '{book.title}' для подписки '{alert.book_title}'")
+    celery_logger.info(f"   Условия подписки: target_price={alert.target_price}, min_discount={alert.min_discount}")
+    
+    # Проверка целевой цены (target_price)
+    # Если указана целевая цена, уведомляем только когда цена падает до этого уровня или ниже
+    if alert.target_price and book.current_price > alert.target_price:
+        celery_logger.info(f"  ❌ Отклонено: цена {book.current_price} > target_price {alert.target_price}")
         return False
     
     # Проверка минимальной скидки
     if alert.min_discount and (book.discount_percent or 0) < alert.min_discount:
+        celery_logger.info(f"  ❌ Отклонено: скидка {book.discount_percent}% < min_discount {alert.min_discount}%")
         return False
     
-    # Проверка соответствия запросу (простая проверка по названию)
+    # Проверка соответствия запросу (гибкое сравнение)
     if alert.book_title:
-        query_words = alert.book_title.lower().split()
-        book_title = book.title.lower()
-        if not any(word in book_title for word in query_words):
+        query_words = set(alert.book_title.lower().split())
+        book_title_lower = book.title.lower()
+        
+        # Убираем знаки препинания из названия книги
+        import re
+        book_title_clean = re.sub(r'[^\w\s]', '', book_title_lower)
+        book_words = set(book_title_clean.split())
+        
+        # Проверяем, есть ли хотя бы 50% слов из запроса в названии книги
+        matching_words = query_words & book_words
+        match_ratio = len(matching_words) / len(query_words) if query_words else 0
+        
+        celery_logger.info(f"  📝 Слова запроса: {query_words}")
+        celery_logger.info(f"  📝 Слова книги: {book_words}")
+        celery_logger.info(f"  📝 Совпадения: {matching_words} (совпадение {match_ratio*100:.0f}%)")
+        
+        if match_ratio < 0.5:  # Требуем минимум 50% совпадения
+            celery_logger.info(f"  ❌ Отклонено: недостаточно совпадений слов")
             return False
     
+    celery_logger.info(f"  ✅ Книга подходит под условия подписки!")
     return True
 
 async def _was_notification_sent_recently(db, alert_id: int, book_source_id: str) -> bool:
@@ -334,11 +356,15 @@ async def _create_notification(db: AsyncSession, alert: Alert, book: ParserBook)
             book_discount=f"{book.discount_percent}%" if book.discount_percent else "",
             book_url=book.url,
             message=message,
-            status="pending"
+            status="pending",
+            is_sent=False
         )
 
         db.add(notification)
         await db.commit()
+        await db.refresh(notification)
+        
+        celery_logger.info(f"✅ Создано уведомление ID={notification.id} со статусом pending")
         
         return notification
         
@@ -347,7 +373,7 @@ async def _create_notification(db: AsyncSession, alert: Alert, book: ParserBook)
         await db.rollback()
         return None
 
-async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Alert):
+async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Alert, notification_id: int = None):
     """Отправка уведомления через Telegram Bot"""
 
     try:
@@ -372,11 +398,65 @@ async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Ale
         # Отправляем сообщение
         await bot.send_message(user_id, message)
         
-        celery_logger.info(f"Уведомление отправлено пользователю {user_id} для книги {book.title}")
+        celery_logger.info(f"✅ Уведомление отправлено пользователю {user_id} для книги {book.title}")
+        
+        # Обновляем статус уведомления в БД если есть ID
+        if notification_id:
+            await _mark_notification_sent(notification_id)
+        
+        # Деактивируем подписку после успешного уведомления (если это одноразовая подписка)
+        # Раскомментируйте если нужно деактивировать подписку после первого уведомления
+        # alert.is_active = False
+        # await db.commit()
         
     except Exception as e:
-        celery_logger.error(f"Ошибка отправки Telegram уведомления: {e}")
+        celery_logger.error(f"❌ Ошибка отправки Telegram уведомления: {e}")
+        # Обновляем статус ошибки если есть ID
+        if notification_id:
+            await _mark_notification_failed(notification_id, str(e))
 
+
+async def _mark_notification_sent(notification_id: int):
+    """Отметка уведомления как отправленного"""
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        try:
+            result = await db.execute(
+                select(Notification).where(Notification.id == notification_id)
+            )
+            notification = result.scalar_one_or_none()
+            
+            if notification:
+                notification.status = "sent"
+                notification.is_sent = True
+                notification.sent_at = datetime.now()
+                await db.commit()
+                celery_logger.info(f"✅ Уведомление {notification_id} помечено как отправленное")
+        except Exception as e:
+            celery_logger.error(f"Ошибка обновления статуса уведомления: {e}")
+            await db.rollback()
+
+
+async def _mark_notification_failed(notification_id: int, error_message: str):
+    """Отметка уведомления как неудачного"""
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        try:
+            result = await db.execute(
+                select(Notification).where(Notification.id == notification_id)
+            )
+            notification = result.scalar_one_or_none()
+            
+            if notification:
+                notification.status = "failed"
+                notification.error_message = error_message
+                notification.retry_count += 1
+                await db.commit()
+                celery_logger.info(f"❌ Уведомление {notification_id} помечено как неудачное")
+        except Exception as e:
+            celery_logger.error(f"Ошибка обновления статуса уведомления: {e}")
+            await db.rollback()
+        
 async def _log_parsing_result(db: AsyncSession, source: str, status: str, message: str):
     """Логирование результата парсинга"""
     
@@ -1658,31 +1738,140 @@ async def _send_subscription_notification_from_parser(db: AsyncSession, alert: A
             from app.bot.telegram_bot import TelegramBot
             bot = TelegramBot()
             await bot.send_message(user.telegram_id, message)
-            celery_logger.info(f"Уведомление отправлено пользователю {user.telegram_id} для книги {parsed_book.title}")
+            celery_logger.info(f"✅ Уведомление отправлено пользователю {user.telegram_id} для книги {parsed_book.title}")
         except Exception as bot_error:
-            celery_logger.error(f"Ошибка отправки Telegram уведомления: {bot_error}")
+            celery_logger.error(f"❌ Ошибка отправки Telegram уведомления: {bot_error}")
         
-        # Создаем запись в таблице уведомлений
+        # Создаем запись в таблице уведомлений с правильными полями
         try:
             notification = Notification(
                 user_id=user.id,
                 book_id=db_book.id,
                 alert_id=alert.id,
-                title=parsed_book.title,
-                author=parsed_book.author,
-                current_price=parsed_book.current_price,
-                original_price=parsed_book.original_price,
-                discount_percent=parsed_book.discount_percent,
-                url=parsed_book.url,
-                image_url=parsed_book.image_url
+                book_title=parsed_book.title,
+                book_author=parsed_book.author or "",
+                book_price=f"{int(parsed_book.current_price)} руб.",
+                book_discount=f"{int(parsed_book.discount_percent)}%" if parsed_book.discount_percent else "",
+                book_url=parsed_book.url,
+                message=message,
+                status="sent",
+                is_sent=True,
+                sent_at=datetime.now()
             )
             db.add(notification)
             await db.commit()
+            celery_logger.info(f"✅ Уведомление создано в БД со статусом sent")
         except Exception as notify_error:
-            celery_logger.error(f"Ошибка создания записи уведомления: {notify_error}")
+            celery_logger.error(f"❌ Ошибка создания записи уведомления: {notify_error}")
             await db.rollback()
         
     except Exception as e:
-        celery_logger.error(f"Ошибка отправки уведомления подписки: {e}")
+        celery_logger.error(f"❌ Ошибка отправки уведомления подписки: {e}")
         await db.rollback()
+
+
+# =============================================================================
+# Задача отправки pending уведомлений (резервная)
+# =============================================================================
+
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 300})
+def send_pending_notifications(self):
+    """
+    Отправка уведомлений, которые застряли в статусе 'pending'.
+    Запускается каждые 15 минут для отправки уведомлений, которые не были отправлены.
+    """
+    
+    def run_async_task():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(_send_pending_notifications_async())
+        finally:
+            loop.close()
+    
+    try:
+        result = run_async_task()
+        celery_logger.info(f"Отправка pending уведомлений завершена. Отправлено: {result}")
+        return result
+    except Exception as e:
+        celery_logger.error(f"Ошибка при отправке pending уведомлений: {e}")
+        raise self.retry(countdown=300, exc=e)
+
+
+async def _send_pending_notifications_async():
+    """
+    Асинхронная функция отправки pending уведомлений.
+    Находит все уведомления со статусом 'pending' и пытается их отправить.
+    """
+    
+    session_factory = get_session_factory()
+    async with session_factory() as db:
+        try:
+            # Получаем все pending уведомления
+            result = await db.execute(
+                select(Notification).where(
+                    and_(
+                        Notification.status == "pending",
+                        Notification.is_sent == False,
+                        Notification.retry_count < Notification.max_retries
+                    )
+                ).limit(50)  # Ограничиваем количество за раз
+            )
+            pending_notifications = result.scalars().all()
+            
+            if not pending_notifications:
+                celery_logger.info("Нет pending уведомлений для отправки")
+                return 0
+            
+            celery_logger.info(f"Начинаем отправку {len(pending_notifications)} pending уведомлений")
+            
+            sent_count = 0
+            failed_count = 0
+            
+            for notification in pending_notifications:
+                try:
+                    # Получаем пользователя
+                    user_result = await db.execute(select(User).where(User.id == notification.user_id))
+                    user = user_result.scalar_one_or_none()
+                    
+                    if not user:
+                        celery_logger.error(f"Пользователь {notification.user_id} не найден для уведомления {notification.id}")
+                        notification.status = "failed"
+                        notification.error_message = "User not found"
+                        await db.commit()
+                        continue
+                    
+                    # Отправляем через Telegram
+                    from app.bot.telegram_bot import TelegramBot
+                    bot = TelegramBot()
+                    await bot.send_message(user.telegram_id, notification.message)
+                    
+                    # Обновляем статус
+                    notification.status = "sent"
+                    notification.is_sent = True
+                    notification.sent_at = datetime.now()
+                    await db.commit()
+                    
+                    sent_count += 1
+                    celery_logger.info(f"✅ Уведомление {notification.id} отправлено пользователю {user.telegram_id}")
+                    
+                except Exception as e:
+                    celery_logger.error(f"❌ Ошибка отправки уведомления {notification.id}: {e}")
+                    notification.status = "failed"
+                    notification.error_message = str(e)
+                    notification.retry_count += 1
+                    await db.commit()
+                    failed_count += 1
+                    
+                    continue
+                
+                # Задержка между отправками
+                await asyncio.sleep(1)
+            
+            celery_logger.info(f"Отправка pending уведомлений завершена. Успешно: {sent_count}, Ошибок: {failed_count}")
+            return sent_count
+            
+        except Exception as e:
+            celery_logger.error(f"Критическая ошибка при отправке pending уведомлений: {e}")
+            return 0
 
