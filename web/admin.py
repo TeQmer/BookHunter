@@ -835,108 +835,135 @@ async def admin_analytics(
 ):
     """Расширенная аналитика и метрики"""
     try:
-        # Статистика книг по магазинам
-        stores_stats = await db.execute(
+        # === 1. БАЗОВАЯ СТАТИСТИКА КНИГ ===
+        total_books = await db.execute(select(func.count(Book.id)))
+        total_books_count = total_books.scalar() or 0
+        
+        books_with_discount = await db.execute(
+            select(func.count(Book.id)).where(Book.discount_percent > 0)
+        )
+        discounted_books_count = books_with_discount.scalar() or 0
+        
+        avg_discount_query = await db.execute(
+            select(func.avg(Book.discount_percent)).where(Book.discount_percent > 0)
+        )
+        avg_discount_val = avg_discount_query.scalar() or 0
+        
+        # === 2. СТАТИСТИКА ПО МАГАЗИНАМ ===
+        stores_query = await db.execute(
             select(Book.source, func.count(Book.id).label('count'))
             .where(Book.source.isnot(None))
             .group_by(Book.source)
             .order_by(desc('count'))
         )
-        stores_data = stores_stats.mappings().all()
+        stores_list = []
+        for row in stores_query.fetchall():
+            stores_list.append({
+                'source': row[0],
+                'count': row[1]
+            })
         
-        # Статистика по авторам (топ-10)
-        authors_stats = await db.execute(
+        # === 3. СТАТИСТИКА ПО АВТОРАМ ===
+        authors_query = await db.execute(
             select(Book.author, func.count(Book.id).label('count'))
             .where(Book.author.isnot(None))
             .group_by(Book.author)
             .order_by(desc('count'))
             .limit(10)
         )
-        authors_data = authors_stats.mappings().all()
+        authors_list = []
+        for row in authors_query.fetchall():
+            authors_list.append({
+                'author': row[0],
+                'count': row[1]
+            })
         
-        # Статистика по ценовым диапазонам
-        price_ranges = await db.execute(
-            select(
-                func.sum(case((Book.current_price < 500, 1), else_=0)).label('under_500'),
-                func.sum(case((Book.current_price >= 500, Book.current_price < 1000, 1), else_=0)).label('500_1000'),
-                func.sum(case((Book.current_price >= 1000, Book.current_price < 2000, 1), else_=0)).label('1000_2000'),
-                func.sum(case((Book.current_price >= 2000, 1), else_=0)).label('over_2000')
+        # === 4. ЦЕНОВЫЕ ДИАПАЗОНЫ ===
+        price_under_500 = await db.execute(
+            select(func.count(Book.id)).where(Book.current_price < 500)
+        )
+        price_500_1000 = await db.execute(
+            select(func.count(Book.id)).where(
+                Book.current_price >= 500, Book.current_price < 1000
             )
         )
-        price_result = price_ranges.mappings().one_or_none()
-        price_stats = dict(price_result) if price_result else {}
-        
-        # Статистика скидок
-        discount_stats = await db.execute(
-            select(
-                func.avg(Book.discount_percent).label('avg_discount'),
-                func.max(Book.discount_percent).label('max_discount'),
-                func.sum(case((Book.discount_percent > 0, 1), else_=0)).label('discounted_books'),
-                func.count(Book.id).label('total_books')
+        price_1000_2000 = await db.execute(
+            select(func.count(Book.id)).where(
+                Book.current_price >= 1000, Book.current_price < 2000
             )
         )
-        discount_result = discount_stats.mappings().one_or_none()
-        discount_data = dict(discount_result) if discount_result else {}
-        
-        # Активность пользователей за последние 30 дней
-        thirty_days_ago = datetime.now() - timedelta(days=30)
-        user_activity = await db.execute(
-            select(func.count(User.id))
-            .where(User.created_at >= thirty_days_ago)
+        price_over_2000 = await db.execute(
+            select(func.count(Book.id)).where(Book.current_price >= 2000)
         )
-        new_users_30d = user_activity.scalar() or 0
-
-        # Статистика подписок по статусу
-        alerts_stats = await db.execute(
-            select(Alert.is_active, func.count(Alert.id))
-            .group_by(Alert.is_active)
-        )
-        alerts_data = list(alerts_stats.mappings().all()) if alerts_stats else []
         
-        # Статистика парсинга за последние 7 дней
-        seven_days_ago = datetime.now() - timedelta(days=7)
-        parsing_stats = await db.execute(
-            select(ParsingLog.status, func.count(ParsingLog.id))
-            .where(ParsingLog.created_at >= seven_days_ago)
-            .group_by(ParsingLog.status)
-        )
-        parsing_data = list(parsing_stats.mappings().all()) if parsing_stats else []
-
-        # Формируем данные для шаблона - явно преобразуем к словарям
-        def row_to_dict(row):
-            """Безопасное преобразование строки результата в словарь"""
-            if hasattr(row, '_mapping'):
-                return dict(row._mapping)
-            return dict(row) if hasattr(row, 'keys') else row
-        
-        analytics_data = {
-            'stores_stats': [row_to_dict(row) for row in stores_data],
-            'authors_stats': [row_to_dict(row) for row in authors_data],
-            'price_stats': {
-                'under_500': int(price_stats.get('under_500', 0) or 0),
-                '500_1000': int(price_stats.get('500_1000', 0) or 0),
-                '1000_2000': int(price_stats.get('1000_2000', 0) or 0),
-                'over_2000': int(price_stats.get('over_2000', 0) or 0)
-            },
-            'discount_stats': {
-                'avg_discount': round(float(discount_data.get('avg_discount', 0) or 0), 1),
-                'max_discount': int(discount_data.get('max_discount', 0) or 0),
-                'discounted_books': int(discount_data.get('discounted_books', 0) or 0),
-                'total_books': int(discount_data.get('total_books', 0) or 0),
-                'discount_percentage': 0
-            },
-            'user_stats': {
-                'new_users_30d': new_users_30d
-            },
-            'alerts_stats': [row_to_dict(row) for row in alerts_data],
-            'parsing_stats': [row_to_dict(row) for row in parsing_data]
+        price_stats = {
+            'under_500': price_under_500.scalar() or 0,
+            '500_1000': price_500_1000.scalar() or 0,
+            '1000_2000': price_1000_2000.scalar() or 0,
+            'over_2000': price_over_2000.scalar() or 0
         }
         
-        # Вычисляем процент скидок отдельно
-        if analytics_data['discount_stats']['total_books'] > 0:
-            analytics_data['discount_stats']['discount_percentage'] = round(
-                analytics_data['discount_stats']['discounted_books'] / analytics_data['discount_stats']['total_books'] * 100, 1
+        # === 5. ПОЛЬЗОВАТЕЛИ ===
+        total_users = await db.execute(select(func.count(User.id)))
+        total_users_count = total_users.scalar() or 0
+        
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        new_users = await db.execute(
+            select(func.count(User.id)).where(User.created_at >= thirty_days_ago)
+        )
+        new_users_30d = new_users.scalar() or 0
+
+        # === 6. ПОДПИСКИ (ALERTS) ===
+        total_alerts = await db.execute(select(func.count(Alert.id)))
+        total_alerts_count = total_alerts.scalar() or 0
+        
+        active_alerts = await db.execute(
+            select(func.count(Alert.id)).where(Alert.is_active == True)
+        )
+        active_alerts_count = active_alerts.scalar() or 0
+        
+        # === 7. СТАТИСТИКА ПАРСИНГА ===
+        seven_days_ago = datetime.now() - timedelta(days=7)
+        parsing_completed = await db.execute(
+            select(func.count(ParsingLog.id)).where(
+                ParsingLog.status == 'completed',
+                ParsingLog.created_at >= seven_days_ago
             )
+        )
+        parsing_failed = await db.execute(
+            select(func.count(ParsingLog.id)).where(
+                ParsingLog.status == 'failed',
+                ParsingLog.created_at >= seven_days_ago
+            )
+        )
+        
+        # === ФОРМИРУЕМ ДАННЫЕ ===
+        discount_percentage = 0
+        if total_books_count > 0:
+            discount_percentage = round(discounted_books_count / total_books_count * 100, 1)
+        
+        analytics_data = {
+            'total_books': total_books_count,
+            'discounted_books': discounted_books_count,
+            'avg_discount': round(float(avg_discount_val), 1),
+            'discount_percentage': discount_percentage,
+            
+            'stores_stats': stores_list,
+            'authors_stats': authors_list,
+            
+            'price_stats': price_stats,
+            
+            'total_users': total_users_count,
+            'new_users_30d': new_users_30d,
+            
+            'total_alerts': total_alerts_count,
+            'active_alerts': active_alerts_count,
+            
+            'parsing_completed': parsing_completed.scalar() or 0,
+            'parsing_failed': parsing_failed.scalar() or 0
+        }
+        
+        logger.info(f"Аналитика загружена: {analytics_data}")
         
         return templates.TemplateResponse(
             "admin/analytics.html", 
@@ -946,7 +973,7 @@ async def admin_analytics(
                 "analytics_data": analytics_data
             }
         )
-        
+
     except Exception as e:
         import traceback
         logger.error(f"Ошибка загрузки аналитики: {e}\n{traceback.format_exc()}")

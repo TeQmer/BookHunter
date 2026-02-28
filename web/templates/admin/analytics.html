@@ -19,7 +19,7 @@
             <div class="card-body">
                 <i class="fas fa-book fa-3x text-primary mb-3"></i>
                 <h5>Всего книг</h5>
-                <p class="display-4 text-primary">{{ analytics_data.discount_stats.total_books }}</p>
+                <p class="display-4 text-primary">{{ analytics_data.total_books }}</p>
             </div>
         </div>
     </div>
@@ -29,8 +29,8 @@
             <div class="card-body">
                 <i class="fas fa-tags fa-3x text-success mb-3"></i>
                 <h5>Книг со скидкой</h5>
-                <p class="display-4 text-success">{{ analytics_data.discount_stats.discounted_books }}</p>
-                <small class="text-muted">{{ analytics_data.discount_stats.discount_percentage }}% от общего количества</small>
+                <p class="display-4 text-success">{{ analytics_data.discounted_books }}</p>
+                <small class="text-muted">{{ analytics_data.discount_percentage }}% от общего количества</small>
             </div>
         </div>
     </div>
@@ -40,7 +40,7 @@
             <div class="card-body">
                 <i class="fas fa-percentage fa-3x text-info mb-3"></i>
                 <h5>Средняя скидка</h5>
-                <p class="display-4 text-info">{{ analytics_data.discount_stats.avg_discount }}%</p>
+                <p class="display-4 text-info">{{ analytics_data.avg_discount }}%</p>
             </div>
         </div>
     </div>
@@ -50,8 +50,41 @@
             <div class="card-body">
                 <i class="fas fa-user-plus fa-3x text-warning mb-3"></i>
                 <h5>Новые пользователи</h5>
-                <p class="display-4 text-warning">{{ analytics_data.user_stats.new_users_30d }}</p>
+                <p class="display-4 text-warning">{{ analytics_data.new_users_30d }}</p>
                 <small class="text-muted">за последние 30 дней</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Пользователи и подписки -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-3x text-secondary mb-3"></i>
+                <h5>Всего пользователей</h5>
+                <p class="display-4 text-secondary">{{ analytics_data.total_users }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-bell fa-3x text-primary mb-3"></i>
+                <h5>Всего подписок</h5>
+                <p class="display-4 text-primary">{{ analytics_data.total_alerts }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-bell fa-3x text-success mb-3"></i>
+                <h5>Активных подписок</h5>
+                <p class="display-4 text-success">{{ analytics_data.active_alerts }}</p>
             </div>
         </div>
     </div>
@@ -78,19 +111,21 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for store_info in analytics_data.stores_stats %}
+                            {% for store in analytics_data.stores_stats %}
                             <tr>
                                 <td>
-                                    <span class="badge bg-primary">{{ store_info.source }}</span>
+                                    <span class="badge bg-primary">{{ store.source }}</span>
                                 </td>
-                                <td>{{ store_info.count }}</td>
+                                <td>{{ store.count }}</td>
                                 <td>
+                                    {% if analytics_data.total_books > 0 %}
                                     <div class="progress" style="height: 20px;">
                                         <div class="progress-bar" role="progressbar" 
-                                             style="width: {{ (store_info.count / analytics_data.discount_stats.total_books * 100)|round(1) }}%">
-                                            {{ (store_info.count / analytics_data.discount_stats.total_books * 100)|round(1) }}%
+                                             style="width: {{ (store.count / analytics_data.total_books * 100)|round(1) }}%">
+                                            {{ (store.count / analytics_data.total_books * 100)|round(1) }}%
                                         </div>
                                     </div>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -123,11 +158,11 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for author_info in analytics_data.authors_stats %}
+                            {% for author in analytics_data.authors_stats %}
                             <tr>
-                                <td>{{ author_info.author }}</td>
+                                <td>{{ author.author }}</td>
                                 <td>
-                                    <span class="badge bg-info">{{ author_info.count }}</span>
+                                    <span class="badge bg-info">{{ author.count }}</span>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -184,104 +219,59 @@
                 </div>
                 
                 <!-- Визуальное представление распределения -->
+                {% set total_price = analytics_data.price_stats.under_500 + analytics_data.price_stats['500_1000'] + analytics_data.price_stats['1000_2000'] + analytics_data.price_stats.over_2000 %}
+                {% if total_price > 0 %}
                 <div class="mt-4">
                     <h6>Распределение в процентах:</h6>
-                    {% set total = analytics_data.price_stats.under_500 + analytics_data.price_stats['500_1000'] + analytics_data.price_stats['1000_2000'] + analytics_data.price_stats.over_2000 %}
-                    {% if total > 0 %}
                     <div class="progress" style="height: 30px;">
                         <div class="progress-bar bg-primary" role="progressbar" 
-                             style="width: {{ (analytics_data.price_stats.under_500 / total * 100)|round(1) }}%">
-                            {{ (analytics_data.price_stats.under_500 / total * 100)|round(1) }}%
+                             style="width: {{ (analytics_data.price_stats.under_500 / total_price * 100)|round(1) }}%">
+                            {{ (analytics_data.price_stats.under_500 / total_price * 100)|round(1) }}%
                         </div>
                         <div class="progress-bar bg-success" role="progressbar" 
-                             style="width: {{ (analytics_data.price_stats['500_1000'] / total * 100)|round(1) }}%">
-                            {{ (analytics_data.price_stats['500_1000'] / total * 100)|round(1) }}%
+                             style="width: {{ (analytics_data.price_stats['500_1000'] / total_price * 100)|round(1) }}%">
+                            {{ (analytics_data.price_stats['500_1000'] / total_price * 100)|round(1) }}%
                         </div>
                         <div class="progress-bar bg-warning" role="progressbar" 
-                             style="width: {{ (analytics_data.price_stats['1000_2000'] / total * 100)|round(1) }}%">
-                            {{ (analytics_data.price_stats['1000_2000'] / total * 100)|round(1) }}%
+                             style="width: {{ (analytics_data.price_stats['1000_2000'] / total_price * 100)|round(1) }}%">
+                            {{ (analytics_data.price_stats['1000_2000'] / total_price * 100)|round(1) }}%
                         </div>
                         <div class="progress-bar bg-danger" role="progressbar" 
-                             style="width: {{ (analytics_data.price_stats.over_2000 / total * 100)|round(1) }}%">
-                            {{ (analytics_data.price_stats.over_2000 / total * 100)|round(1) }}%
+                             style="width: {{ (analytics_data.price_stats.over_2000 / total_price * 100)|round(1) }}%">
+                            {{ (analytics_data.price_stats.over_2000 / total_price * 100)|round(1) }}%
                         </div>
                     </div>
-                    {% endif %}
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- Статистика парсинга и подписок -->
-<div class="row">
-    <div class="col-md-6 mb-4">
+<!-- Статистика парсинга -->
+<div class="row mb-4">
+    <div class="col-12">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="fas fa-sync"></i> Активность парсинга (7 дней)
+                    <i class="fas fa-sync"></i> Активность парсинга (последние 7 дней)
                 </h5>
             </div>
             <div class="card-body">
-                {% if analytics_data.parsing_stats and analytics_data.parsing_stats|length > 0 %}
-                <div class="row">
-                    {% for stat in analytics_data.parsing_stats %}
-                    <div class="col-6 text-center mb-3">
-                        {% if stat.status == 'completed' %}
-                            <div class="border rounded p-3 border-success">
-                                <h6 class="text-success">Успешные</h6>
-                                <p class="display-6 text-success">{{ stat.count }}</p>
-                            </div>
-                        {% elif stat.status == 'failed' %}
-                            <div class="border rounded p-3 border-danger">
-                                <h6 class="text-danger">Ошибки</h6>
-                                <p class="display-6 text-danger">{{ stat.count }}</p>
-                            </div>
-                        {% else %}
-                            <div class="border rounded p-3 border-warning">
-                                <h6 class="text-warning">В процессе</h6>
-                                <p class="display-6 text-warning">{{ stat.count }}</p>
-                            </div>
-                        {% endif %}
+                <div class="row text-center">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 border-success">
+                            <h6 class="text-success">Успешные парсинги</h6>
+                            <p class="display-6 text-success">{{ analytics_data.parsing_completed }}</p>
+                        </div>
                     </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <p class="text-muted">Нет данных о парсинге</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-bell"></i> Статистика подписок
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if analytics_data.alerts_stats and analytics_data.alerts_stats|length > 0 %}
-                <div class="row">
-                    {% for stat in analytics_data.alerts_stats %}
-                    <div class="col-6 text-center mb-3">
-                        {% if stat.is_active %}
-                            <div class="border rounded p-3 border-success">
-                                <h6 class="text-success">Активные</h6>
-                                <p class="display-6 text-success">{{ stat.count }}</p>
-                            </div>
-                        {% else %}
-                            <div class="border rounded p-3 border-secondary">
-                                <h6 class="text-muted">Неактивные</h6>
-                                <p class="display-6 text-muted">{{ stat.count }}</p>
-                            </div>
-                        {% endif %}
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 border-danger">
+                            <h6 class="text-danger">Ошибки парсинга</h6>
+                            <p class="display-6 text-danger">{{ analytics_data.parsing_failed }}</p>
+                        </div>
                     </div>
-                    {% endfor %}
                 </div>
-                {% else %}
-                <p class="text-muted">Нет данных о подписках</p>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -329,17 +319,9 @@
                         </div>
                     </div>
                     <div class="col-md-3 mb-2">
-                        <button class="btn btn-outline-secondary w-100" onclick="refreshAnalytics()">
+                        <button class="btn btn-outline-secondary w-100" onclick="location.reload()">
                             <i class="fas fa-sync"></i> Обновить данные
                         </button>
-                    </div>
-                </div>
-                
-                <div class="mt-3">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i> 
-                        <strong>Совет:</strong> Данные автоматически обновляются при перезагрузке страницы. 
-                        Используйте экспорт для создания резервных копий или анализа в внешних инструментах.
                     </div>
                 </div>
             </div>
@@ -348,10 +330,6 @@
 </div>
 
 <script>
-function refreshAnalytics() {
-    location.reload();
-}
-
 // Автоматическое обновление каждые 5 минут
 setTimeout(() => {
     location.reload();
