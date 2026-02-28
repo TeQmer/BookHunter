@@ -863,7 +863,8 @@ async def admin_analytics(
                 func.sum(case((Book.current_price >= 2000, 1), else_=0)).label('over_2000')
             )
         )
-        price_stats = price_ranges.mappings().one_or_none()
+        price_result = price_ranges.mappings().one_or_none()
+        price_stats = dict(price_result) if price_result else {}
         
         # Статистика скидок
         discount_stats = await db.execute(
@@ -874,7 +875,8 @@ async def admin_analytics(
                 func.count(Book.id).label('total_books')
             )
         )
-        discount_data = discount_stats.mappings().one_or_none()
+        discount_result = discount_stats.mappings().one_or_none()
+        discount_data = dict(discount_result) if discount_result else {}
         
         # Активность пользователей за последние 30 дней
         thirty_days_ago = datetime.now() - timedelta(days=30)
@@ -889,7 +891,7 @@ async def admin_analytics(
             select(Alert.is_active, func.count(Alert.id))
             .group_by(Alert.is_active)
         )
-        alerts_data = alerts_stats.mappings().all()
+        alerts_data = list(alerts_stats.mappings().all()) if alerts_stats else []
         
         # Статистика парсинга за последние 7 дней
         seven_days_ago = datetime.now() - timedelta(days=7)
@@ -898,7 +900,7 @@ async def admin_analytics(
             .where(ParsingLog.created_at >= seven_days_ago)
             .group_by(ParsingLog.status)
         )
-        parsing_data = parsing_stats.mappings().all()
+        parsing_data = list(parsing_stats.mappings().all()) if parsing_stats else []
 
         # Формируем данные для шаблона - явно преобразуем к словарям
         def row_to_dict(row):
@@ -911,17 +913,17 @@ async def admin_analytics(
             'stores_stats': [row_to_dict(row) for row in stores_data],
             'authors_stats': [row_to_dict(row) for row in authors_data],
             'price_stats': {
-                'under_500': int(price_stats['under_500']) if price_stats and price_stats.get('under_500') else 0,
-                '500_1000': int(price_stats['500_1000']) if price_stats and price_stats.get('500_1000') else 0,
-                '1000_2000': int(price_stats['1000_2000']) if price_stats and price_stats.get('1000_2000') else 0,
-                'over_2000': int(price_stats['over_2000']) if price_stats and price_stats.get('over_2000') else 0
+                'under_500': int(price_stats.get('under_500', 0) or 0),
+                '500_1000': int(price_stats.get('500_1000', 0) or 0),
+                '1000_2000': int(price_stats.get('1000_2000', 0) or 0),
+                'over_2000': int(price_stats.get('over_2000', 0) or 0)
             },
             'discount_stats': {
-                'avg_discount': round(float(discount_data['avg_discount']), 1) if discount_data and discount_data.get('avg_discount') else 0,
-                'max_discount': int(discount_data['max_discount']) if discount_data and discount_data.get('max_discount') else 0,
-                'discounted_books': int(discount_data['discounted_books']) if discount_data and discount_data.get('discounted_books') else 0,
-                'total_books': int(discount_data['total_books']) if discount_data and discount_data.get('total_books') else 0,
-                'discount_percentage': round((int(discount_data['discounted_books']) / int(discount_data['total_books']) * 100), 1) if discount_data and discount_data.get('total_books') and int(discount_data['total_books']) > 0 else 0
+                'avg_discount': round(float(discount_data.get('avg_discount', 0) or 0), 1),
+                'max_discount': int(discount_data.get('max_discount', 0) or 0),
+                'discounted_books': int(discount_data.get('discounted_books', 0) or 0),
+                'total_books': int(discount_data.get('total_books', 0) or 0),
+                'discount_percentage': 0
             },
             'user_stats': {
                 'new_users_30d': new_users_30d
@@ -929,6 +931,12 @@ async def admin_analytics(
             'alerts_stats': [row_to_dict(row) for row in alerts_data],
             'parsing_stats': [row_to_dict(row) for row in parsing_data]
         }
+        
+        # Вычисляем процент скидок отдельно
+        if analytics_data['discount_stats']['total_books'] > 0:
+            analytics_data['discount_stats']['discount_percentage'] = round(
+                analytics_data['discount_stats']['discounted_books'] / analytics_data['discount_stats']['total_books'] * 100, 1
+            )
         
         return templates.TemplateResponse(
             "admin/analytics.html", 
