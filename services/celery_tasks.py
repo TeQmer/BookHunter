@@ -1700,13 +1700,11 @@ def check_subscriptions_prices():
         celery_logger.error(traceback.format_exc())
         raise
 
-# Регистрируем задачу
-check_subscriptions_prices_task = celery_app.task(
-    check_subscriptions_prices, 
-    bind=True, 
-    autoretry_for=(Exception,), 
-    retry_kwargs={'max_retries': 3}
-)
+# Регистрируем задачу с явным именем для celery beat
+@celery_app.task(name='services.celery_tasks.check_subscriptions_prices')
+def check_subscriptions_prices_run():
+    """Обёртка для запуска check_subscriptions_prices из celery beat"""
+    return check_subscriptions_prices()
 
 async def _check_subscriptions_prices_async():
     """
