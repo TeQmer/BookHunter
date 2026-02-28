@@ -517,59 +517,28 @@ async def admin_schedule(
                 if next_run <= now:
                     next_run = next_run + timedelta(minutes=minutes)
         elif schedule_type == 'crontab':
-            # Crontab расписание
+            # Crontab расписание - парсим из строки
             try:
-                # Получаем час и минуту из атрибутов _fields или напрямую
-                hour = None
-                minute = None
+                # Получаем строковое представление
+                schedule_str = str(schedule)
+                logger.info(f"Парсинг crontab: {schedule_str}")
                 
-                # Пробуем разные способы получить hour и minute
-                if hasattr(schedule, '_fields'):
-                    # Это namedtuple с полями
-                    for field in schedule._fields:
-                        if field == 'hour':
-                            hour = getattr(schedule, field, None)
-                        elif field == 'minute':
-                            minute = getattr(schedule, field, None)
+                # Извлекаем час и минуту из строки вида "<crontab: 30 3 * * * (m/h/dM/MY/d)>"
+                import re
+                match = re.search(r'<crontab:\s*(\d+)\s+(\d+)', schedule_str)
                 
-                if hour is None:
-                    hour = getattr(schedule, 'hour', None)
-                if minute is None:
-                    minute = getattr(schedule, 'minute', None)
-                
-                # Если это строковый формат (например '*/3')
-                if isinstance(hour, str):
-                    if hour.startswith('*/'):
-                        hour_interval = int(hour[2:])
-                        current_hour = now.hour
-                        next_hour = ((current_hour // hour_interval) + 1) * hour_interval
-                        if next_hour >= 24:
-                            next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
-                            next_run = next_run.replace(hour=next_hour - 24)
-                        else:
-                            next_run = now.replace(hour=next_hour, minute=0, second=0, microsecond=0)
-                    else:
-                        hour = int(hour)
-                        next_run = now.replace(hour=hour, minute=0, second=0, microsecond=0)
-                elif hour is not None:
-                    # Конвертируем в int если нужно
-                    if isinstance(hour, (list, tuple)):
-                        hour = int(hour[0]) if hour else 0
-                    else:
-                        hour = int(hour) if hour else 0
-                        
-                    if isinstance(minute, (list, tuple)):
-                        minute = int(minute[0]) if minute else 0
-                    else:
-                        minute = int(minute) if minute else 0
+                if match:
+                    minute = int(match.group(1))
+                    hour = int(match.group(2))
+                    interval_description = f"Ежедневно в {hour:02d}:{minute:02d}"
                     
                     next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
                     if next_run <= now:
                         next_run = next_run + timedelta(days=1)
                 else:
+                    interval_description = "По расписанию"
                     next_run = None
                     
-                interval_description = f"Ежедневно в {hour:02d}:{minute:02d}" if hour is not None else "По расписанию"
             except Exception as e:
                 logger.warning(f"Ошибка вычисления следующего запуска для {task_name}: {e}")
                 interval_description = "По расписанию"
