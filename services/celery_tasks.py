@@ -68,6 +68,9 @@ check_all_alerts_task = celery_app.task(check_all_alerts, bind=True, autoretry_f
 async def _check_all_alerts_async():
     """Асинхронная функция проверки подписок с реальным парсингом"""
     
+    # Запоминаем время начала
+    task_start_time = time.time()
+    
     # Используем фабрику, установленную в run_async_task
     session_factory = _task_session_factory
     async with session_factory() as db:
@@ -162,6 +165,22 @@ async def _check_all_alerts_async():
             await _log_parsing_result(db, "alert_check", "success", 
                                     f"Проверено {len(alerts)} подписок, найдено {books_found} книг, создано {notifications_created} уведомлений")
             
+            # Отправляем статистику в Telegram
+            try:
+                from services.token_manager import TokenManager
+                token_manager = TokenManager()
+                active_alerts = len([a for a in alerts if a.is_active])
+                execution_time = time.time() - task_start_time
+                await token_manager.send_subscriptions_check_notification(
+                    total_checked=len(alerts),
+                    active_count=active_alerts,
+                    matched_count=books_found,
+                    notifications_created=notifications_created,
+                    execution_time=execution_time
+                )
+            except Exception as e:
+                celery_logger.error(f"Ошибка отправки статистики: {e}")
+            
             return books_found
             
         except Exception as e:
@@ -173,13 +192,16 @@ async def _is_book_suitable_for_alert(book: ParserBook, alert: Alert) -> bool:
     """Проверка, подходит ли книга под условия подписки"""
     
     celery_logger.info(f"🔍 Проверка книги: '{book.title}' для подписки '{alert.book_title}'")
+    celery_logger.info(f"   💰 Цена книги: {book.current_price} руб. (оригинальная: {book.original_price} руб., скидка: {book.discount_percent}%)")
     celery_logger.info(f"   Условия подписки: target_price={alert.target_price}, min_discount={alert.min_discount}")
     
     # Проверка целевой цены (target_price)
     # Если указана целевая цена, уведомляем только когда цена падает до этого уровня или ниже
     if alert.target_price and book.current_price > alert.target_price:
-        celery_logger.info(f"  ❌ Отклонено: цена {book.current_price} > target_price {alert.target_price}")
+        celery_logger.info(f"  ❌ Отклонено: цена книги {book.current_price} > target_price {alert.target_price}")
         return False
+    
+    celery_logger.info(f"  ✅ Цена {book.current_price} <= target_price {alert.target_price} - OK")
     
     # Проверка минимальной скидки
     if alert.min_discount and (book.discount_percent or 0) < alert.min_discount:
