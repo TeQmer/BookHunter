@@ -852,13 +852,14 @@ class MockParser:
         return []
 
 @celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3})
-def parse_books(self, query: str, source: str = "chitai-gorod", fetch_details: bool = False):
+def parse_books(self, query: str, source: str = "chitai-gorod", fetch_details: bool = False, max_pages: int = 1):
     """Задача для парсинга книг по запросу с реальным парсером
 
     Args:
         query: Поисковый запрос
         source: Источник парсинга (по умолчанию chitai-gorod)
         fetch_details: Загружать ли детальную страницу для извлечения характеристик (издательство, переплёт, жанры)
+        max_pages: Максимальное количество страниц для парсинга (по умолчанию 1)
     """
 
     def run_async_task():
@@ -869,14 +870,14 @@ def parse_books(self, query: str, source: str = "chitai-gorod", fetch_details: b
             # Если loop уже запущен, создаем новый в отдельном потоке
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, _parse_books_async(query, source, fetch_details))
+                future = executor.submit(asyncio.run, _parse_books_async(query, source, fetch_details, max_pages))
                 return future.result()
         except RuntimeError:
             # Нет запущенного loop, можно создать новый
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                return loop.run_until_complete(_parse_books_async(query, source, fetch_details))
+                return loop.run_until_complete(_parse_books_async(query, source, fetch_details, max_pages))
             finally:
                 loop.close()
     
@@ -967,13 +968,14 @@ async def _check_existing_books_in_db(db: AsyncSession, query: str) -> Tuple[boo
         return False, [], "error_checking"
 
 
-async def _parse_books_async(query: str, source: str, fetch_details: bool = False):
+async def _parse_books_async(query: str, source: str, fetch_details: bool = False, max_pages: int = 1):
     """Асинхронная функция парсинга книг с реальным парсером
 
     Args:
         query: Поисковый запрос
         source: Источник парсинга
         fetch_details: Загружать ли детальную страницу для извлечения характеристик
+        max_pages: Максимальное количество страниц для парсинга
     """
 
     session_factory = get_session_factory()

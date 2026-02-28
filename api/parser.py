@@ -167,7 +167,8 @@ async def parse_books_from_body(
             logger.info(f"Пользователь {telegram_id} использует запрос ({user.daily_requests_used}/{user.daily_requests_limit})")
 
         # Запускаем фоновую задачу парсинга с использованием ключевых слов
-        task = parse_books.delay(query=query, source=source, fetch_details=fetch_details)
+        # max_pages=1 означает парсить только первую страницу (25 книг)
+        task = parse_books.delay(query=query, source=source, fetch_details=fetch_details, max_pages=1)
 
         logger.info(f"Запущен парсинг для запроса: '{query}' (task_id: {task.id}, fetch_details={fetch_details})")
 
