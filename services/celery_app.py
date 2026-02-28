@@ -8,7 +8,7 @@ load_dotenv()
 
 # Определяем расписание задач
 CELERY_BEAT_SCHEDULE = {
-    # Проверка цен подписок каждые 4 часа (с парсингом по названию)
+    # Проверка цен подписок каждые 4 часа (основная задача)
     'check-subscriptions-prices-every-4-hours': {
         'task': 'services.celery_tasks.check_all_alerts',
         'schedule': 14400.0,  # 4 часа в секундах
@@ -18,25 +18,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'services.celery_tasks.send_pending_notifications',
         'schedule': 900.0,  # 15 минут в секундах
     },
-    # Сканирование скидок каждый час
-    'scan-discounts-every-hour': {
-        'task': 'services.celery_tasks.scan_discounts',
-        'schedule': 3600.0,  # 1 час в секундах
-    },
-    # Обновление популярных книг каждые 6 часов
-    'update-popular-books-every-6-hours': {
-        'task': 'services.celery_tasks.update_popular_books',
-        'schedule': 21600.0,  # 6 часов в секундах
-    },
-    # Очистка старых логов каждый день в 3:00
+    # Очистка старых логов каждый день в 3:00 (МСК)
     'cleanup-old-logs-daily': {
         'task': 'services.celery_tasks.cleanup_old_logs',
-        'schedule': crontab(hour=3, minute=0),  # Каждый день в 3:00
-    },
-    # Тестовая задача каждый день в 9:00
-    'daily-test-task': {
-        'task': 'services.celery_tasks.test_task',
-        'schedule': crontab(hour=9, minute=0),  # Каждый день в 9:00
+        'schedule': crontab(hour=3, minute=0),  # Каждый день в 3:00 МСК
     },
     # Обновление токена Читай-города каждые 12 часов
     'update-chitai-gorod-token-every-12-hours': {
