@@ -477,7 +477,10 @@ async def admin_schedule(
         next_run = None
         interval_description = ""
         
-        if isinstance(schedule, (int, float)):
+        # Проверяем тип schedule
+        schedule_type = type(schedule).__name__
+        
+        if schedule_type in ('int', 'float'):
             # Интервал в секундах
             seconds = int(schedule)
             if seconds >= 3600:
@@ -491,14 +494,21 @@ async def admin_schedule(
                 interval_description = f"Каждые {minutes} мин."
                 next_run = now.replace(second=0, microsecond=0)
                 next_run = next_run.replace(minute=((now.minute // 15) * 15) % 60)
-        elif isinstance(schedule, crontab):
+        elif schedule_type == 'crontab':
             # Crontab расписание
-            interval_description = f"Ежедневно в {schedule.hour:02d}:{schedule.minute:02d}"
-            # Вычисляем следующий запуск
-            next_run = now.replace(hour=schedule.hour, minute=schedule.minute, second=0, microsecond=0)
-            if next_run <= now:
-                from datetime import timedelta
-                next_run = next_run + timedelta(days=1)
+            try:
+                hour = schedule.hour if hasattr(schedule, 'hour') else 0
+                minute = schedule.minute if hasattr(schedule, 'minute') else 0
+                interval_description = f"Ежедневно в {hour:02d}:{minute:02d}"
+                # Вычисляем следующий запуск
+                next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                if next_run <= now:
+                    from datetime import timedelta
+                    next_run = next_run + timedelta(days=1)
+            except Exception:
+                interval_description = "По расписанию"
+        else:
+            interval_description = f"Тип: {schedule_type}"
         
         schedule_data.append({
             'name': task_name,
@@ -521,7 +531,7 @@ async def admin_schedule(
         .limit(5)
     )
     recent_logs = recent_logs_query.scalars().all()
-    
+
     # Формируем данные о последних запусках
     last_runs['check_all_alerts'] = {
         'last_run': None,
