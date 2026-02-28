@@ -588,6 +588,7 @@ async def admin_run_task(
     """Запуск задачи вручную"""
     from services.celery_tasks import (
         check_all_alerts,
+        check_subscriptions_prices,
         update_chitai_gorod_token,
         scan_discounts,
         update_popular_books,
@@ -599,6 +600,7 @@ async def admin_run_task(
     
     task_mapping = {
         'check_all_alerts': check_all_alerts,
+        'check_subscriptions_prices': check_subscriptions_prices,
         'update_chitai_gorod_token': update_chitai_gorod_token,
         'scan_discounts': scan_discounts,
         'update_popular_books': update_popular_books,
