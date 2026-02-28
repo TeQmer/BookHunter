@@ -2769,6 +2769,24 @@ class BookHunterApp {
         document.body.style.backgroundColor = themeParams.bg_color || '#ffffff';
         document.body.style.color = themeParams.text_color || '#000000';
     }
+
+    /**
+     * Экранирование HTML-символов
+     */
+    escapeHtml(text) {
+        if (text == null) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
+    /**
+     * Показать ошибку
+     */
+    showError(message) {
+        console.error('[showError]', message);
+        this.showToast(message, 'error');
+    }
 }
 
 // Инициализация приложения при загрузке страницы
