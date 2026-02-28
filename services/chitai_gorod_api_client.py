@@ -580,13 +580,16 @@ class ChitaiGorodAPIClient:
         Returns:
             Объект книги или None
         """
+        # Пробуем разные варианты поиска
+        
+        # Вариант 1: Поиск по ID как по числу (нужен forse=true)
         url = f"{self.api_url}/search/product"
-        # Ищем точно по ID используя специальный синтаксис
         params = {
             "customerCityId": self.city_id,
             "products[page]": 1,
-            "products[per-page]": 1,
-            "phrase": product_id
+            "products[per-page]": 20,  # Увеличиваем количество
+            "phrase": product_id,
+            "force": "true"  # Принудительный поиск
         }
         
         data = await self._make_request(url, params=params)
@@ -604,8 +607,52 @@ class ChitaiGorodAPIClient:
                 logger.info(f"[ChitaiGorodAPI] Найден товар по ID {product_id}: {product.title}")
                 return product
         
+        # Вариант 2: Если не нашли, пробуем искать по части URL
+        # ID в URL магазина имеет формат: ...-{id}
+        search_phrase = f"-{product_id}"
+        params["phrase"] = search_phrase
+        
+        data = await self._make_request(url, params=params)
+        
+        if data:
+            products = self._parse_search_response(data)
+            for product in products:
+                # Проверяем что ID содержится в URL
+                if product.url and product_id in product.url:
+                    logger.info(f"[ChitaiGorodAPI] Найден товар по URL для ID {product_id}: {product.title}")
+                    return product
+        
         logger.warning(f"[ChitaiGorodAPI] Товар с ID {product_id} не найден в результатах")
         return None
+    
+    async def get_product_by_url(self, url: str) -> Optional[ChitaiGorodBook]:
+        """
+        Получение товара по URL (наиболее надёжный способ)
+        
+        Args:
+            url: URL товара (например, https://www.chitai-gorod.ru/product/...-2558779)
+            
+        Returns:
+            Объект книги или None
+        """
+        # Извлекаем ID из URL
+        # URL формат: https://www.chitai-gorod.ru/product/{slug}-{id}
+        product_id = None
+        
+        # Ищем ID в конце URL
+        import re
+        match = re.search(r'-(\d+)$', url)
+        if match:
+            product_id = match.group(1)
+        
+        if not product_id:
+            logger.warning(f"[ChitaiGorodAPI] Не удалось извлечь ID из URL: {url}")
+            return None
+        
+        logger.info(f"[ChitaiGorodAPI] Извлечён ID {product_id} из URL")
+        
+        # Пробуем получить товар по ID
+        return await self.get_product_by_id(product_id)
     
     def get_stats(self) -> Dict:
         """Получение статистики запросов"""

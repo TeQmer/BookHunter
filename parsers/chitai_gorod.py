@@ -324,6 +324,33 @@ class ChitaiGorodParser(BaseParser):
             await self.log_operation("get_by_id", "error", f"Ошибка получения книги по ID: {e}")
             return None
     
+    async def get_book_by_url(self, url: str) -> Optional[Book]:
+        """
+        Получение книги по URL (наиболее надёжный способ)
+        
+        Args:
+            url: URL товара (например, https://www.chitai-gorod.ru/product/...-2558779)
+            
+        Returns:
+            Объект Book или None
+        """
+        await self.log_operation("get_by_url", "info", f"Получение книги по URL: {url}")
+        
+        try:
+            api_book = await self.api_client.get_product_by_url(url)
+            
+            if api_book:
+                book = self._api_book_to_book(api_book)
+                await self.log_operation("get_by_url", "success", f"Найдена книга: {book.title}")
+                return book
+            else:
+                await self.log_operation("get_by_url", "warning", f"Книга по URL {url} не найдена")
+                return None
+                
+        except Exception as e:
+            await self.log_operation("get_by_url", "error", f"Ошибка получения книги по URL: {e}")
+            return None
+    
     def get_stats(self) -> dict:
         """
         Получение статистики работы парсера

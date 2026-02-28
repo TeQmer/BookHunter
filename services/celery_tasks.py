@@ -1777,14 +1777,14 @@ async def _check_subscriptions_prices_async():
                         celery_logger.warning(f"Книга {alert.book_id} не найдена в БД для подписки {alert.id}")
                         continue
                     
-                    celery_logger.info(f"Проверяем подписку {alert.id}: {db_book.title} (source_id: {db_book.source_id})")
+                    celery_logger.info(f"Проверяем подписку {alert.id}: {db_book.title} (URL: {db_book.url})")
                     
-                    # Парсим книгу по source_id для получения актуальной цены
-                    # Используем точный метод get_book_by_id
+                    # Парсим книгу по URL для получения актуальной цены
+                    # Используем URL - это наиболее надёжный способ
                     try:
-                        parsed_book = await parser.get_book_by_id(db_book.source_id)
+                        parsed_book = await parser.get_book_by_url(db_book.url)
                     except Exception as parse_error:
-                        celery_logger.error(f"Ошибка парсинга для {db_book.source_id}: {parse_error}")
+                        celery_logger.error(f"Ошибка парсинга для {db_book.url}: {parse_error}")
                         parsed_book = None
                     
                     if not parsed_book:
