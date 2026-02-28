@@ -11,7 +11,7 @@ CELERY_BEAT_SCHEDULE = {
     # Проверка цен подписок каждые 4 часа (по book_id - точное совпадение)
     # ЭТО ЕДИНСТВЕННАЯ задача проверки подписок
     'check-subscriptions-prices-every-4-hours': {
-        'task': 'services.celery_tasks.check_subscriptions_prices',
+        'task': 'check_subscriptions_prices',
         'schedule': 14400.0,  # 4 часа в секундах
     },
     # Отправка pending уведомлений каждые 15 минут
