@@ -2028,6 +2028,9 @@ async def _cleanup_books_async():
     task_start_time = time.time()
     session_factory = get_session_factory()
     
+    # Импортируем модель Alert для проверки подписок
+    from models.alert import DBAlert
+    
     # Счётчики удалённых книг
     books_removed_no_author = 0
     books_removed_no_binding = 0
@@ -2043,6 +2046,14 @@ async def _cleanup_books_async():
             
             # ШАГ 2: Удаляем книги без автора (author = null или пустая строка)
             # Сначала получаем ID книг для удаления
+            # Получаем ID книг с активными подписками (их не удаляем)
+            subscribed_books_result = await db.execute(
+                select(DBAlert.book_id).distinct()
+            )
+            subscribed_book_ids = set(subscribed_books_result.scalars().all() or [])
+            celery_logger.info(f"Найдено книг с подписками: {len(subscribed_book_ids)}")
+            
+            # ШАГ 2: Удаляем книги без автора (исключая книги с подписками)
             no_author_result = await db.execute(
                 select(DBBook.id).where(
                     or_(
@@ -2054,7 +2065,7 @@ async def _cleanup_books_async():
                     )
                 )
             )
-            no_author_books = no_author_result.scalars().all()
+            no_author_books = [bid for bid in no_author_result.scalars().all() if bid not in subscribed_book_ids]
             books_removed_no_author = len(no_author_books)
             
             if no_author_books:
@@ -2064,6 +2075,7 @@ async def _cleanup_books_async():
                 celery_logger.info(f"Удалено книг без автора: {books_removed_no_author}")
             
             # ШАГ 3: Удаляем книги без переплета (binding = null или пустая строка)
+            # ШАГ 3: Удаляем книги без переплета (исключая книги с подписками)
             no_binding_result = await db.execute(
                 select(DBBook.id).where(
                     or_(
@@ -2074,7 +2086,7 @@ async def _cleanup_books_async():
                     )
                 )
             )
-            no_binding_books = no_binding_result.scalars().all()
+            no_binding_books = [bid for bid in no_binding_result.scalars().all() if bid not in subscribed_book_ids]
             books_removed_no_binding = len(no_binding_books)
             
             if no_binding_books:
@@ -2116,6 +2128,7 @@ async def _cleanup_books_async():
                 source = group.source
                 
                 # Находим все книги в этой группе, кроме той, которую оставляем
+                # Исключаем книги с подписками
                 duplicates_to_delete_result = await db.execute(
                     select(DBBook.id).where(
                         and_(
@@ -2127,7 +2140,8 @@ async def _cleanup_books_async():
                         )
                     )
                 )
-                duplicate_ids = duplicates_to_delete_result.scalars().all()
+                # Фильтруем - не удаляем книги с подписками
+                duplicate_ids = [bid for bid in duplicates_to_delete_result.scalars().all() if bid not in subscribed_book_ids]
                 
                 if duplicate_ids:
                     # Удаляем дубликаты
