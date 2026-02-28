@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-clock"></i> Расписание задач Celery
+        </h1>
+    </div>
+</div>
+
+<!-- Текущее время -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <strong>Текущее время сервера:</strong> {{ current_time }}
+            <span class="text-muted">(время следующего запуска обновляется при каждой загрузке страницы)</span>
+        </div>
+    </div>
+</div>
+
+<!-- Расписание задач с кнопками запуска -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-alt"></i> Запланированные задачи
+                </h5>
+                <button class="btn btn-sm btn-light" onclick="location.reload()">
+                    <i class="fas fa-sync-alt"></i> Обновить
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="scheduleTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Задача</th>
+                                <th>Интервал</th>
+                                <th>Следующий запуск</th>
+                                <th>Последний запуск</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for task in schedule_data %}
+                            <tr>
+                                <td>
+                                    <strong>{{ task.name }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ task.task }}</small>
+                                </td>
+                                <td>{{ task.interval }}</td>
+                                <td>
+                                    <span class="badge bg-primary fs-6">
+                                        {{ task.next_run }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if last_runs.get(task.task.split('.')[-1]) %}
+                                        {% set last = last_runs.get(task.task.split('.')[-1]) %}
+                                        {% if last.last_run %}
+                                            <span class="badge bg-secondary">{{ last.last_run }}</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">Нет данных</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-warning">Нет данных</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-success" 
+                                            onclick="runTask('{{ task.task.split('.')[-1] }}', '{{ task.name }}')"
+                                            title="Запустить вручную">
+                                        <i class="fas fa-play"></i> Запустить
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ключевые задачи -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-bell"></i> Проверка подписок
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2"><strong>Задача:</strong> <code>check_all_alerts</code></p>
+                <p class="mb-2"><strong>Интервал:</strong> Каждые 4 часа</p>
+                <p class="mb-0"><strong>Описание:</strong> Проверка цен по подпискам пользователей и отправка уведомлений о скидках</p>
+                <hr>
+                <button class="btn btn-success" onclick="runTask('check_all_alerts', 'Проверка подписок')">
+                    <i class="fas fa-play"></i> Запустить проверку подписок
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-key"></i> Обновление токена
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2"><strong>Задача:</strong> <code>update_chitai_gorod_token</code></p>
+                <p class="mb-2"><strong>Интервал:</strong> Каждые 12 часов</p>
+                <p class="mb-0"><strong>Описание:</strong> Обновление токена авторизации для API Читай-город</p>
+                <hr>
+                <button class="btn btn-info text-white" onclick="runTask('update_chitai_gorod_token', 'Обновление токена')">
+                    <i class="fas fa-play"></i> Запустить обновление токена
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Последние логи выполнения -->
+{% if recent_logs %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-history"></i> Последние выполнения задач
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Время</th>
+                                <th>Источник</th>
+                                <th>Статус</th>
+                                <th>Найдено</th>
+                                <th>Длительность</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in recent_logs %}
+                            <tr>
+                                <td>{{ log.created_at.strftime('%d.%m.%Y %H:%M') if log.created_at else '-' }}</td>
+                                <td>{{ log.source or '-' }}</td>
+                                <td>
+                                    {% if log.status == 'completed' %}
+                                        <span class="badge bg-success">✓ Успешно</span>
+                                    {% elif log.status == 'failed' %}
+                                        <span class="badge bg-danger">✗ Ошибка</span>
+                                    {% elif log.status == 'running' %}
+                                        <span class="badge bg-warning">⟳ Выполняется</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ log.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ log.books_found or 0 }}</td>
+                                <td>{{ "%.1f"|format(log.duration_seconds) if log.duration_seconds else '-' }} сек</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Навигация -->
+<div class="row mt-4">
+    <div class="col-12">
+        <a href="/admin" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i> Назад в админ-панель
+        </a>
+    </div>
+</div>
+
+<!-- Модальное окно статуса -->
+<div class="modal fade" id="taskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Выполнение задачи</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="taskStatus">
+                    <p><i class="fas fa-spinner fa-spin"></i> Запускаем задачу...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Функция запуска задачи
+    async function runTask(taskName, taskTitle) {
+        if (!confirm(`Запустить задачу "${taskTitle}" сейчас?`)) {
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('taskModal'));
+        const statusDiv = document.getElementById('taskStatus');
+        
+        modal.show();
+        statusDiv.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> Запускаем задачу "' + taskTitle + '"...</p>';
+        
+        try {
+            const response = await fetch('/admin/api/run-task?task_name=' + encodeURIComponent(taskName), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> 
+                        <strong>Задача запущена!</strong><br>
+                        ID задачи: ${result.task_id || 'N/A'}<br>
+                        <small>Статус можно отслеживать в логах Celery</small>
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle"></i> 
+                        <strong>Ошибка!</strong><br>
+                        ${result.error}
+                    </div>
+                `;
+            }
+        } catch (error) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i> 
+                    <strong>Ошибка связи!</strong><br>
+                    ${error.message}
+                </div>
+            `;
+        }
+    }
+    
+    // Обновление времени каждую минуту
+    function updateCountdown() {
+        const now = new Date();
+        console.log('Текущее время:', now.toLocaleString('ru-RU'));
+    }
+    
+    // Обновляем каждые 60 секунд
+    setInterval(updateCountdown, 60000);
+</script>
+{% endblock %}

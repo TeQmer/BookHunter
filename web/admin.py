@@ -453,6 +453,155 @@ async def admin_users(
             }
         )
 
+@router.get("/schedule", response_class=HTMLResponse)
+async def admin_schedule(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Расписание задач Celery Beat"""
+    from celery.schedules import crontab
+    from services.celery_app import CELERY_BEAT_SCHEDULE
+    
+    # Получаем текущее время
+    now = datetime.now()
+    
+    # Формируем расписание задач с точным временем следующего запуска
+    schedule_data = []
+    
+    for task_name, task_config in CELERY_BEAT_SCHEDULE.items():
+        schedule = task_config.get('schedule')
+        task_full_name = task_config.get('task')
+        
+        # Вычисляем следующее время запуска
+        next_run = None
+        interval_description = ""
+        
+        if isinstance(schedule, (int, float)):
+            # Интервал в секундах
+            seconds = int(schedule)
+            if seconds >= 3600:
+                hours = seconds // 3600
+                interval_description = f"Каждые {hours} ч."
+                next_run = now.replace(second=0, microsecond=0)
+                # Округляем до ближайшего интервала
+                next_run = next_run.replace(minute=((now.minute // 15) * 15) % 60)
+            else:
+                minutes = seconds // 60
+                interval_description = f"Каждые {minutes} мин."
+                next_run = now.replace(second=0, microsecond=0)
+                next_run = next_run.replace(minute=((now.minute // 15) * 15) % 60)
+        elif isinstance(schedule, crontab):
+            # Crontab расписание
+            interval_description = f"Ежедневно в {schedule.hour:02d}:{schedule.minute:02d}"
+            # Вычисляем следующий запуск
+            next_run = now.replace(hour=schedule.hour, minute=schedule.minute, second=0, microsecond=0)
+            if next_run <= now:
+                from datetime import timedelta
+                next_run = next_run + timedelta(days=1)
+        
+        schedule_data.append({
+            'name': task_name,
+            'task': task_full_name,
+            'interval': interval_description,
+            'next_run': next_run.strftime('%d.%m.%Y %H:%M') if next_run else 'N/A',
+            'next_run_timestamp': next_run.timestamp() if next_run else 0
+        })
+    
+    # Сортируем по времени следующего запуска
+    schedule_data.sort(key=lambda x: x['next_run_timestamp'])
+    
+    # Получаем статус последнего выполнения задач из логов
+    last_runs = {}
+    
+    # Проверяем последние логи парсинга для оценки времени выполнения
+    recent_logs_query = await db.execute(
+        select(ParsingLog)
+        .order_by(desc(ParsingLog.created_at))
+        .limit(5)
+    )
+    recent_logs = recent_logs_query.scalars().all()
+    
+    # Формируем данные о последних запусках
+    last_runs['check_all_alerts'] = {
+        'last_run': None,
+        'status': 'unknown',
+        'duration': None
+    }
+    last_runs['update_chitai_gorod_token'] = {
+        'last_run': None,
+        'status': 'unknown',
+        'duration': None
+    }
+    
+    return templates.TemplateResponse(
+        "admin/schedule.html", 
+        {
+            "request": request, 
+            "title": "Расписание задач",
+            "schedule_data": schedule_data,
+            "current_time": now.strftime('%d.%m.%Y %H:%M:%S'),
+            "last_runs": last_runs,
+            "recent_logs": recent_logs
+        }
+    )
+
+
+@router.post("/api/run-task")
+async def admin_run_task(
+    task_name: str,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Запуск задачи вручную"""
+    from services.celery_tasks import (
+        check_all_alerts,
+        update_chitai_gorod_token,
+        scan_discounts,
+        update_popular_books,
+        test_task,
+        cleanup_old_logs,
+        send_pending_notifications
+    )
+    from services.celery_app import celery_app
+    
+    task_mapping = {
+        'check_all_alerts': check_all_alerts,
+        'update_chitai_gorod_token': update_chitai_gorod_token,
+        'scan_discounts': scan_discounts,
+        'update_popular_books': update_popular_books,
+        'test_task': test_task,
+        'cleanup_old_logs': cleanup_old_logs,
+        'send_pending_notifications': send_pending_notifications,
+    }
+    
+    task_func = task_mapping.get(task_name)
+    
+    if not task_func:
+        return JSONResponse({
+            "success": False, 
+            "error": f"Задача '{task_name}' не найдена"
+        })
+        
+    try:
+        # Запускаем задачу через Celery
+        result = task_func.delay()
+        
+        logger.info(f"Задача {task_name} запущена вручную админом: {result.id}")
+        
+        return JSONResponse({
+            "success": True, 
+            "message": f"Задача '{task_name}' запущена",
+            "task_id": result.id
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка запуска задачи {task_name}: {e}")
+        return JSONResponse({
+            "success": False, 
+            "error": str(e)
+        })
+
 @router.get("/system", response_class=HTMLResponse)
 async def admin_system(
     request: Request,
@@ -586,14 +735,14 @@ async def admin_analytics(
             .where(User.created_at >= thirty_days_ago)
         )
         new_users_30d = user_activity.scalar() or 0
-        
+
         # Статистика подписок по статусу
         alerts_stats = await db.execute(
             select(Alert.is_active, func.count(Alert.id))
             .group_by(Alert.is_active)
         )
         alerts_data = alerts_stats.mappings().all()
-
+        
         # Статистика парсинга за последние 7 дней
         seven_days_ago = datetime.now() - timedelta(days=7)
         parsing_stats = await db.execute(
@@ -602,7 +751,7 @@ async def admin_analytics(
             .group_by(ParsingLog.status)
         )
         parsing_data = parsing_stats.mappings().all()
-        
+
         # Формируем данные для шаблона - явно преобразуем к словарям
         def row_to_dict(row):
             """Безопасное преобразование строки результата в словарь"""
