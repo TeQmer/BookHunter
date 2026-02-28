@@ -65,15 +65,13 @@ def get_sync_engine():
 
 def get_session_factory():
     """Получение или создание фабрики асинхронных сессий"""
-    global _AsyncSessionLocal
-    if _AsyncSessionLocal is None:
-        engine = get_engine()
-        _AsyncSessionLocal = sessionmaker(
-            engine,
-            class_=AsyncSession,
-            expire_on_commit=False
-        )
-    return _AsyncSessionLocal
+    # Всегда создаём новую фабрику, чтобы избежать проблем с event loop в Celery
+    engine = get_engine()
+    return sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
 
 def get_sync_session_factory():
     """Получение или создание фабрики синхронных сессий"""
