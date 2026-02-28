@@ -510,9 +510,13 @@ async def admin_schedule(
         else:
             interval_description = f"Тип: {schedule_type}"
         
+        # Извлекаем короткое имя задачи
+        task_key = task_full_name.split('.')[-1] if task_full_name else task_name
+        
         schedule_data.append({
             'name': task_name,
             'task': task_full_name,
+            'task_key': task_key,
             'interval': interval_description,
             'next_run': next_run.strftime('%d.%m.%Y %H:%M') if next_run else 'N/A',
             'next_run_timestamp': next_run.timestamp() if next_run else 0

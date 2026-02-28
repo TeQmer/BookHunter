@@ -59,8 +59,8 @@
                                     </span>
                                 </td>
                                 <td>
-                                    {% if last_runs.get(task.task.split('.')[-1]) %}
-                                        {% set last = last_runs.get(task.task.split('.')[-1]) %}
+                                    {% if last_runs.get(task.task_key) %}
+                                        {% set last = last_runs.get(task.task_key) %}
                                         {% if last.last_run %}
                                             <span class="badge bg-secondary">{{ last.last_run }}</span>
                                         {% else %}
@@ -72,7 +72,7 @@
                                 </td>
                                 <td>
                                     <button class="btn btn-sm btn-success" 
-                                            onclick="runTask('{{ task.task.split('.')[-1] }}', '{{ task.name }}')"
+                                            onclick="runTask('{{ task.task_key }}', '{{ task.name }}')"
                                             title="Запустить вручную">
                                         <i class="fas fa-play"></i> Запустить
                                     </button>
