@@ -13,11 +13,6 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'services.celery_tasks.check_all_alerts',
         'schedule': 14400.0,  # 4 часа в секундах
     },
-    # Проверка подписок по book_id каждые 4 часа (альтернативный метод)
-    'check-subscriptions-by-book-id-every-4-hours': {
-        'task': 'services.celery_tasks.check_subscriptions_prices_task',
-        'schedule': 14400.0,  # 4 часа в секундах
-    },
     # Отправка pending уведомлений каждые 15 минут
     'send-pending-notifications-every-15-min': {
         'task': 'services.celery_tasks.send_pending_notifications',
