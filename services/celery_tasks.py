@@ -1676,7 +1676,7 @@ async def _update_chitai_gorod_token_async():
 # Задача проверки подписок по ценам с парсингом (каждые 4 часа)
 # =============================================================================
 
-@celery_app.task(name='check_subscriptions_prices', bind=True)
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3})
 def check_subscriptions_prices(self):
     """
     Проверка активных подписок по ценам с реальным парсингом книг.
