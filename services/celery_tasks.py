@@ -104,6 +104,8 @@ async def _check_all_alerts_async():
             
             books_found = 0
             notifications_created = 0
+            notifications_sent = 0
+            deactivated_count = 0
             
             for alert in alerts:
                 try:
@@ -151,7 +153,10 @@ async def _check_all_alerts_async():
                                 notifications_created += 1
                                 
                                 # Отправляем уведомление через Telegram
-                                await _send_telegram_notification(alert.user_id, best_book, alert, notification.id)
+                                send_success = await _send_telegram_notification(alert.user_id, best_book, alert, notification.id)
+                                if send_success:
+                                    notifications_sent += 1
+                                    deactivated_count += 1
                             
                             books_found += 1
                             celery_logger.info(f"Найдена подходящая книга: {best_book.title} - {best_book.current_price}₽ (скидка {best_book.discount_percent}%)")
@@ -165,7 +170,7 @@ async def _check_all_alerts_async():
                 except Exception as e:
                     celery_logger.error(f"Ошибка обработки подписки {alert.id}: {e}")
                     continue
-                
+            
             # Логируем результат
             await _log_parsing_result(db, "alert_check", "success", 
                                     f"Проверено {len(alerts)} подписок, найдено {books_found} книг, создано {notifications_created} уведомлений")
@@ -180,8 +185,8 @@ async def _check_all_alerts_async():
                     total_checked=len(alerts),
                     active_count=active_alerts,
                     matched_count=books_found,
-                    deactivated_count=0,
-                    notifications_sent=notifications_created,
+                    deactivated_count=deactivated_count,
+                    notifications_sent=notifications_sent,
                     duration_seconds=execution_time
                 )
             except Exception as e:
@@ -403,8 +408,10 @@ async def _create_notification(db: AsyncSession, alert: Alert, book: ParserBook)
         await db.rollback()
         return None
 
-async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Alert, notification_id: int = None):
-    """Отправка уведомления через Telegram Bot"""
+async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Alert, notification_id: int = None) -> bool:
+    """Отправка уведомления через Telegram Bot
+    Returns: True если уведомление успешно отправлено, False в противном случае
+    """
 
     try:
         from app.bot.telegram_bot import TelegramBot
@@ -420,7 +427,7 @@ async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Ale
                 celery_logger.error(f"❌ У пользователя {user_id} нет telegram_id")
                 if notification_id:
                     await _mark_notification_failed(notification_id, "No telegram_id")
-                return
+                return False
             
             telegram_id = user.telegram_id
             celery_logger.info(f"📱 Отправляем уведомление пользователю telegram_id={telegram_id}")
@@ -449,16 +456,29 @@ async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Ale
         if notification_id:
             await _mark_notification_sent(notification_id)
         
-        # Деактивируем подписку после успешного уведомления (если это одноразовая подписка)
-        # Раскомментируйте если нужно деактивировать подписку после первого уведомления
-        # alert.is_active = False
-        # await db.commit()
+        # Деактивируем подписку после успешного уведомления
+        try:
+            session_factory = get_session_factory()
+            async with session_factory() as db:
+                # Получаем alert заново в новой сессии
+                alert_result = await db.execute(select(Alert).where(Alert.id == alert.id))
+                alert_to_deactivate = alert_result.scalar_one_or_none()
+                
+                if alert_to_deactivate and alert_to_deactivate.is_active:
+                    alert_to_deactivate.is_active = False
+                    await db.commit()
+                    celery_logger.info(f"✅ Подписка {alert.id} деактивирована после успешного уведомления")
+        except Exception as e:
+            celery_logger.error(f"Ошибка деактивации подписки: {e}")
+        
+        return True
         
     except Exception as e:
         celery_logger.error(f"❌ Ошибка отправки Telegram уведомления: {e}")
         # Обновляем статус ошибки если есть ID
         if notification_id:
             await _mark_notification_failed(notification_id, str(e))
+        return False
 
 
 async def _mark_notification_sent(notification_id: int):
