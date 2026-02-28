@@ -404,7 +404,7 @@ async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Ale
         bot = TelegramBot()
         
         # Получаем telegram_id пользователя из БД
-        session_factory = get_session_factory()
+        session_factory = _task_session_factory
         async with session_factory() as db:
             result = await db.execute(select(User).where(User.id == user_id))
             user = result.scalar_one_or_none()
@@ -456,7 +456,7 @@ async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Ale
 
 async def _mark_notification_sent(notification_id: int):
     """Отметка уведомления как отправленного"""
-    session_factory = get_session_factory()
+    session_factory = _task_session_factory
     async with session_factory() as db:
         try:
             result = await db.execute(
@@ -477,7 +477,7 @@ async def _mark_notification_sent(notification_id: int):
 
 async def _mark_notification_failed(notification_id: int, error_message: str):
     """Отметка уведомления как неудачного"""
-    session_factory = get_session_factory()
+    session_factory = _task_session_factory
     async with session_factory() as db:
         try:
             result = await db.execute(
@@ -529,9 +529,106 @@ def cleanup_old_logs():
         celery_logger.error(f"Ошибка при очистке логов: {e}")
         raise
 
+
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3})
+def send_pending_notifications(self):
+    """Отправка уведомлений со статусом 'pending'"""
+    
+    def run_async_task():
+        global _task_session_factory
+        _task_session_factory = get_session_factory()
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(_send_pending_notifications_async())
+        finally:
+            loop.close()
+    
+    try:
+        result = run_async_task()
+        celery_logger.info(f"Отправка pending-уведомлений завершена. Отправлено: {result}")
+        return result
+    except Exception as e:
+        celery_logger.error(f"Ошибка при отправке pending-уведомлений: {e}")
+        celery_logger.error(traceback.format_exc())
+        raise
+
+
+async def _send_pending_notifications_async():
+    """Асинхронная отправка pending уведомлений"""
+    
+    session_factory = _task_session_factory
+    async with session_factory() as db:
+        try:
+            # Получаем все уведомления со статусом 'pending'
+            result = await db.execute(
+                select(Notification).where(Notification.status == "pending")
+            )
+            pending_notifications = result.scalars().all()
+            
+            if not pending_notifications:
+                celery_logger.info("Нет pending уведомлений для отправки")
+                return 0
+            
+            celery_logger.info(f"Начинаем отправку {len(pending_notifications)} pending уведомлений")
+            
+            sent_count = 0
+            failed_count = 0
+            
+            for notification in pending_notifications:
+                try:
+                    # Получаем пользователя
+                    user_result = await db.execute(
+                        select(User).where(User.id == notification.user_id)
+                    )
+                    user = user_result.scalar_one_or_none()
+                    
+                    if not user or not user.telegram_id:
+                        celery_logger.error(f"❌ У пользователя {notification.user_id} нет telegram_id")
+                        await _mark_notification_failed(notification.id, "No telegram_id")
+                        failed_count += 1
+                        continue
+                    
+                    # Создаём объект книги из уведомления (минимальный набор данных)
+                    book = ParserBook(
+                        source="chitai-gorod",
+                        source_id=notification.book_url.split("/")[-1] if notification.book_url else "",
+                        title=notification.book_title,
+                        author=notification.book_author or "",
+                        current_price=float(notification.book_price.replace(" руб.", "").strip()) if notification.book_price else 0,
+                        original_price=0,
+                        discount_percent=int(notification.book_discount.replace("%", "").strip()) if notification.book_discount else 0,
+                        url=notification.book_url or "",
+                        image_url="",
+                        parsed_at=datetime.now()
+                    )
+                    
+                    # Получаем alert для проверки target_price
+                    alert_result = await db.execute(
+                        select(Alert).where(Alert.id == notification.alert_id)
+                    )
+                    alert = alert_result.scalar_one_or_none()
+                    
+                    # Отправляем уведомление
+                    await _send_telegram_notification(user.id, book, alert, notification.id)
+                    sent_count += 1
+                    
+                except Exception as e:
+                    celery_logger.error(f"Ошибка отправки уведомления {notification.id}: {e}")
+                    await _mark_notification_failed(notification.id, str(e))
+                    failed_count += 1
+                    
+            celery_logger.info(f"Отправка завершена: отправлено={sent_count}, не удалось={failed_count}")
+            return sent_count
+            
+        except Exception as e:
+            celery_logger.error(f"Ошибка при отправке pending уведомлений: {e}")
+            return 0
+
 async def _cleanup_old_logs_async():
     """Асинхронная очистка старых логов"""
-    
+
     session_factory = get_session_factory()
     async with session_factory() as db:
         try:
