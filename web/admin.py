@@ -688,6 +688,68 @@ async def admin_run_task(
             "error": str(e)
         })
 
+
+@router.post("/api/reset-user-limits")
+async def admin_reset_user_limits(
+    telegram_id: int = None,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Сброс лимитов запросов для пользователей"""
+    try:
+        from datetime import datetime
+        
+        if telegram_id:
+            # Сброс для конкретного пользователя
+            result = await db.execute(
+                select(User).where(User.telegram_id == telegram_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                return JSONResponse({
+                    "success": False, 
+                    "error": f"Пользователь с telegram_id={telegram_id} не найден"
+                })
+            
+            user.daily_requests_used = 0
+            user.requests_updated_at = datetime.utcnow()
+            await db.commit()
+            
+            logger.info(f"Лимиты сброшены для пользователя {telegram_id} админом")
+            
+            return JSONResponse({
+                "success": True, 
+                "message": f"Лимиты сброшены для пользователя {telegram_id}"
+            })
+        else:
+            # Сброс для ВСЕХ пользователей
+            result = await db.execute(select(User))
+            users = result.scalars().all()
+            
+            count = 0
+            for user in users:
+                user.daily_requests_used = 0
+                user.requests_updated_at = datetime.utcnow()
+                count += 1
+            
+            await db.commit()
+            
+            logger.info(f"Лимиты сброшены для всех пользователей ({count}) админом")
+            
+            return JSONResponse({
+                "success": True, 
+                "message": f"Лимиты сброшены для всех пользователей ({count})"
+            })
+        
+    except Exception as e:
+        logger.error(f"Ошибка сброса лимитов: {e}")
+        return JSONResponse({
+            "success": False, 
+            "error": str(e)
+        })
+
+
 @router.get("/system", response_class=HTMLResponse)
 async def admin_system(
     request: Request,
