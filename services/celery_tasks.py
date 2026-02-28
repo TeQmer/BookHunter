@@ -132,7 +132,11 @@ async def _check_all_alerts_async():
                         best_book = max(suitable_books, key=lambda x: x.discount_percent or 0)
                         
                         # Проверяем, не отправляли ли мы уже уведомление для этой книги
-                        if not await _was_notification_sent_recently(db, alert.id, best_book.source_id):
+                        celery_logger.info(f"Проверяем, было ли уведомление для книги: {best_book.title}")
+                        was_sent = await _was_notification_sent_recently(db, alert.id, best_book.title)
+                        celery_logger.info(f"Результат проверки: was_sent={was_sent}")
+                        
+                        if not was_sent:
                             
                             # Сохраняем книгу в БД
                             await _save_book(db, best_book)
@@ -141,6 +145,7 @@ async def _check_all_alerts_async():
                             await _add_to_sheets(best_book)
                             
                             # Создаем уведомление
+                            celery_logger.info(f"Создаём уведомление для книги: {best_book.title}")
                             notification = await _create_notification(db, alert, best_book)
                             if notification:
                                 notifications_created += 1
@@ -234,28 +239,30 @@ async def _is_book_suitable_for_alert(book: ParserBook, alert: Alert) -> bool:
     celery_logger.info(f"  ✅ Книга подходит под условия подписки!")
     return True
 
-async def _was_notification_sent_recently(db, alert_id: int, book_source_id: str) -> bool:
+async def _was_notification_sent_recently(db, alert_id: int, book_title: str) -> bool:
     """Проверка, не отправляли ли мы уведомление недавно для этой книги"""
     
-    # Проверяем уведомления за последние 24 часа
-    cutoff_time = datetime.now() - timedelta(hours=24)
+    # Проверяем уведомления за последние 6 часов (чтобы не спамить)
+    cutoff_time = datetime.now() - timedelta(hours=6)
     
     result = await db.execute(
         select(Notification).where(
             and_(
                 Notification.alert_id == alert_id,
-                Notification.created_at > cutoff_time
+                Notification.created_at > cutoff_time,
+                Notification.status.in_(['sent', 'pending'])
             )
         )
     )
     recent_notifications = result.scalars().all()
     
-    # Проверяем, есть ли уведомление для этой книги
+    # Проверяем, есть ли уведомление для этой книги по названию
     for notification in recent_notifications:
-        # Здесь можно добавить логику сравнения с source_id книги
-        # Пока просто проверяем по URL или другим признакам
-        if notification.book_url and "product" in notification.book_url and book_source_id in notification.book_url:
-            return True
+        if notification.book_title and book_title:
+            # Проверяем похожесть названий
+            if book_title.lower() in notification.book_title.lower() or notification.book_title.lower() in book_title.lower():
+                celery_logger.info(f"Уведомление для книги '{book_title}' уже отправлялось (ID: {notification.id})")
+                return True
     
     return False
 
@@ -404,7 +411,7 @@ async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Ale
         bot = TelegramBot()
         
         # Получаем telegram_id пользователя из БД
-        session_factory = _task_session_factory
+        session_factory = get_session_factory()
         async with session_factory() as db:
             result = await db.execute(select(User).where(User.id == user_id))
             user = result.scalar_one_or_none()
@@ -456,7 +463,7 @@ async def _send_telegram_notification(user_id: int, book: ParserBook, alert: Ale
 
 async def _mark_notification_sent(notification_id: int):
     """Отметка уведомления как отправленного"""
-    session_factory = _task_session_factory
+    session_factory = get_session_factory()
     async with session_factory() as db:
         try:
             result = await db.execute(
@@ -477,7 +484,7 @@ async def _mark_notification_sent(notification_id: int):
 
 async def _mark_notification_failed(notification_id: int, error_message: str):
     """Отметка уведомления как неудачного"""
-    session_factory = _task_session_factory
+    session_factory = get_session_factory()
     async with session_factory() as db:
         try:
             result = await db.execute(
@@ -535,9 +542,6 @@ def send_pending_notifications(self):
     """Отправка уведомлений со статусом 'pending'"""
     
     def run_async_task():
-        global _task_session_factory
-        _task_session_factory = get_session_factory()
-        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -558,7 +562,7 @@ def send_pending_notifications(self):
 async def _send_pending_notifications_async():
     """Асинхронная отправка pending уведомлений"""
     
-    session_factory = _task_session_factory
+    session_factory = get_session_factory()
     async with session_factory() as db:
         try:
             # Получаем все уведомления со статусом 'pending'
