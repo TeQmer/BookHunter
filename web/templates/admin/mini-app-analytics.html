@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-clock"></i> Аналитика Mini App</h1>
+            <a href="/admin" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Назад в админ-панель
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Период и управление -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-calendar"></i> Период анализа</h6>
+            </div>
+            <div class="card-body">
+                <div class="btn-group" role="group">
+                    <a href="/admin/mini-app-analytics?days=7" class="btn btn-outline-primary {% if days == 7 %}active{% endif %}">7 дней</a>
+                    <a href="/admin/mini-app-analytics?days=14" class="btn btn-outline-primary {% if days == 14 %}active{% endif %}">14 дней</a>
+                    <a href="/admin/mini-app-analytics?days=30" class="btn btn-outline-primary {% if days == 30 %}active{% endif %}">30 дней</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-save"></i> Сохранение отчёта</h6>
+            </div>
+            <div class="card-body">
+                <button id="save-report-btn" class="btn btn-success">
+                    <i class="fas fa-download"></i> Сохранить текущий отчёт
+                </button>
+                <span class="text-muted ms-2">Сохранит данные в CSV файл</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Общая статистика -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h2 class="mb-0">{{ stats.total_unique_users }}</h2>
+                <p class="mb-0">Уникальных пользователей</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h2 class="mb-0">{{ stats.total_sessions }}</h2>
+                <p class="mb-0">Всего сессий</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h2 class="mb-0">{{ "%.1f"|format(stats.avg_session_duration_minutes) }} мин</h2>
+                <p class="mb-0">Среднее время сессии</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <h2 class="mb-0">{{ "%.1f"|format(avg_daily_minutes) }} мин</h2>
+                <p class="mb-0">Среднее за день</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- График времени по дням -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Среднее время сессий по дням (минуты)</h5>
+            </div>
+            <div class="card-body">
+                {% if daily_chart_data %}
+                <div class="chart-container" style="position: relative; height: 300px;">
+                    <canvas id="dailyChart"></canvas>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-chart-line fa-3x mb-3"></i>
+                    <p>Нет данных за выбранный период</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Таблица с детализацией по дням -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-table"></i> Детализация по дням</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Дата</th>
+                                <th>Уникальных пользователей</th>
+                                <th>Количество сессий</th>
+                                <th>Среднее время (сек)</th>
+                                <th>Среднее время (мин)</th>
+                                <th>Визуализация</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for day in stats.daily_stats %}
+                            <tr>
+                                <td>{{ day.date }}</td>
+                                <td>{{ day.unique_users }}</td>
+                                <td>{{ day.sessions }}</td>
+                                <td>{{ "%.1f"|format(day.avg_duration_seconds) }}</td>
+                                <td>{{ "%.1f"|format(day.avg_duration_minutes) }}</td>
+                                <td>
+                                    {% set bar_width = (day.avg_duration_minutes / max_daily_minutes * 100)|round|int if max_daily_minutes > 0 else 0 %}
+                                    <div class="progress" style="height: 20px; min-width: 100px;">
+                                        <div class="progress-bar bg-primary" role="progressbar" 
+                                             style="width: {{ bar_width }}%25;" 
+                                             aria-valuenow="{{ bar_width }}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            {{ "%.1f"|format(day.avg_duration_minutes) }} мин
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Топ пользователей по времени -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-trophy"></i> Топ пользователей по времени в Mini App</h5>
+            </div>
+            <div class="card-body">
+                {% if stats.top_users %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>#</th>
+                                <th>Telegram ID</th>
+                                <th>Количество сессий</th>
+                                <th>Общее время (мин)</th>
+                                <th>Среднее время (мин)</th>
+                                <th>Визуализация</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in stats.top_users %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><code>{{ user.user_id }}</code></td>
+                                <td>{{ user.session_count }}</td>
+                                <td>{{ "%.1f"|format(user.total_duration_minutes) }}</td>
+                                <td>{{ "%.1f"|format(user.avg_duration_minutes) }}</td>
+                                <td style="width: 200px;">
+                                    {% set bar_width = (user.total_duration_minutes / max_user_minutes * 100)|round|int if max_user_minutes > 0 else 0 %}
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar bg-success" role="progressbar" 
+                                             style="width: {{ bar_width }}%25;" 
+                                             aria-valuenow="{{ bar_width }}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            {{ "%.1f"|format(user.total_duration_minutes) }} мин
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-users fa-3x mb-3"></i>
+                    <p>Нет данных о пользователях</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Скрытые данные для JavaScript -->
+<script type="application/json" id="chart-data">
+{{ chart_data_json|safe }}
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Инициализация графика
+    const chartDataElement = document.getElementById('chart-data');
+    if (chartDataElement) {
+        try {
+            const chartData = JSON.parse(chartDataElement.textContent);
+            
+            if (chartData.labels && chartData.labels.length > 0) {
+                const ctx = document.getElementById('dailyChart').getContext('2d');
+                
+                // Инвертируем массивы для отображения справа налево (новые даты справа)
+                const labels = chartData.labels.reverse();
+                const data = chartData.data.reverse();
+                
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Среднее время сессии (минуты)',
+                            data: data,
+                            backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y', // Горизонтальная гистограмма
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.parsed.x.toFixed(1) + ' минут';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Минуты'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Дата'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('Ошибка парсинга данных графика:', e);
+        }
+    }
+    
+    // Сохранение отчёта
+    const saveBtn = document.getElementById('save-report-btn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function() {
+            const reportDays = {{ days|tojson }};
+            const reportStats = {{ stats_json|tojson }};
+            
+            // Формируем CSV
+            let csv = 'Дата,Уникальных пользователей,Количество сессий,Среднее время (сек),Среднее время (мин)\n';
+            
+            if (reportStats.daily_stats) {
+                reportStats.daily_stats.forEach(function(day) {
+                    csv += `${day.date},${day.unique_users},${day.sessions},${day.avg_duration_seconds.toFixed(1)},${day.avg_duration_minutes.toFixed(1)}\n`;
+                });
+            }
+            
+            // Скачиваем файл
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const dateStr = new Date().toISOString().split('T')[0];
+            link.href = URL.createObjectURL(blob);
+            link.download = `mini_app_analytics_${reportDays}days_${dateStr}.csv`;
+            link.click();
+        });
+    }
+});
+</script>
+{% endblock %}

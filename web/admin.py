@@ -1648,3 +1648,208 @@ async def admin_update_template(
     except Exception as e:
         logger.error(f"Ошибка обновления шаблона: {e}")
         return JSONResponse({"success": False, "error": str(e)})
+
+
+# ========== АНАЛИТИКА MINI APP ==========
+
+@router.get("/mini-app-analytics", response_class=HTMLResponse)
+async def admin_mini_app_analytics(
+    request: Request,
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """Аналитика использования Telegram Mini App"""
+    try:
+        from models.user_activity import UserActivity
+        from datetime import datetime, timedelta
+        import json
+        
+        since = datetime.utcnow() - timedelta(days=days)
+        
+        # Получаем статистику из БД
+        # Уникальные пользователи Mini App
+        unique_users = await db.execute(
+            select(func.count(func.distinct(UserActivity.user_id)))
+            .where(
+                UserActivity.activity_type.in_(["mini_app_session_start", "mini_app_session_end"]),
+                UserActivity.created_at >= since
+            )
+        )
+        total_unique = unique_users.scalar() or 0
+        
+        # Всего сессий
+        total_sessions = await db.execute(
+            select(func.count(UserActivity.id))
+            .where(
+                UserActivity.activity_type == "mini_app_session_end",
+                UserActivity.created_at >= since
+            )
+        )
+        sessions_count = total_sessions.scalar() or 0
+        
+        # Среднее время сессии
+        avg_duration = await db.execute(
+            select(func.avg(UserActivity.duration_seconds))
+            .where(
+                UserActivity.activity_type == "mini_app_session_end",
+                UserActivity.created_at >= since,
+                UserActivity.duration_seconds.isnot(None)
+            )
+        )
+        avg_session_duration = avg_duration.scalar() or 0
+        
+        # Статистика по дням
+        daily_stats = await db.execute(
+            select(
+                func.date(UserActivity.created_at).label('date'),
+                func.count(func.distinct(UserActivity.user_id)).label('unique_users'),
+                func.count(UserActivity.id).label('sessions'),
+                func.avg(UserActivity.duration_seconds).label('avg_duration')
+            )
+            .where(
+                UserActivity.activity_type == "mini_app_session_end",
+                UserActivity.created_at >= since
+            )
+            .group_by(func.date(UserActivity.created_at))
+            .order_by(desc('date'))
+        )
+        
+        daily_data = []
+        for row in daily_stats.fetchall():
+            daily_data.append({
+                "date": str(row.date) if row.date else None,
+                "unique_users": row.unique_users or 0,
+                "sessions": row.sessions or 0,
+                "avg_duration_seconds": round(row.avg_duration or 0, 1),
+                "avg_duration_minutes": round((row.avg_duration or 0) / 60, 1)
+            })
+        
+        # Топ пользователей по времени
+        user_stats = await db.execute(
+            select(
+                UserActivity.user_id,
+                func.count(UserActivity.id).label('session_count'),
+                func.avg(UserActivity.duration_seconds).label('avg_duration'),
+                func.sum(UserActivity.duration_seconds).label('total_duration')
+            )
+            .where(
+                UserActivity.activity_type == "mini_app_session_end",
+                UserActivity.created_at >= since,
+                UserActivity.duration_seconds.isnot(None)
+            )
+            .group_by(UserActivity.user_id)
+            .order_by(desc('total_duration'))
+            .limit(20)
+        )
+        
+        top_users = []
+        for row in user_stats.fetchall():
+            top_users.append({
+                "user_id": row.user_id,
+                "session_count": row.session_count or 0,
+                "avg_duration_seconds": round(row.avg_duration or 0, 1),
+                "avg_duration_minutes": round((row.avg_duration or 0) / 60, 1),
+                "total_duration_seconds": round(row.total_duration or 0, 1),
+                "total_duration_minutes": round((row.total_duration or 0) / 60, 1)
+            })
+        
+        # Вычисляем дополнительные метрики для графиков
+        max_daily_minutes = max([d["avg_duration_minutes"] for d in daily_data], default=0)
+        max_user_minutes = max([u["total_duration_minutes"] for u in top_users], default=0)
+        
+        # Среднее время за день (для всех пользователей)
+        avg_daily_minutes = 0
+        if daily_data:
+            total_daily_avg = sum([d["avg_duration_minutes"] for d in daily_data])
+            avg_daily_minutes = total_daily_avg / len(daily_data)
+        
+        # Данные для графика (инвертируем порядок для отображения)
+        chart_data = {
+            "labels": [d["date"] for d in daily_data],
+            "data": [d["avg_duration_minutes"] for d in daily_data]
+        }
+        
+        stats = {
+            "total_unique_users": total_unique,
+            "total_sessions": sessions_count,
+            "avg_session_duration_seconds": round(avg_session_duration, 1),
+            "avg_session_duration_minutes": round(avg_session_duration / 60, 1),
+            "daily_stats": daily_data,
+            "top_users": top_users
+        }
+        
+        logger.info(f"Mini App аналитика загружена: {days} дней, {total_unique} пользователей, {sessions_count} сессий")
+        
+        return templates.TemplateResponse(
+            "admin/mini-app-analytics.html",
+            {
+                "request": request,
+                "title": "Аналитика Mini App",
+                "days": days,
+                "stats": stats,
+                "avg_daily_minutes": round(avg_daily_minutes, 1),
+                "max_daily_minutes": max_daily_minutes,
+                "max_user_minutes": max_user_minutes,
+                "chart_data_json": json.dumps(chart_data),
+                "stats_json": json.dumps(stats)
+            }
+        )
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"Ошибка загрузки аналитики Mini App: {e}\n{traceback.format_exc()}")
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "title": "Ошибка",
+                "error": f"Не удалось загрузить аналитику Mini App: {str(e)}"
+            }
+        )
+
+
+@router.get("/api/mini-app-stats")
+async def admin_mini_app_stats(
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+    admin_username: str = Depends(verify_admin)
+):
+    """API для получения статистики Mini App"""
+    try:
+        from models.user_activity import UserActivity
+        from datetime import datetime, timedelta
+        
+        since = datetime.utcnow() - timedelta(days=days)
+        
+        # Статистика по дням
+        daily_stats = await db.execute(
+            select(
+                func.date(UserActivity.created_at).label('date'),
+                func.count(func.distinct(UserActivity.user_id)).label('unique_users'),
+                func.count(UserActivity.id).label('sessions'),
+                func.avg(UserActivity.duration_seconds).label('avg_duration')
+            )
+            .where(
+                UserActivity.activity_type == "mini_app_session_end",
+                UserActivity.created_at >= since
+            )
+            .group_by(func.date(UserActivity.created_at))
+            .order_by(desc('date'))
+        )
+        
+        data = []
+        for row in daily_stats.fetchall():
+            data.append({
+                "date": str(row.date) if row.date else None,
+                "unique_users": row.unique_users or 0,
+                "sessions": row.sessions or 0,
+                "avg_duration_seconds": round(row.avg_duration or 0, 1),
+                "avg_duration_minutes": round((row.avg_duration or 0) / 60, 1)
+            })
+        
+        return JSONResponse({"success": True, "data": data})
+        
+    except Exception as e:
+        logger.error(f"Ошибка получения статистики Mini App: {e}")
+        return JSONResponse({"success": False, "error": str(e)})
