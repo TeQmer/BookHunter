@@ -570,6 +570,43 @@ class ChitaiGorodAPIClient:
         
         return data or {}
     
+    async def get_product_by_id(self, product_id: str) -> Optional[ChitaiGorodBook]:
+        """
+        Получение товара по ID (точное совпадение)
+        
+        Args:
+            product_id: ID товара в магазине (например, '2558779')
+            
+        Returns:
+            Объект книги или None
+        """
+        url = f"{self.api_url}/search/product"
+        # Ищем точно по ID используя специальный синтаксис
+        params = {
+            "customerCityId": self.city_id,
+            "products[page]": 1,
+            "products[per-page]": 1,
+            "phrase": product_id
+        }
+        
+        data = await self._make_request(url, params=params)
+        
+        if not data:
+            logger.warning(f"[ChitaiGorodAPI] Не удалось получить товар по ID: {product_id}")
+            return None
+        
+        # Парсим ответ
+        products = self._parse_search_response(data)
+        
+        # Ищем точное совпадение по ID
+        for product in products:
+            if product.source_id == product_id:
+                logger.info(f"[ChitaiGorodAPI] Найден товар по ID {product_id}: {product.title}")
+                return product
+        
+        logger.warning(f"[ChitaiGorodAPI] Товар с ID {product_id} не найден в результатах")
+        return None
+    
     def get_stats(self) -> Dict:
         """Получение статистики запросов"""
         return {

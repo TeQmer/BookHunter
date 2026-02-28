@@ -1780,23 +1780,18 @@ async def _check_subscriptions_prices_async():
                     celery_logger.info(f"Проверяем подписку {alert.id}: {db_book.title} (source_id: {db_book.source_id})")
                     
                     # Парсим книгу по source_id для получения актуальной цены
-                    # Используем source_id как поисковый запрос
+                    # Используем точный метод get_book_by_id
                     try:
-                        parsed_books = await parser.search_books(
-                            db_book.source_id, 
-                            max_pages=1, 
-                            limit=1
-                        )
+                        parsed_book = await parser.get_book_by_id(db_book.source_id)
                     except Exception as parse_error:
                         celery_logger.error(f"Ошибка парсинга для {db_book.source_id}: {parse_error}")
-                        parsed_books = []
+                        parsed_book = None
                     
-                    if not parsed_books:
-                        celery_logger.info(f"Не удалось получить актуальные данные для книги: {db_book.title}")
+                    if not parsed_book:
+                        celery_logger.info(f"❌ Не удалось получить актуальные данные для книги: {db_book.title}")
                         continue
                     
-                    # Берём первую найденную книгу (она должна соответствовать source_id)
-                    parsed_book = parsed_books[0]
+                    celery_logger.info(f"✅ Получена книга: {parsed_book.title}, цена: {parsed_book.current_price}₽")
                     
                     celery_logger.info(
                         f"Актуальная цена для {parsed_book.title}: {parsed_book.current_price}₽ "
@@ -1990,82 +1985,4 @@ def send_pending_notifications(self):
     except Exception as e:
         celery_logger.error(f"Ошибка при отправке pending уведомлений: {e}")
         raise self.retry(countdown=300, exc=e)
-
-
-async def _send_pending_notifications_async():
-    """
-    Асинхронная функция отправки pending уведомлений.
-    Находит все уведомления со статусом 'pending' и пытается их отправить.
-    """
-    
-    session_factory = get_session_factory()
-    async with session_factory() as db:
-        try:
-            # Получаем все pending уведомления
-            result = await db.execute(
-                select(Notification).where(
-                    and_(
-                        Notification.status == "pending",
-                        Notification.is_sent == False,
-                        Notification.retry_count < Notification.max_retries
-                    )
-                ).limit(50)  # Ограничиваем количество за раз
-            )
-            pending_notifications = result.scalars().all()
-            
-            if not pending_notifications:
-                celery_logger.info("Нет pending уведомлений для отправки")
-                return 0
-            
-            celery_logger.info(f"Начинаем отправку {len(pending_notifications)} pending уведомлений")
-            
-            sent_count = 0
-            failed_count = 0
-            
-            for notification in pending_notifications:
-                try:
-                    # Получаем пользователя
-                    user_result = await db.execute(select(User).where(User.id == notification.user_id))
-                    user = user_result.scalar_one_or_none()
-                    
-                    if not user:
-                        celery_logger.error(f"Пользователь {notification.user_id} не найден для уведомления {notification.id}")
-                        notification.status = "failed"
-                        notification.error_message = "User not found"
-                        await db.commit()
-                        continue
-                    
-                    # Отправляем через Telegram
-                    from app.bot.telegram_bot import TelegramBot
-                    bot = TelegramBot()
-                    await bot.send_message(user.telegram_id, notification.message)
-                    
-                    # Обновляем статус
-                    notification.status = "sent"
-                    notification.is_sent = True
-                    notification.sent_at = datetime.now()
-                    await db.commit()
-                    
-                    sent_count += 1
-                    celery_logger.info(f"✅ Уведомление {notification.id} отправлено пользователю {user.telegram_id}")
-                    
-                except Exception as e:
-                    celery_logger.error(f"❌ Ошибка отправки уведомления {notification.id}: {e}")
-                    notification.status = "failed"
-                    notification.error_message = str(e)
-                    notification.retry_count += 1
-                    await db.commit()
-                    failed_count += 1
-                    
-                    continue
-                
-                # Задержка между отправками
-                await asyncio.sleep(1)
-            
-            celery_logger.info(f"Отправка pending уведомлений завершена. Успешно: {sent_count}, Ошибок: {failed_count}")
-            return sent_count
-            
-        except Exception as e:
-            celery_logger.error(f"Критическая ошибка при отправке pending уведомлений: {e}")
-            return 0
-
+ 

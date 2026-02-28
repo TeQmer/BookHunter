@@ -297,6 +297,33 @@ class ChitaiGorodParser(BaseParser):
         
         return False
     
+    async def get_book_by_id(self, source_id: str) -> Optional[Book]:
+        """
+        Получение книги по ID (точное совпадение)
+        
+        Args:
+            source_id: ID товара в магазине (например, '2558779')
+            
+        Returns:
+            Объект Book или None
+        """
+        await self.log_operation("get_by_id", "info", f"Получение книги по ID: {source_id}")
+        
+        try:
+            api_book = await self.api_client.get_product_by_id(source_id)
+            
+            if api_book:
+                book = self._api_book_to_book(api_book)
+                await self.log_operation("get_by_id", "success", f"Найдена книга: {book.title}")
+                return book
+            else:
+                await self.log_operation("get_by_id", "warning", f"Книга с ID {source_id} не найдена")
+                return None
+                
+        except Exception as e:
+            await self.log_operation("get_by_id", "error", f"Ошибка получения книги по ID: {e}")
+            return None
+    
     def get_stats(self) -> dict:
         """
         Получение статистики работы парсера
