@@ -268,6 +268,25 @@ class BookHunterApp {
     async navigate(route, params = {}) {
         console.log('[navigate] Навигация на:', route, params);
 
+        // Если уже была сессия - отправляем её завершение перед навигацией
+        if (this.sessionId && this.sessionStartTime && this._currentUserId) {
+            const durationSeconds = Math.round((Date.now() - this.sessionStartTime) / 1000);
+            const sessionData = {
+                user_id: this._currentUserId,
+                session_id: this.sessionId,
+                duration_seconds: durationSeconds
+            };
+            
+            // Отправляем синхронно через sendBeacon
+            const blob = new Blob([JSON.stringify(sessionData)], { type: 'application/json' });
+            navigator.sendBeacon(`${this.apiBaseUrl}/api/activity/mini-app/session/end`, blob);
+            console.log('[navigate] Сессия отправлена:', sessionData);
+            
+            // Сбрасываем
+            this.sessionId = null;
+            this.sessionStartTime = null;
+        }
+
         // Скрываем все страницы
         this.hideAllPages();
 
@@ -636,7 +655,7 @@ class BookHunterApp {
             if (pagination) pagination.style.display = 'none';
         }
     }
-
+        
     /**
      * Загрузка страницы недавних книг (пагинация)
      */
