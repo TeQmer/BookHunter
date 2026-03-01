@@ -1045,7 +1045,7 @@ class BookHunterApp {
 
                     <div class="profile__stat">
                         <div class="profile__stat-label">Книг в подписках</div>
-                        <div class="profile__stat-value">${stats.total_alerts || 0}</div>
+                        <div class="profile__stat-value">${stats.active_alerts || 0}</div>
                     </div>
 
                     <div class="profile__stat">
