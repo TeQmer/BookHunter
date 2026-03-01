@@ -103,9 +103,8 @@ class BookHunterApp {
         };
     }
 
-    // Сохраняем user_id и ID предыдущей сессии
+    // Сохраняем user_id
     _currentUserId = null;
-    _previousSessionId = null;
 
     /**
      * Начало сессии пользователя
@@ -120,27 +119,27 @@ class BookHunterApp {
 
             // Сохраняем user_id
             const newUserId = String(user.id);
+            const oldSessionId = this.sessionId;
+            const oldStartTime = this.sessionStartTime;
+            
             this._currentUserId = newUserId;
 
             // Если есть незавершённая предыдущая сессия - закрываем её
-            if (this._previousSessionId && this.sessionStartTime) {
-                const durationSeconds = Math.round((Date.now() - this.sessionStartTime) / 1000);
-                console.log('[startSession] Закрываем предыдущую сессию:', this._previousSessionId, 'duration:', durationSeconds);
+            if (oldSessionId && oldStartTime) {
+                const durationSeconds = Math.round((Date.now() - oldStartTime) / 1000);
+                console.log('[startSession] Закрываем предыдущую сессию:', oldSessionId, 'duration:', durationSeconds);
                 
-                try {
-                    await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/end`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            user_id: newUserId,
-                            session_id: this._previousSessionId,
-                            duration_seconds: durationSeconds
-                        })
-                    });
-                    console.log('[startSession] Предыдущая сессия закрыта');
-                } catch (e) {
-                    console.error('[startSession] Ошибка закрытия сессии:', e);
-                }
+                // Отправляем запрос на закрытие сессии (без await чтобы не блокировать)
+                fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/end`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: newUserId,
+                        session_id: oldSessionId,
+                        duration_seconds: durationSeconds
+                    })
+                }).then(() => console.log('[startSession] Предыдущая сессия закрыта'))
+                  .catch(e => console.error('[startSession] Ошибка закрытия:', e));
             }
 
             const response = await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/start`, {
@@ -149,7 +148,7 @@ class BookHunterApp {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    user_id: this._currentUserId,
+                    user_id: newUserId,
                     platform: 'telegram'
                 })
             });
@@ -157,11 +156,9 @@ class BookHunterApp {
             const data = await response.json();
             
             if (data.success && data.session_id) {
-                // Сохраняем старую сессию перед перезаписью
-                this._previousSessionId = this.sessionId;
                 this.sessionId = data.session_id;
                 this.sessionStartTime = Date.now();
-                console.log('[startSession] Сессия начата, session_id:', this.sessionId, 'user_id:', this._currentUserId);
+                console.log('[startSession] Сессия начата, session_id:', this.sessionId, 'user_id:', newUserId);
             } else {
                 console.warn('[startSession] Не удалось начать сессию:', data);
             }
