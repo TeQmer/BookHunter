@@ -110,8 +110,10 @@ class BookHunterApp {
      * Начало сессии пользователя
      */
     async startSession() {
+        console.log('[startSession] НАЧАЛО startSession');
         try {
             const user = window.tg.getUser();
+            console.log('[startSession] user:', user);
             if (!user || !user.id) {
                 console.warn('[startSession] Не удалось получить user_id');
                 return;
@@ -123,6 +125,7 @@ class BookHunterApp {
             const oldStartTime = this.sessionStartTime;
             
             this._currentUserId = newUserId;
+            console.log('[startSession] newUserId:', newUserId, 'oldSessionId:', oldSessionId);
 
             // Если есть незавершённая предыдущая сессия - закрываем её
             if (oldSessionId && oldStartTime) {
@@ -142,6 +145,7 @@ class BookHunterApp {
                   .catch(e => console.error('[startSession] Ошибка закрытия:', e));
             }
 
+            console.log('[startSession] Отправляем start на сервер...');
             const response = await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/start`, {
                 method: 'POST',
                 headers: {
@@ -154,6 +158,7 @@ class BookHunterApp {
             });
 
             const data = await response.json();
+            console.log('[startSession] Ответ сервера:', data);
             
             if (data.success && data.session_id) {
                 this.sessionId = data.session_id;
@@ -266,7 +271,7 @@ class BookHunterApp {
      * Навигация между страницами
      */
     async navigate(route, params = {}) {
-        console.log('[navigate] Навигация на:', route, params);
+        console.log('[navigate] Навигация на:', route, 'sessionId:', this.sessionId, 'sessionStartTime:', this.sessionStartTime, 'userId:', this._currentUserId);
 
         // Если уже была сессия - отправляем её завершение перед навигацией
         if (this.sessionId && this.sessionStartTime && this._currentUserId) {
@@ -277,14 +282,18 @@ class BookHunterApp {
                 duration_seconds: durationSeconds
             };
             
+            console.log('[navigate] Отправляем сессию через sendBeacon:', sessionData);
+            
             // Отправляем синхронно через sendBeacon
             const blob = new Blob([JSON.stringify(sessionData)], { type: 'application/json' });
             navigator.sendBeacon(`${this.apiBaseUrl}/api/activity/mini-app/session/end`, blob);
-            console.log('[navigate] Сессия отправлена:', sessionData);
+            console.log('[navigate] Сессия отправлена (sendBeacon)');
             
             // Сбрасываем
             this.sessionId = null;
             this.sessionStartTime = null;
+        } else {
+            console.log('[navigate] Нет активной сессии для отправки');
         }
 
         // Скрываем все страницы
