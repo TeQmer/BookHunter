@@ -122,6 +122,24 @@ async def get_user_stats(
                 await db.commit()
                 await db.refresh(user)
 
+        # Считаем активные подписки пользователя
+        from models.alert import Alert
+        alerts_result = await db.execute(
+            select(Alert).filter(
+                Alert.user_id == user.id,
+                Alert.is_active == True
+            )
+        )
+        active_alerts = len(alerts_result.scalars().all())
+        
+        # Считаем общее количество отправленных уведомлений пользователю
+        from models.notification import Notification
+        notifications_result = await db.execute(
+            select(Notification).filter(Notification.user_id == user.id)
+        )
+        notifications = notifications_result.scalars().all()
+        total_notifications = sum(1 for n in notifications)
+        
         # Используем синхронную сессию для RequestLimitChecker
         stats = RequestLimitChecker.get_user_stats(sync_db, telegram_id)
 
@@ -132,7 +150,8 @@ async def get_user_stats(
             "last_name": user.last_name,
             "display_name": user.display_name,
             "total_alerts": user.total_alerts,
-            "notifications_sent": user.notifications_sent,
+            "active_alerts": active_alerts,
+            "notifications_sent": total_notifications,
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "updated_at": user.updated_at.isoformat() if user.updated_at else None
         })
