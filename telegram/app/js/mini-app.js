@@ -359,8 +359,14 @@ class BookHunterApp {
      */
     async trackPageView(page) {
         try {
-            const user = window.tg.getUser();
-            if (!user || !user.id) return;
+            // Получаем пользователя из Telegram WebView
+            const user = window.Telegram?.WebView?.initDataUnsafe?.user;
+            if (!user || !user.id) {
+                console.log('[trackPageView] Пользователь не найден в initDataUnsafe');
+                return;
+            }
+
+            console.log('[trackPageView] Отправляем:', page, 'user:', user.id);
             
             await fetch(`${this.apiBaseUrl}/api/activity/mini-app/page-view`, {
                 method: 'POST',
@@ -371,7 +377,7 @@ class BookHunterApp {
                     platform: 'telegram'
                 })
             });
-            console.log('[trackPageView] Отправлено:', page, 'user:', user.id);
+            console.log('[trackPageView] Успешно отправлено:', page);
         } catch (error) {
             console.error('[trackPageView] Ошибка:', error);
         }
