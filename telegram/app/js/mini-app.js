@@ -350,8 +350,31 @@ class BookHunterApp {
             await this.loadPageData(route, params);
         }
         
-        // После каждой навигации начинаем новую сессию (это закроет старую и создаст новую)
-        this.startSession();
+        // Отправляем событие просмотра страницы (для аналитики)
+        this.trackPageView(route);
+    }
+
+    /**
+     * Отправка события просмотра страницы
+     */
+    async trackPageView(page) {
+        try {
+            const user = window.tg.getUser();
+            if (!user || !user.id) return;
+            
+            await fetch(`${this.apiBaseUrl}/api/activity/mini-app/page-view`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: String(user.id),
+                    page: page,
+                    platform: 'telegram'
+                })
+            });
+            console.log('[trackPageView] Отправлено:', page, 'user:', user.id);
+        } catch (error) {
+            console.error('[trackPageView] Ошибка:', error);
+        }
     }
 
     /**

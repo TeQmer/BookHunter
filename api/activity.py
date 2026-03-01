@@ -493,3 +493,32 @@ async def clear_mini_app_analytics(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class MiniAppPageView(BaseModel):
+    """Схема для просмотра страницы в Mini App"""
+    user_id: str
+    page: str
+    platform: Optional[str] = "telegram"
+
+
+@router.post("/mini-app/page-view")
+async def track_mini_app_page_view(
+    page_view: MiniAppPageView,
+    db: AsyncSession = Depends(get_db)
+):
+    """Отслеживание просмотра страницы в Mini App"""
+    try:
+        user_activity = UserActivity(
+            user_id=page_view.user_id,
+            activity_type="mini_app_page_view",
+            page=page_view.page,
+            platform=page_view.platform
+        )
+        db.add(user_activity)
+        await db.commit()
+        
+        return {"success": True}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
