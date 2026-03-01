@@ -144,35 +144,47 @@ class BookHunterApp {
             return;
         }
 
-        try {
-            // Используем сохранённый user_id вместо попытки получить его заново
-            const userId = this._currentUserId;
-            
-            // Вычисляем продолжительность сессии
-            const durationSeconds = Math.round((Date.now() - this.sessionStartTime) / 1000);
-            
-            const response = await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/end`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    user_id: userId,
-                    session_id: this.sessionId,
-                    duration_seconds: durationSeconds
-                })
-            });
+        // Используем сохранённый user_id
+        const userId = this._currentUserId;
+        const sessionId = this.sessionId;
+        
+        // Вычисляем продолжительность сессии
+        const durationSeconds = Math.round((Date.now() - this.sessionStartTime) / 1000);
+        
+        console.log('[endSession] Завершаем сессию, user_id:', userId, 'duration:', durationSeconds);
 
-            const data = await response.json();
-            console.log('[endSession] Сессия завершена, user_id:', userId, 'duration:', durationSeconds, 'секунд');
-            
-            // Сбрасываем переменные сессии
-            this.sessionId = null;
-            this.sessionStartTime = null;
-            this._currentUserId = null;
-        } catch (error) {
-            console.error('[endSession] Ошибка:', error);
+        // Используем sendBeacon для надёжной отправки при закрытии страницы
+        const url = `${this.apiBaseUrl}/api/activity/mini-app/session/end`;
+        const data = JSON.stringify({
+            user_id: userId,
+            session_id: sessionId,
+            duration_seconds: durationSeconds
+        });
+
+        // Пробуем sendBeacon (работает при закрытии вкладки)
+        if (navigator.sendBeacon) {
+            const blob = new Blob([data], { type: 'application/json' });
+            navigator.sendBeacon(url, blob);
+            console.log('[endSession] Отправлено через sendBeacon');
+        } else {
+            // Фоллбек на fetch для старых браузеров
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: data,
+                    keepalive: true
+                });
+                console.log('[endSession] Отправлено через fetch');
+            } catch (error) {
+                console.error('[endSession] Ошибка:', error);
+            }
         }
+
+        // Сбрасываем переменные сессии
+        this.sessionId = null;
+        this.sessionStartTime = null;
+        this._currentUserId = null;
     }
 
     /**
