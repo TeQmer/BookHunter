@@ -47,7 +47,7 @@
                 <h6 class="mb-0"><i class="fas fa-eraser"></i> Очистка данных</h6>
             </div>
             <div class="card-body">
-                <button id="clear-analytics-btn" class="btn btn-danger">
+                <button type="button" class="btn btn-danger" onclick="clearAnalytics()">
                     <i class="fas fa-trash"></i> Очистить аналитику
                 </button>
                 <span class="text-muted ms-2">Удалить все записи</span>
@@ -323,39 +323,42 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Очистка аналитики
-    const clearBtn = document.getElementById('clear-analytics-btn');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', async function() {
-            if (!confirm('Вы уверены, что хотите удалить все данные аналитики Mini App? Это действие нельзя отменить.')) {
-                return;
-            }
+    // Очистка аналитики - глобальная функция
+    window.clearAnalytics = async function() {
+        if (!confirm('Вы уверены, что хотите удалить все данные аналитики Mini App? Это действие нельзя отменить.')) {
+            return;
+        }
+        
+        const btn = document.querySelector('button[onclick="clearAnalytics()"]');
+        if (!btn) return;
+        
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Удаление...';
             
-            try {
-                clearBtn.disabled = true;
-                clearBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Удаление...';
-                
-                const response = await fetch('/api/activity/mini-app/clear', {
-                    method: 'DELETE'
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert('Данные аналитики успешно очищены! Обновите страницу.');
-                    window.location.reload();
-                } else {
-                    alert('Ошибка: ' + (data.detail || 'Неизвестная ошибка'));
-                    clearBtn.disabled = false;
-                    clearBtn.innerHTML = '<i class="fas fa-trash"></i> Очистить аналитику';
+            const response = await fetch('/api/activity/mini-app/clear', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
                 }
-            } catch (error) {
-                alert('Ошибка при удалении: ' + error.message);
-                clearBtn.disabled = false;
-                clearBtn.innerHTML = '<i class="fas fa-trash"></i> Очистить аналитику';
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Данные аналитики успешно очищены! Обновите страницу.');
+                window.location.reload();
+            } else {
+                alert('Ошибка: ' + (data.detail || 'Неизвестная ошибка'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-trash"></i> Очистить аналитику';
             }
-        });
-    }
+        } catch (error) {
+            alert('Ошибка при удалении: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash"></i> Очистить аналитику';
+        }
+    };
 });
 </script>
 {% endblock %}
