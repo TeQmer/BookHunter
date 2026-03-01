@@ -391,6 +391,9 @@ class BookHunterApp {
         if (statsHeader) statsHeader.style.display = 'block';
         if (quickActionsHeader) quickActionsHeader.style.display = 'block';
         if (recentBooksHeader) recentBooksHeader.style.display = 'block';
+        
+        // При каждом показе главной страницы - закрываем старую сессию и начинаем новую
+        this.startSession();
     }
 
     /**
