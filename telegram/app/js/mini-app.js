@@ -27,11 +27,6 @@ class BookHunterApp {
         this.currentAlert = null; // Текущая подписка для редактирования
         this.currentSearchQuery = null; // Текущий поисковый запрос
         this.catalogFilters = {}; // Текущие фильтры каталога (для сохранения при пагинации)
-        
-        // Трекинг времени в Mini App
-        this.miniAppSessionId = null;
-        this.miniAppSessionStart = null;
-        
         this.init();
     }
 
@@ -44,9 +39,6 @@ class BookHunterApp {
         // Получаем данные пользователя из Telegram
         this.user = window.tg.getUser();
         console.log('Пользователь:', this.user);
-
-        // Начинаем отслеживать сессию в Mini App
-        await this.startMiniAppSession();
 
         // Настраиваем навигацию
         this.setupNavigation();
@@ -61,27 +53,11 @@ class BookHunterApp {
                     this.navigate('home');
                 } else {
                     // Если на главной - закрываем мини-апп
-                    this.endMiniAppSession();
                     window.tg.close();
                 }
                 window.tg.hapticClick();
             });
         }
-
-        // Обработка закрытия Mini App (пользователь провёл свайп вниз или нажал крестик)
-        if (window.tg.webApp?.onEvent) {
-            window.tg.webApp.onEvent('viewportChanged', (event) => {
-                if (event && event.state && event.state === 'hidden') {
-                    console.log('[Telegram] Mini App скрыт');
-                    this.endMiniAppSession();
-                }
-            });
-        }
-
-        // Обработка закрытия окна
-        window.addEventListener('beforeunload', () => {
-            this.endMiniAppSession();
-        });
 
         // Загружаем начальные данные
         await this.loadInitialData();
@@ -96,80 +72,6 @@ class BookHunterApp {
         await this.navigate('home');
 
         console.log('BookHunter Mini App инициализирован');
-    }
-
-    /**
-     * Начать сессию в Mini App (отслеживание времени)
-     */
-    async startMiniAppSession() {
-        try {
-            const user = window.tg.getUser();
-            if (!user || !user.id) {
-                console.log('[startMiniAppSession] Нет данных пользователя');
-                return;
-            }
-
-            // Определяем платформу
-            let platform = 'telegram';
-            if (window.tg.platform) {
-                if (window.tg.platform === 'ios') platform = 'telegram_ios';
-                else if (window.tg.platform === 'android') platform = 'telegram_android';
-            }
-
-            const response = await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/start`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: String(user.id),
-                    platform: platform
-                })
-            });
-
-            const data = await response.json();
-            if (data.success && data.session_id) {
-                this.miniAppSessionId = data.session_id;
-                this.miniAppSessionStart = Date.now();
-                console.log('[startMiniAppSession] Сессия начата:', this.miniAppSessionId);
-            }
-        } catch (error) {
-            console.error('[startMiniAppSession] Ошибка:', error);
-        }
-    }
-
-    /**
-     * Завершить сессию в Mini App (отслеживание времени)
-     */
-    async endMiniAppSession() {
-        if (!this.miniAppSessionId || !this.miniAppSessionStart) {
-            console.log('[endMiniAppSession] Нет активной сессии');
-            return;
-        }
-
-        try {
-            const user = window.tg.getUser();
-            const userId = user?.id ? String(user.id) : 'unknown';
-            
-            // Вычисляем продолжительность в секундах
-            const durationSeconds = Math.round((Date.now() - this.miniAppSessionStart) / 1000);
-
-            console.log('[endMiniAppSession] Завершаем сессию:', this.miniAppSessionId, 'Длительность:', durationSeconds, 'сек');
-
-            await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/end`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: userId,
-                    session_id: this.miniAppSessionId,
-                    duration_seconds: durationSeconds
-                })
-            });
-
-            // Очищаем данные сессии
-            this.miniAppSessionId = null;
-            this.miniAppSessionStart = null;
-        } catch (error) {
-            console.error('[endMiniAppSession] Ошибка:', error);
-        }
     }
 
     /**
@@ -1142,8 +1044,8 @@ class BookHunterApp {
                     <h3 style="margin-bottom: 16px;">📊 Статистика</h3>
 
                     <div class="profile__stat">
-                        <div class="profile__stat-label">Активных подписок</div>
-                        <div class="profile__stat-value">${stats.active_alerts || 0}</div>
+                        <div class="profile__stat-label">Книг в подписках</div>
+                        <div class="profile__stat-value">${stats.total_alerts || 0}</div>
                     </div>
 
                     <div class="profile__stat">
@@ -1237,9 +1139,7 @@ class BookHunterApp {
             });
             console.log('[loadAlerts] Карта подписок обновлена:', Object.keys(this.data.userAlertsMap).length, 'подписок');
 
-            console.log('[loadAlerts] Вызов renderAlerts...');
             this.renderAlerts(this.data.alerts);
-            console.log('[loadAlerts] renderAlerts выполнен');
         } catch (error) {
             console.error('[loadAlerts] Ошибка загрузки подписок:', error);
             this.showError(error.message || 'Не удалось загрузить подписок');
@@ -1251,12 +1151,7 @@ class BookHunterApp {
      */
     renderAlerts(alerts) {
         const container = document.getElementById('alerts-container');
-        console.log('[renderAlerts] Контейнер:', container);
-        console.log('[renderAlerts] alerts:', alerts);
-        if (!container) {
-            console.error('[renderAlerts] Контейнер alerts-container НЕ НАЙДЕН!');
-            return;
-        }
+        if (!container) return;
 
         if (!alerts || alerts.length === 0) {
             container.innerHTML = this.getEmptyState('Подписок нет', 'Создайте первую подписку на интересующую книгу');
@@ -1335,7 +1230,7 @@ class BookHunterApp {
             </div>
         `;
     }
-        
+
     /**
      * Настройка главной кнопки
      */
@@ -2214,590 +2109,246 @@ class BookHunterApp {
                         { id: 'cancel', type: 'cancel', text: 'Отмена' }
                     ]
                 });
+                console.log('[toggleAlertForBook] Popup result:', result);
 
-                if (result === 'edit') {
-                    // Изменить параметры подписки
-                    this.showAlertForm(bookId, checkData.alert);
-                } else if (result === 'delete') {
-                    // Удалить подписку
-                    await this.deleteAlert(checkData.alert.id);
-                    this.showToast('Подписка удалена', 'success');
-                    await this.loadAlerts();
+                if (!result || result.button_id === 'cancel') {
+                    console.log('[toggleAlertForBook] Cancelled by user');
+                    return;
+                }
+
+                // Telegram WebApp возвращает 'ok' для первой кнопки (edit)
+                // и 'delete' для второй кнопки (delete)
+                if (result.button_id === 'delete') {
+                    console.log('[toggleAlertForBook] Deleting alert with ID:', checkData.alert.id);
+                    // Удаляем подписку
+                    const deleteResponse = await fetch(`${this.apiBaseUrl}/api/alerts/${checkData.alert.id}`, {
+                        method: 'DELETE'
+                    });
+                    console.log('[toggleAlertForBook] deleteResponse status:', deleteResponse.status);
+
+                    if (deleteResponse.ok) {
+                        window.tg.hapticSuccess();
+                        this.showSuccess('Подписка удалена');
+
+                        // Удаляем из карты подписок
+                        if (this.data.userAlertsMap[bookId]) {
+                            delete this.data.userAlertsMap[bookId];
+                            console.log('[toggleAlertForBook] Удалена из карты подписок:', bookId);
+                        }
+
+                        await this.checkAlertForBook(bookId);
+                    } else {
+                        console.error('[toggleAlertForBook] Delete failed, status:', deleteResponse.status);
+                        throw new Error('Не удалось удалить подписку');
+                    }
+                } else if (result.button_id === 'edit' || result.button_id === 'ok') {
+                    console.log('[toggleAlertForBook] Opening edit modal');
+                    // Открываем модальное окно для редактирования
+                    this.openAlertModal(checkData.alert);
                 }
             } else {
-                // Нет подписки - создаём новую
-                await this.createAlertForBook(bookId);
+                console.log('[toggleAlertForBook] No alert found, opening create modal');
+                // Открываем модальное окно для создания новой подписки
+                this.openAlertModal(null);
             }
         } catch (error) {
             console.error('[toggleAlertForBook] Ошибка:', error);
-            this.showToast('Ошибка: ' + error.message, 'error');
+            this.showError(error.message || 'Не удалось изменить подписку');
         }
-    }
-
-    /**
-     * Показать форму создания/редактирования подписки
-     */
-    showAlertForm(bookId, existingAlert = null) {
-        // Создаём модальное окно
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>${existingAlert ? 'Изменить подписку' : 'Создать подписку'}</h3>
-                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Процент скидки</label>
-                        <input type="number" id="alert-discount" min="1" max="99" value="${existingAlert?.target_discount || 5}" class="form-control">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Отмена</button>
-                    <button class="btn btn-primary" id="save-alert-btn">Сохранить</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-        // Обработчик сохранения
-        document.getElementById('save-alert-btn').addEventListener('click', async () => {
-            const discount = parseInt(document.getElementById('alert-discount').value);
-            
-            if (existingAlert) {
-                // Обновляем подписку
-                await this.updateAlert(existingAlert.id, { target_discount: discount });
-                this.showToast('Подписка обновлена', 'success');
-            } else {
-                // Создаём новую подписку
-                await this.createAlertForBook(bookId, discount);
-            }
-            
-            modal.remove();
-            await this.loadAlerts();
-        });
     }
 
     /**
      * Создание подписки на книгу
      */
-    async createAlertForBook(bookId, targetDiscount = 5) {
+    async createAlertFromBook(bookId) {
         try {
+            console.log('[createAlertFromBook] Создание подписки на книгу:', bookId);
+
+            // Получаем telegram_id
             const user = window.tg.getUser();
             if (!user || !user.id) {
                 throw new Error('Не удалось получить Telegram ID пользователя');
             }
 
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts`, {
+            // Получаем информацию о книге
+            const book = this.currentBook;
+            if (!book) {
+                throw new Error('Информация о книге не найдена');
+            }
+
+            const response = await fetch(`${this.apiBaseUrl}/api/alerts/create-from-book`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({
-                    telegram_id: user.id,
                     book_id: bookId,
-                    target_discount: targetDiscount
+                    telegram_id: user.id,
+                    target_price: book.current_price,
+                    min_discount: book.discount_percent || 0
                 })
             });
 
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showToast('Подписка создана!', 'success');
-                await this.loadAlerts();
-            } else {
-                throw new Error(data.error || 'Ошибка создания подписки');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка создания подписки');
             }
-        } catch (error) {
-            console.error('[createAlertForBook] Ошибка:', error);
-            this.showToast('Ошибка: ' + error.message, 'error');
-        }
-    }
-
-    /**
-     * Обновление подписки
-     */
-    async updateAlert(alertId, updates) {
-        try {
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts/${alertId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates)
-            });
 
             const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Ошибка обновления подписки');
-            }
-            
-            return data;
+            console.log('[createAlertFromBook] Ответ:', data);
+
+            window.tg.hapticSuccess();
+            this.showSuccess('Подписка создана!');
         } catch (error) {
-            console.error('[updateAlert] Ошибка:', error);
+            console.error('[createAlertFromBook] Ошибка:', error);
+            window.tg.hapticError();
             throw error;
         }
     }
 
     /**
-     * Удаление подписки
+     * Редактирование подписки из деталей книги
      */
-    async deleteAlert(alertId) {
-        try {
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts/${alertId}`, {
-                method: 'DELETE'
-            });
-
-            const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Ошибка удаления подписки');
-            }
-            
-            return data;
-        } catch (error) {
-            console.error('[deleteAlert] Ошибка:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Отрисовка списка подписок
-     */
-    renderAlerts() {
-        const container = document.getElementById('alerts-list');
-        if (!container) return;
-
-        if (!this.data.alerts || this.data.alerts.length === 0) {
-            container.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <i class="fas fa-bell-slash fa-3x mb-3"></i>
-                    <p>У вас пока нет подписок</p>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = this.data.alerts.map(alert => `
-            <div class="alert-card" data-alert-id="${alert.id}">
-                <div class="alert-card-header">
-                    <span class="badge bg-primary">${alert.target_discount}% скидка</span>
-                    <span class="alert-date">${this.formatDate(alert.created_at)}</span>
-                </div>
-                <div class="alert-card-body">
-                    <h6>${alert.book_title || 'Книга #' + alert.book_id}</h6>
-                    <p class="text-muted mb-0">
-                        <small>Текущая цена: ${alert.current_price ? alert.current_price + '₽' : '—'}</small>
-                    </p>
-                </div>
-                <div class="alert-card-footer">
-                    <button class="btn btn-sm btn-outline-danger" onclick="app.deleteAlert(${alert.id})">
-                        <i class="fas fa-trash"></i> Удалить
-                    </button>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    /**
-     * Форматирование даты
-     */
-    formatDate(dateStr) {
-        if (!dateStr) return '';
+    async editAlertFromDetail(alertId) {
+        console.log('[editAlertFromDetail] Редактирование подписки из деталей:', alertId);
         
-        const date = new Date(dateStr);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-
-        if (diffMins < 1) return 'только что';
-        if (diffMins < 60) return `${diffMins} мин назад`;
-        if (diffHours < 24) return `${diffHours} ч назад`;
-        if (diffDays < 7) return `${diffDays} дн назад`;
-
-        return date.toLocaleDateString('ru-RU');
-    }
-
-    /**
-     * Показать уведомление
-     */
-    showToast(message, type = 'info') {
-        // Удаляем существующие уведомления
-        const existing = document.querySelector('.toast-notification');
-        if (existing) existing.remove();
-
-        const toast = document.createElement('div');
-        toast.className = `toast-notification toast-${type}`;
-        toast.innerHTML = `
-            <div class="toast-content">
-                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-                <span>${message}</span>
-            </div>
-        `;
-        
-        document.body.appendChild(toast);
-
-        // Показываем уведомление
-        setTimeout(() => toast.classList.add('show'), 100);
-
-        // Скрываем через 3 секунды
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
-
-    /**
-     * Применить тему
-     */
-    applyTheme() {
-        if (!window.tg || !window.tg.themeParams) return;
-        
-        const themeParams = window.tg.themeParams;
-        
-        // Применяем цвета из темы Telegram
-        if (themeParams.bg_color) {
-            document.documentElement.style.setProperty('--bg-color', themeParams.bg_color);
-        }
-        if (themeParams.text_color) {
-            document.documentElement.style.setProperty('--text-color', themeParams.text_color);
-        }
-        if (themeParams.hint_color) {
-            document.documentElement.style.setProperty('--hint-color', themeParams.hint_color);
-        }
-        if (themeParams.link_color) {
-            document.documentElement.style.setProperty('--link-color', themeParams.link_color);
-        }
-        if (themeParams.button_color) {
-            document.documentElement.style.setProperty('--button-color', themeParams.button_color);
-        }
-        if (themeParams.button_text_color) {
-            document.documentElement.style.setProperty('--button-text-color', themeParams.button_text_color);
-        }
-        
-        // Применяем к body
-        document.body.style.backgroundColor = themeParams.bg_color || '#ffffff';
-        document.body.style.color = themeParams.text_color || '#000000';
-    }
-
-    /**
-     * Переключение подписки на книгу
-     */
-    async toggleAlertForBook(bookId) {
-        console.log('[toggleAlertForBook] Переключение подписки для книги:', bookId);
-
-        try {
-            // Проверяем, есть ли уже подписка
-            const user = window.tg.getUser();
-            if (!user || !user.id) {
-                throw new Error('Не удалось получить Telegram ID пользователя');
-            }
-
-            const checkResponse = await fetch(`${this.apiBaseUrl}/api/alerts/book/${bookId}?telegram_id=${user.id}`);
-            console.log('[toggleAlertForBook] checkResponse status:', checkResponse.status);
-            const checkData = await checkResponse.json();
-            console.log('[toggleAlertForBook] checkData:', checkData);
-
-            if (checkData.alert) {
-                // Подписка уже есть - спрашиваем, что сделать
-                const result = await window.tg.showPopup({
-                    title: 'Подписка',
-                    message: 'Удалить подписку или изменить параметры?',
-                    buttons: [
-                        { id: 'edit', type: 'default', text: 'Изменить' },
-                        { id: 'delete', type: 'destructive', text: 'Удалить' },
-                        { id: 'cancel', type: 'cancel', text: 'Отмена' }
-                    ]
-                });
-
-                if (result === 'edit') {
-                    // Изменить параметры подписки
-                    this.showAlertForm(bookId, checkData.alert);
-                } else if (result === 'delete') {
-                    // Удалить подписку
-                    await this.deleteAlert(checkData.alert.id);
-                    this.showToast('Подписка удалена', 'success');
-                    await this.loadAlerts();
+        // Находим подписку в списке
+        const alert = this.data.alerts.find(a => a.id === alertId);
+        if (!alert) {
+            // Пробуем загрузить через API
+            try {
+                const user = window.tg.getUser();
+                if (!user || !user.id) {
+                    throw new Error('Не удалось получить Telegram ID');
                 }
-            } else {
-                // Нет подписки - создаём новую
-                await this.createAlertForBook(bookId);
+                const response = await fetch(`${this.apiBaseUrl}/api/alerts/book/${this.currentBook.id}?telegram_id=${user.id}`);
+                const data = await response.json();
+                if (data.alert) {
+                    this.openAlertModal(data.alert);
+                } else {
+                    this.showError('Подписка не найдена');
+                }
+            } catch (error) {
+                console.error('[editAlertFromDetail] Ошибка:', error);
+                this.showError('Не удалось загрузить подписку');
             }
-        } catch (error) {
-            console.error('[toggleAlertForBook] Ошибка:', error);
-            this.showToast('Ошибка: ' + error.message, 'error');
-        }
-    }
-
-    /**
-     * Показать форму создания/редактирования подписки
-     */
-    showAlertForm(bookId, existingAlert = null) {
-        // Создаём модальное окно
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>${existingAlert ? 'Изменить подписку' : 'Создать подписку'}</h3>
-                    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Процент скидки</label>
-                        <input type="number" id="alert-discount" min="1" max="99" value="${existingAlert?.target_discount || 5}" class="form-control">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Отмена</button>
-                    <button class="btn btn-primary" id="save-alert-btn">Сохранить</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-        // Обработчик сохранения
-        document.getElementById('save-alert-btn').addEventListener('click', async () => {
-            const discount = parseInt(document.getElementById('alert-discount').value);
-            
-            if (existingAlert) {
-                // Обновляем подписку
-                await this.updateAlert(existingAlert.id, { target_discount: discount });
-                this.showToast('Подписка обновлена', 'success');
-            } else {
-                // Создаём новую подписку
-                await this.createAlertForBook(bookId, discount);
-            }
-            
-            modal.remove();
-            await this.loadAlerts();
-        });
-    }
-
-    /**
-     * Создание подписки на книгу
-     */
-    async createAlertForBook(bookId, targetDiscount = 5) {
-        try {
-            const user = window.tg.getUser();
-            if (!user || !user.id) {
-                throw new Error('Не удалось получить Telegram ID пользователя');
-            }
-
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    telegram_id: user.id,
-                    book_id: bookId,
-                    target_discount: targetDiscount
-                })
-            });
-
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showToast('Подписка создана!', 'success');
-                await this.loadAlerts();
-            } else {
-                throw new Error(data.error || 'Ошибка создания подписки');
-            }
-        } catch (error) {
-            console.error('[createAlertForBook] Ошибка:', error);
-            this.showToast('Ошибка: ' + error.message, 'error');
-        }
-    }
-
-    /**
-     * Обновление подписки
-     */
-    async updateAlert(alertId, updates) {
-        try {
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts/${alertId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates)
-            });
-
-            const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Ошибка обновления подписки');
-            }
-            
-            return data;
-        } catch (error) {
-            console.error('[updateAlert] Ошибка:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Удаление подписки
-     */
-    async deleteAlert(alertId) {
-        try {
-            const response = await fetch(`${this.apiBaseUrl}/api/alerts/${alertId}`, {
-                method: 'DELETE'
-            });
-
-            const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Ошибка удаления подписки');
-            }
-            
-            return data;
-        } catch (error) {
-            console.error('[deleteAlert] Ошибка:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Отрисовка списка подписок
-     */
-    renderAlerts() {
-        const container = document.getElementById('alerts-list');
-        if (!container) return;
-
-        if (!this.data.alerts || this.data.alerts.length === 0) {
-            container.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <i class="fas fa-bell-slash fa-3x mb-3"></i>
-                    <p>У вас пока нет подписок</p>
-                </div>
-            `;
             return;
         }
 
-        container.innerHTML = this.data.alerts.map(alert => `
-            <div class="alert-card" data-alert-id="${alert.id}">
-                <div class="alert-card-header">
-                    <span class="badge bg-primary">${alert.target_discount}% скидка</span>
-                    <span class="alert-date">${this.formatDate(alert.created_at)}</span>
-                </div>
-                <div class="alert-card-body">
-                    <h6>${alert.book_title || 'Книга #' + alert.book_id}</h6>
-                    <p class="text-muted mb-0">
-                        <small>Текущая цена: ${alert.current_price ? alert.current_price + '₽' : '—'}</small>
-                    </p>
-                </div>
-                <div class="alert-card-footer">
-                    <button class="btn btn-sm btn-outline-danger" onclick="app.deleteAlert(${alert.id})">
-                        <i class="fas fa-trash"></i> Удалить
-                    </button>
-                </div>
-            </div>
-        `).join('');
+        // Открываем модальное окно редактирования
+        this.openAlertModal(alert);
     }
 
     /**
-     * Форматирование даты
+     * Удаление подписки из деталей книги
      */
-    formatDate(dateStr) {
-        if (!dateStr) return '';
+    async deleteAlertFromDetail(alertId) {
+        console.log('[deleteAlertFromDetail] Удаление подписки из деталей:', alertId);
         
-        const date = new Date(dateStr);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
+        const confirmed = confirm('Удалить эту подписку?');
+        if (!confirmed) {
+            return;
+        }
 
-        if (diffMins < 1) return 'только что';
-        if (diffMins < 60) return `${diffMins} мин назад`;
-        if (diffHours < 24) return `${diffHours} ч назад`;
-        if (diffDays < 7) return `${diffDays} дн назад`;
+        try {
+            const url = `${this.apiBaseUrl}/api/alerts/${alertId}`;
+            const response = await fetch(url, {
+                method: 'DELETE'
+            });
 
-        return date.toLocaleDateString('ru-RU');
+            if (!response.ok) {
+                throw new Error('Ошибка удаления подписки');
+            }
+
+            window.tg.hapticSuccess();
+            this.showSuccess('Подписка удалена');
+
+            // Удаляем из карты подписок
+            if (this.currentBook && this.currentBook.id && this.data.userAlertsMap[this.currentBook.id]) {
+                delete this.data.userAlertsMap[this.currentBook.id];
+            }
+
+            // Обновляем детали книги
+            await this.checkAlertForBook(this.currentBook.id);
+
+            // Обновляем список подписок
+            await this.loadAlerts();
+        } catch (error) {
+            console.error('[deleteAlertFromDetail] Ошибка:', error);
+            window.tg.hapticError();
+            this.showError('Не удалось удалить подписку');
+        }
     }
 
     /**
-     * Показать уведомление
+     * Показать сообщение об успехе
      */
-    showToast(message, type = 'info') {
-        // Удаляем существующие уведомления
-        const existing = document.querySelector('.toast-notification');
-        if (existing) existing.remove();
-
-        const toast = document.createElement('div');
-        toast.className = `toast-notification toast-${type}`;
-        toast.innerHTML = `
-            <div class="toast-content">
-                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-                <span>${message}</span>
-            </div>
-        `;
-        
-        document.body.appendChild(toast);
-
-        // Показываем уведомление
-        setTimeout(() => toast.classList.add('show'), 100);
-
-        // Скрываем через 3 секунды
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
-
-    /**
-     * Применить тему
-     */
-    applyTheme() {
-        if (!window.tg || !window.tg.themeParams) return;
-        
-        const themeParams = window.tg.themeParams;
-        
-        // Применяем цвета из темы Telegram
-        if (themeParams.bg_color) {
-            document.documentElement.style.setProperty('--bg-color', themeParams.bg_color);
-        }
-        if (themeParams.text_color) {
-            document.documentElement.style.setProperty('--text-color', themeParams.text_color);
-        }
-        if (themeParams.hint_color) {
-            document.documentElement.style.setProperty('--hint-color', themeParams.hint_color);
-        }
-        if (themeParams.link_color) {
-            document.documentElement.style.setProperty('--link-color', themeParams.link_color);
-        }
-        if (themeParams.button_color) {
-            document.documentElement.style.setProperty('--button-color', themeParams.button_color);
-        }
-        if (themeParams.button_text_color) {
-            document.documentElement.style.setProperty('--button-text-color', themeParams.button_text_color);
-        }
-        
-        // Применяем к body
-        document.body.style.backgroundColor = themeParams.bg_color || '#ffffff';
-        document.body.style.color = themeParams.text_color || '#000000';
-    }
-
-    /**
-     * Экранирование HTML-символов
-     */
-    escapeHtml(text) {
-        if (text == null) return '';
-        const div = document.createElement('div');
-        div.textContent = String(text);
-        return div.innerHTML;
+    showSuccess(message) {
+        this.showToast(message, 'success');
     }
 
     /**
      * Показать ошибку
      */
     showError(message) {
-        console.error('[showError]', message);
         this.showToast(message, 'error');
+    }
+
+    /**
+     * Показать toast сообщение
+     */
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        toast.style.background = type === 'error' ? 'var(--danger)' : type === 'success' ? 'var(--success)' : 'var(--text-primary)';
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
+
+    /**
+     * Показать состояние загрузки
+     */
+    showLoading(message = 'Загрузка...') {
+        const container = document.getElementById('books-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="loading__spinner"></div>
+                    <div class="loading__text">${message}</div>
+                </div>
+            `;
+        }
+    }
+        
+    /**
+     * Экранирование HTML
+     */
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Получить HTML пустого состояния
+     */
+    getEmptyState(title, text) {
+        return `
+            <div class="empty">
+                <div class="empty__icon"><i class="fas fa-inbox"></i></div>
+                <h3 class="empty__title">${title}</h3>
+                <p class="empty__text">${text}</p>
+            </div>
+        `;
     }
 }
 
-// Инициализация приложения при загрузке страницы
-document.addEventListener('DOMContentLoaded', () => {
-    // Инициализация приложения
-    window.app = new BookHunterApp();
-});
+// Инициализация приложения
+const app = new BookHunterApp();
+console.log('Приложение инициализировано:', app);
+        
