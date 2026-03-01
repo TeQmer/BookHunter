@@ -1249,7 +1249,12 @@ class BookHunterApp {
      */
     renderAlerts(alerts) {
         const container = document.getElementById('alerts-container');
-        if (!container) return;
+        console.log('[renderAlerts] Контейнер:', container);
+        console.log('[renderAlerts] alerts:', alerts);
+        if (!container) {
+            console.error('[renderAlerts] Контейнер alerts-container НЕ НАЙДЕН!');
+            return;
+        }
 
         if (!alerts || alerts.length === 0) {
             container.innerHTML = this.getEmptyState('Подписок нет', 'Создайте первую подписку на интересующую книгу');
@@ -1328,7 +1333,7 @@ class BookHunterApp {
             </div>
         `;
     }
-
+        
     /**
      * Настройка главной кнопки
      */
