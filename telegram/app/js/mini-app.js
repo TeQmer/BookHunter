@@ -273,12 +273,17 @@ class BookHunterApp {
     async navigate(route, params = {}) {
         console.log('[navigate] Навигация на:', route, 'sessionId:', this.sessionId, 'sessionStartTime:', this.sessionStartTime, 'userId:', this._currentUserId);
 
+        // Сохраняем данные старой сессии перед изменением
+        const oldSessionId = this.sessionId;
+        const oldSessionStartTime = this.sessionStartTime;
+        const oldUserId = this._currentUserId;
+
         // Если уже была сессия - отправляем её завершение перед навигацией
-        if (this.sessionId && this.sessionStartTime && this._currentUserId) {
-            const durationSeconds = Math.round((Date.now() - this.sessionStartTime) / 1000);
+        if (oldSessionId && oldSessionStartTime && oldUserId) {
+            const durationSeconds = Math.round((Date.now() - oldSessionStartTime) / 1000);
             const sessionData = {
-                user_id: this._currentUserId,
-                session_id: this.sessionId,
+                user_id: oldUserId,
+                session_id: oldSessionId,
                 duration_seconds: durationSeconds
             };
             
@@ -288,13 +293,13 @@ class BookHunterApp {
             const blob = new Blob([JSON.stringify(sessionData)], { type: 'application/json' });
             navigator.sendBeacon(`${this.apiBaseUrl}/api/activity/mini-app/session/end`, blob);
             console.log('[navigate] Сессия отправлена (sendBeacon)');
-            
-            // Сбрасываем
-            this.sessionId = null;
-            this.sessionStartTime = null;
         } else {
             console.log('[navigate] Нет активной сессии для отправки');
         }
+
+        // Сбрасываем старую сессию
+        this.sessionId = null;
+        this.sessionStartTime = null;
 
         // Скрываем все страницы
         this.hideAllPages();
@@ -344,6 +349,9 @@ class BookHunterApp {
         if (route !== 'book-detail') {
             await this.loadPageData(route, params);
         }
+        
+        // После каждой навигации начинаем новую сессию (это закроет старую и создаст новую)
+        this.startSession();
     }
 
     /**
