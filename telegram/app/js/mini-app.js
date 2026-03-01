@@ -895,8 +895,8 @@ class BookHunterApp {
             console.log('[loadBooks] Книги для рендеринга:', this.data.books.length);
             console.log('[loadBooks] Всего книг:', this.catalogBooksTotal);
 
-            // Если книг нет и это поиск (и не отключён автопарсинг) - запускаем парсинг
-            if (useSmartSearch && this.data.books.length === 0 && !params.skipAutoParse) {
+            // Если книг нет и это поиск - запускаем парсинг
+            if (useSmartSearch && this.data.books.length === 0) {
                 console.log('[loadBooks] Книг нет в базе, запускаем парсинг...');
                 await this.startParsing(params.query, params.source || 'chitai-gorod');
                 return;
@@ -946,6 +946,107 @@ class BookHunterApp {
                 container.innerHTML = this.getEmptyState('Ошибка загрузки', error.message || 'Попробуйте изменить параметры поиска');
             }
         }
+    }
+
+    /**
+     * Запуск парсинга книг
+     */
+    async startParsing(query, source = 'chitai-gorod') {
+        try {
+            console.log('[startParsing] Запускаем парсинг для:', query);
+
+            // Получаем telegram_id для проверки лимитов (задача #6)
+            let telegramId = window.tg.getChatId();
+            if (!telegramId) {
+                telegramId = window.tg.getQueryId();
+            }
+
+            const requestBody = {
+                query,
+                source,
+                fetch_details: false
+            };
+
+            // Добавляем telegram_id если есть
+            if (telegramId) {
+                requestBody.telegram_id = telegramId;
+            }
+
+            const response = await fetch(`${this.apiBaseUrl}/api/parser/parse-body`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка запуска парсинга');
+            }
+
+            const data = await response.json();
+            console.log('[startParsing] Ответ:', data);
+
+            // Показываем сообщение о парсинге
+            if (data.task_id) {
+                this.showParsingStatus(data.task_id, query);
+            } else {
+                this.showError('Не удалось запустить поиск книг');
+            }
+        } catch (error) {
+            console.error('[startParsing] Ошибка:', error);
+            this.showError(error.message || 'Не удалось запустить поиск книг');
+        }
+    }
+
+    /**
+     * Показать статус парсинга и периодически обновлять
+     */
+    async showParsingStatus(taskId, query) {
+        console.log('[showParsingStatus] Показываем статус парсинга:', taskId);
+
+        const container = document.getElementById('books-container');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="card" style="text-align: center; padding: 24px;">
+                <div class="loading__spinner" style="margin: 0 auto 16px;"></div>
+                <h4 style="margin-bottom: 8px;">Поиск книг...</h4>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                    Ищем книги по запросу "${query}" на сайте магазина...
+                </p>
+                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 12px;">
+                    Это может занять несколько секунд
+                </p>
+            </div>
+        `;
+
+        // Периодически проверяем статус
+        const checkInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`${this.apiBaseUrl}/api/parser/parse/${taskId}`);
+                const data = await response.json();
+
+                console.log('[showParsingStatus] Статус:', data.status);
+
+                if (data.status === 'completed') {
+                    clearInterval(checkInterval);
+                    console.log('[showParsingStatus] Парсинг завершен, загружаем книги');
+                    await this.loadBooks({ query });
+                } else if (data.status === 'error') {
+                    clearInterval(checkInterval);
+                    container.innerHTML = this.getEmptyState('Ошибка поиска', 'Не удалось найти книги. Попробуйте другой запрос.');
+                }
+            } catch (error) {
+                console.error('[showParsingStatus] Ошибка проверки статуса:', error);
+            }
+        }, 2000);
+
+        // Таймаут 30 секунд
+        setTimeout(() => {
+            clearInterval(checkInterval);
+        }, 30000);
     }
 
     /**
@@ -1449,77 +1550,41 @@ class BookHunterApp {
     }
         
     /**
-     * Запуск парсинга книг с сайта магазина (ВСЕГДА парсит, не ищет в базе)
+     * Запуск парсинга книг
      */
-    async startParsing(query, source) {
+    async startParsing(query, source = 'chitai-gorod') {
         try {
-            console.log('[startParsing] Запуск ПРИНУДИТЕЛЬНОГО парсинга для:', query, 'source:', source);
+            console.log('[startParsing] Запускаем парсинг для:', query);
 
-            // Получаем telegram_id
-            const user = window.Telegram?.WebView?.initDataUnsafe?.user || window.tg?.getUser();
-            if (!user || !user.id) {
-                throw new Error('Не удалось получить Telegram ID. Откройте приложение через Telegram.');
-            }
-
-            // Используем /api/parser/parse-body для принудительного парсинга
-            // fetch_details=true для получения детальной информации (издательство, переплёт, жанры)
-            const url = `${this.apiBaseUrl}/api/parser/parse-body`;
-            console.log('[startParsing] URL:', url);
-
-            const response = await fetch(url, {
+            const response = await fetch(`${this.apiBaseUrl}/api/parser/parse-body`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({
                     query: query,
                     source: source,
-                    fetch_details: true,
-                    telegram_id: user.id
+                    fetch_details: true
                 })
             });
 
-            console.log('[startParsing] Статус ответа:', response.status);
-
-            // Пробуем получить данные ответа
-            let data;
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-                data = await response.json();
-            } else {
-                data = { detail: await response.text() };
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка запуска парсинга');
             }
 
+            const data = await response.json();
             console.log('[startParsing] Ответ:', data);
 
-            if (!response.ok) {
-                // Показываем реальное сообщение об ошибке
-                const errorMsg = data?.detail || data?.message || 'Ошибка поиска';
-                console.error('[startParsing] Ошибка:', errorMsg);
-                this.showError(errorMsg);
-                return;
-            }
-
-            // Обрабатываем ответ
-            if (data.status === 'started' && data.task_id) {
-                // Парсинг запущен, нужно ждать результат
-                console.log('[startParsing] Парсинг запущен, task_id:', data.task_id);
+            // Показываем сообщение о парсинге
+            if (data.task_id) {
                 this.showParsingStatus(data.task_id, query);
-            } else if (data.status === 'limit_exceeded') {
-                // Лимит исчерпан
-                console.log('[startParsing] Лимит исчерпан, показываем что есть в базе');
-                if (data.books && data.books.length > 0) {
-                    this.showToast('Лимит исчерпан, показываем книги из базы', 'info');
-                    this.renderBooks(data.books);
-                } else {
-                    this.showError('Лимит запросов исчерпан на сегодня. Попробуйте завтра.');
-                }
             } else if (data.books && data.books.length > 0) {
-                // Книги уже есть в базе (без парсинга)
-                console.log('[startParsing] Книги найдены в базе:', data.books.length);
+                // Книги уже есть без парсинга
                 this.renderBooks(data.books);
             } else {
-                this.showError('Не удалось запустить поиск');
+                this.showError('Не удалось запустить поиск книг');
             }
-
         } catch (error) {
             console.error('[startParsing] Ошибка:', error);
             this.showError(error.message || 'Не удалось запустить поиск книг');
@@ -1527,63 +1592,53 @@ class BookHunterApp {
     }
 
     /**
-     * Отслеживание статуса парсинга
+     * Показать статус парсинга и периодически обновлять
      */
     async showParsingStatus(taskId, query) {
+        console.log('[showParsingStatus] Показываем статус парсинга:', taskId);
+
         const container = document.getElementById('books-container');
         if (!container) return;
 
-        // Показываем индикатор загрузки
         container.innerHTML = `
             <div class="card" style="text-align: center; padding: 24px;">
                 <div class="loading__spinner" style="margin: 0 auto 16px;"></div>
                 <h4 style="margin-bottom: 8px;">Поиск книг...</h4>
                 <p style="color: var(--text-secondary); font-size: 0.9rem;">
-                    Ищем книги по запросу "${query}" на сайте магазина
+                    Ищем книги по запросу "${query}" на сайте магазина...
+                </p>
+                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 12px;">
+                    Это может занять несколько секунд
                 </p>
             </div>
         `;
 
-        // Опрашиваем статус каждые 2 секунды
-        let attempts = 0;
-        const maxAttempts = 30; // максимум 60 секунд
-
-        const checkStatus = async () => {
-            attempts++;
-            
+        // Периодически проверяем статус
+        const checkInterval = setInterval(async () => {
             try {
-                const statusUrl = `${this.apiBaseUrl}/api/parser/parse/${taskId}`;
-                const statusResponse = await fetch(statusUrl);
-                const statusData = await statusResponse.json();
+                const response = await fetch(`${this.apiBaseUrl}/api/parser/parse/${taskId}`);
+                const data = await response.json();
 
-                console.log('[showParsingStatus] Статус:', statusData.status, statusData);
+                console.log('[showParsingStatus] Статус:', data.status);
 
-                if (statusData.status === 'completed') {
-                    // Парсинг завершён - загружаем книги (с отключённым автопарсингом)
+                if (data.status === 'completed') {
+                    clearInterval(checkInterval);
+                    console.log('[showParsingStatus] Парсинг завершен, загружаем книги');
                     this.showToast('Поиск завершён!', 'success');
-                    await this.loadBooks({ query, page: 1, skipAutoParse: true });
-                } else if (statusData.status === 'failed' || statusData.status === 'ERROR') {
-                    this.showError(statusData.message || 'Ошибка поиска книг');
-                } else if (attempts >= maxAttempts) {
-                    // Время вышло, пробуем загрузить что есть
-                    this.showToast('Поиск занял слишком долго, загружаем результаты...', 'info');
-                    await this.loadBooks({ query, page: 1, skipAutoParse: true });
-                } else {
-                    // Продолжаем опрос
-                    setTimeout(checkStatus, 2000);
+                    await this.loadBooks({ query });
+                } else if (data.status === 'error') {
+                    clearInterval(checkInterval);
+                    container.innerHTML = this.getEmptyState('Ошибка поиска', 'Не удалось найти книги. Попробуйте другой запрос.');
                 }
             } catch (error) {
-                console.error('[showParsingStatus] Ошибка:', error);
-                if (attempts < maxAttempts) {
-                    setTimeout(checkStatus, 2000);
-                } else {
-                    this.showError('Ошибка получения результатов поиска');
-                }
+                console.error('[showParsingStatus] Ошибка проверки статуса:', error);
             }
-        };
+        }, 2000);
 
-        // Запускаем опрос
-        setTimeout(checkStatus, 2000);
+        // Таймаут 30 секунд
+        setTimeout(() => {
+            clearInterval(checkInterval);
+        }, 30000);
     }
         
     /**
