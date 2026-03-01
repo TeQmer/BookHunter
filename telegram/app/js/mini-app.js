@@ -1550,11 +1550,11 @@ class BookHunterApp {
     }
         
     /**
-     * Запуск парсинга книг с сайта магазина
+     * Запуск парсинга книг с сайта магазина (ВСЕГДА парсит, не ищет в базе)
      */
     async startParsing(query, source) {
         try {
-            console.log('[startParsing] Запуск парсинга для:', query, 'source:', source);
+            console.log('[startParsing] Запуск ПРИНУДИТЕЛЬНОГО парсинга для:', query, 'source:', source);
 
             // Получаем telegram_id
             const user = window.Telegram?.WebView?.initDataUnsafe?.user || window.tg?.getUser();
@@ -1562,12 +1562,20 @@ class BookHunterApp {
                 throw new Error('Не удалось получить Telegram ID. Откройте приложение через Telegram.');
             }
 
-            const url = `${this.apiBaseUrl}/api/parser/search?query=${encodeURIComponent(query)}&source=${encodeURIComponent(source)}`;
+            // Используем /api/parser/parse-body для принудительного парсинга
+            // fetch_details=true для получения детальной информации (издательство, переплёт, жанры)
+            const url = `${this.apiBaseUrl}/api/parser/parse-body`;
             console.log('[startParsing] URL:', url);
 
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    query: query,
+                    source: source,
+                    fetch_details: true,
+                    telegram_id: user.id
+                })
             });
 
             console.log('[startParsing] Статус ответа:', response.status);
@@ -1592,20 +1600,25 @@ class BookHunterApp {
             }
 
             // Обрабатываем ответ
-            if (data.db_books && data.db_books.length > 0) {
-                // Книги найдены в базе
-                console.log('[startParsing] Найдено в базе:', data.db_books.length);
-                this.renderBooks(data.db_books);
-            } else {
+            if (data.status === 'started' && data.task_id) {
                 // Парсинг запущен, нужно ждать результат
-                console.log('[startParsing] Парсинг запущен, task_id:', data.parse_task_id);
-                
-                if (data.parse_task_id) {
-                    // Показываем индикатор и опрашиваем статус
-                    this.showParsingStatus(data.parse_task_id, query);
+                console.log('[startParsing] Парсинг запущен, task_id:', data.task_id);
+                this.showParsingStatus(data.task_id, query);
+            } else if (data.status === 'limit_exceeded') {
+                // Лимит исчерпан
+                console.log('[startParsing] Лимит исчерпан, показываем что есть в базе');
+                if (data.books && data.books.length > 0) {
+                    this.showToast('Лимит исчерпан, показываем книги из базы', 'info');
+                    this.renderBooks(data.books);
                 } else {
-                    this.showError('Не удалось запустить поиск');
+                    this.showError('Лимит запросов исчерпан на сегодня. Попробуйте завтра.');
                 }
+            } else if (data.books && data.books.length > 0) {
+                // Книги уже есть в базе (без парсинга)
+                console.log('[startParsing] Книги найдены в базе:', data.books.length);
+                this.renderBooks(data.books);
+            } else {
+                this.showError('Не удалось запустить поиск');
             }
 
         } catch (error) {
