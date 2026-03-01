@@ -103,8 +103,9 @@ class BookHunterApp {
         };
     }
 
-    // Сохраняем user_id при старте сессии
+    // Сохраняем user_id и ID предыдущей сессии
     _currentUserId = null;
+    _previousSessionId = null;
 
     /**
      * Начало сессии пользователя
@@ -117,8 +118,30 @@ class BookHunterApp {
                 return;
             }
 
-            // Сохраняем user_id для использования при завершении сессии
-            this._currentUserId = String(user.id);
+            // Сохраняем user_id
+            const newUserId = String(user.id);
+            this._currentUserId = newUserId;
+
+            // Если есть незавершённая предыдущая сессия - закрываем её
+            if (this._previousSessionId && this.sessionStartTime) {
+                const durationSeconds = Math.round((Date.now() - this.sessionStartTime) / 1000);
+                console.log('[startSession] Закрываем предыдущую сессию:', this._previousSessionId, 'duration:', durationSeconds);
+                
+                try {
+                    await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/end`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: newUserId,
+                            session_id: this._previousSessionId,
+                            duration_seconds: durationSeconds
+                        })
+                    });
+                    console.log('[startSession] Предыдущая сессия закрыта');
+                } catch (e) {
+                    console.error('[startSession] Ошибка закрытия сессии:', e);
+                }
+            }
 
             const response = await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/start`, {
                 method: 'POST',
@@ -134,6 +157,8 @@ class BookHunterApp {
             const data = await response.json();
             
             if (data.success && data.session_id) {
+                // Сохраняем старую сессию перед перезаписью
+                this._previousSessionId = this.sessionId;
                 this.sessionId = data.session_id;
                 this.sessionStartTime = Date.now();
                 console.log('[startSession] Сессия начата, session_id:', this.sessionId, 'user_id:', this._currentUserId);
