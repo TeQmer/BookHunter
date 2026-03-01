@@ -1237,7 +1237,9 @@ class BookHunterApp {
             });
             console.log('[loadAlerts] Карта подписок обновлена:', Object.keys(this.data.userAlertsMap).length, 'подписок');
 
+            console.log('[loadAlerts] Вызов renderAlerts...');
             this.renderAlerts(this.data.alerts);
+            console.log('[loadAlerts] renderAlerts выполнен');
         } catch (error) {
             console.error('[loadAlerts] Ошибка загрузки подписок:', error);
             this.showError(error.message || 'Не удалось загрузить подписок');
