@@ -1550,22 +1550,15 @@ class BookHunterApp {
     }
         
     /**
-     * Запуск парсинга книг
+     * Запуск парсинга книг (ВСЕГДА парсит, не ищет в базе)
      */
     async startParsing(query, source = 'chitai-gorod') {
         try {
             console.log('[startParsing] Запускаем парсинг для:', query);
 
-            const response = await fetch(`${this.apiBaseUrl}/api/parser/parse-body`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    query: query,
-                    source: source,
-                    fetch_details: true
-                })
+            // Используем /api/parser/parse который ВСЕГДА запускает парсинг
+            const response = await fetch(`${this.apiBaseUrl}/api/parser/parse?query=${encodeURIComponent(query)}&source=${source}`, {
+                method: 'POST'
             });
 
             if (!response.ok) {
@@ -1579,9 +1572,6 @@ class BookHunterApp {
             // Показываем сообщение о парсинге
             if (data.task_id) {
                 this.showParsingStatus(data.task_id, query);
-            } else if (data.books && data.books.length > 0) {
-                // Книги уже есть без парсинга
-                this.renderBooks(data.books);
             } else {
                 this.showError('Не удалось запустить поиск книг');
             }
