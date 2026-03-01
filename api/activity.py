@@ -216,6 +216,11 @@ async def start_mini_app_session(
     db: AsyncSession = Depends(get_db)
 ):
     """Начало сессии пользователя в Telegram Mini App"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[session_start] user_id={session.user_id}, platform={session.platform}")
+    
     try:
         session_id = str(uuid.uuid4())
         started_at = datetime.utcnow()
@@ -238,13 +243,16 @@ async def start_mini_app_session(
         db.add(user_activity)
         await db.commit()
         
+        logger.info(f"[session_start] SUCCESS - session_id={session_id}")
+        
         return {
-            "success": True, 
+            "success": True,
             "session_id": session_id,
             "started_at": started_at.isoformat()
         }
     except Exception as e:
         await db.rollback()
+        logger.error(f"[session_start] ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -254,6 +262,11 @@ async def end_mini_app_session(
     db: AsyncSession = Depends(get_db)
 ):
     """Окончание сессии пользователя в Telegram Mini App"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[session_end] user_id={session.user_id}, session_id={session.session_id}, duration={session.duration_seconds}")
+    
     try:
         # Удаляем из активных сессий
         session_data = active_sessions.pop(session.session_id, None)
@@ -268,12 +281,15 @@ async def end_mini_app_session(
         db.add(user_activity)
         await db.commit()
         
+        logger.info(f"[session_end] SUCCESS - записано в БД")
+        
         return {
             "success": True,
             "duration_seconds": session.duration_seconds
         }
     except Exception as e:
         await db.rollback()
+        logger.error(f"[session_end] ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
