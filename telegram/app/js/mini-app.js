@@ -83,15 +83,24 @@ class BookHunterApp {
         
         // Отправляем окончание сессии при закрытии/уходе со страницы
         window.addEventListener('beforeunload', () => {
-            this.endSession();
+            this.endSessionSync();
         });
         
-        // Также отслеживаем уход со страницы (вкладка закрывается, переход по ссылке и т.д.)
+        // Также отслеживаем уход со страницы (вкладка закрывается)
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
                 this.endSession();
             }
         });
+        
+        // Отправляем конец сессии при переходе между страницами внутри приложения
+        this._originalNavigate = this.navigate.bind(this);
+        this.navigate = async (route, params) => {
+            await this.endSession(); // Завершаем текущую сессию перед навигацией
+            const result = await this._originalNavigate(route, params);
+            await this.startSession(); // Начинаем новую сессию после навигации
+            return result;
+        };
     }
 
     // Сохраняем user_id при старте сессии
@@ -121,7 +130,7 @@ class BookHunterApp {
                     platform: 'telegram'
                 })
             });
-            
+
             const data = await response.json();
             
             if (data.success && data.session_id) {
@@ -137,7 +146,7 @@ class BookHunterApp {
     }
 
     /**
-     * Окончание сессии пользователя
+     * Окончание сессии пользователя (async версия для навигации)
      */
     async endSession() {
         if (!this.sessionId || !this.sessionStartTime) {
@@ -153,35 +162,53 @@ class BookHunterApp {
         
         console.log('[endSession] Завершаем сессию, user_id:', userId, 'duration:', durationSeconds);
 
-        // Используем sendBeacon для надёжной отправки при закрытии страницы
+        try {
+            await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/end`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userId,
+                    session_id: sessionId,
+                    duration_seconds: durationSeconds
+                })
+            });
+            console.log('[endSession] Сессия завершена');
+        } catch (error) {
+            console.error('[endSession] Ошибка:', error);
+        }
+
+        // Сбрасываем переменные сессии
+        this.sessionId = null;
+        this.sessionStartTime = null;
+        this._currentUserId = null;
+    }
+
+    /**
+     * Синхронное окончание сессии (для beforeunload)
+     */
+    endSessionSync() {
+        if (!this.sessionId || !this.sessionStartTime) {
+            return;
+        }
+
+        const userId = this._currentUserId;
+        const sessionId = this.sessionId;
+        const durationSeconds = Math.round((Date.now() - this.sessionStartTime) / 1000);
+        
+        console.log('[endSessionSync] Завершаем сессию sync, user_id:', userId, 'duration:', durationSeconds);
+
+        // Используем sendBeacon для закрытия страницы
         const url = `${this.apiBaseUrl}/api/activity/mini-app/session/end`;
         const data = JSON.stringify({
             user_id: userId,
             session_id: sessionId,
             duration_seconds: durationSeconds
         });
-
-        // Пробуем sendBeacon (работает при закрытии вкладки)
-        if (navigator.sendBeacon) {
-            const blob = new Blob([data], { type: 'application/json' });
-            navigator.sendBeacon(url, blob);
-            console.log('[endSession] Отправлено через sendBeacon');
-        } else {
-            // Фоллбек на fetch для старых браузеров
-            try {
-                await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: data,
-                    keepalive: true
-                });
-                console.log('[endSession] Отправлено через fetch');
-            } catch (error) {
-                console.error('[endSession] Ошибка:', error);
-            }
-        }
-
-        // Сбрасываем переменные сессии
+        
+        const blob = new Blob([data], { type: 'application/json' });
+        navigator.sendBeacon(url, blob);
+        
+        // Сбрасываем переменные
         this.sessionId = null;
         this.sessionStartTime = null;
         this._currentUserId = null;
