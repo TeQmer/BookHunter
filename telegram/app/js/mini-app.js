@@ -27,6 +27,11 @@ class BookHunterApp {
         this.currentAlert = null; // Текущая подписка для редактирования
         this.currentSearchQuery = null; // Текущий поисковый запрос
         this.catalogFilters = {}; // Текущие фильтры каталога (для сохранения при пагинации)
+        
+        // Трекинг сессий для аналитики
+        this.sessionId = null; // ID сессии
+        this.sessionStartTime = null; // Время начала сессии
+        
         this.init();
     }
 
@@ -72,6 +77,95 @@ class BookHunterApp {
         await this.navigate('home');
 
         console.log('BookHunter Mini App инициализирован');
+        
+        // Запускаем трекинг сессии
+        await this.startSession();
+        
+        // Отправляем окончание сессии при закрытии/уходе со страницы
+        window.addEventListener('beforeunload', () => {
+            this.endSession();
+        });
+        
+        // Также отслеживаем уход со страницы (вкладка закрывается, переход по ссылке и т.д.)
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                this.endSession();
+            }
+        });
+    }
+
+    /**
+     * Начало сессии пользователя
+     */
+    async startSession() {
+        try {
+            const user = window.tg.getUser();
+            if (!user || !user.id) {
+                console.warn('[startSession] Не удалось получить user_id');
+                return;
+            }
+
+            const response = await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/start`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    user_id: String(user.id),
+                    platform: 'telegram'
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.session_id) {
+                this.sessionId = data.session_id;
+                this.sessionStartTime = Date.now();
+                console.log('[startSession] Сессия начата, session_id:', this.sessionId, 'user_id:', user.id);
+            } else {
+                console.warn('[startSession] Не удалось начать сессию:', data);
+            }
+        } catch (error) {
+            console.error('[startSession] Ошибка:', error);
+        }
+    }
+
+    /**
+     * Окончание сессии пользователя
+     */
+    async endSession() {
+        if (!this.sessionId || !this.sessionStartTime) {
+            return;
+        }
+
+        try {
+            const user = window.tg.getUser();
+            const userId = user?.id ? String(user.id) : null;
+            
+            // Вычисляем продолжительность сессии
+            const durationSeconds = Math.round((Date.now() - this.sessionStartTime) / 1000);
+            
+            const response = await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/end`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    user_id: userId,
+                    session_id: this.sessionId,
+                    duration_seconds: durationSeconds
+                })
+            });
+
+            const data = await response.json();
+            console.log('[endSession] Сессия завершена, duration:', durationSeconds, 'секунд');
+            
+            // Сбрасываем переменные сессии
+            this.sessionId = null;
+            this.sessionStartTime = null;
+        } catch (error) {
+            console.error('[endSession] Ошибка:', error);
+        }
     }
 
     /**

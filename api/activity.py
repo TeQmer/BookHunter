@@ -445,3 +445,35 @@ async def get_user_mini_app_stats(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/mini-app/clear")
+async def clear_mini_app_analytics(
+    db: AsyncSession = Depends(get_db)
+):
+    """Очистка всех данных аналитики Mini App"""
+    try:
+        # Удаляем все записи активности Mini App
+        from sqlalchemy import delete
+        result = await db.execute(
+            delete(UserActivity).where(
+                UserActivity.activity_type.in_([
+                    "mini_app_session_start",
+                    "mini_app_session_end"
+                ])
+            )
+        )
+        await db.commit()
+        
+        # Также очищаем активные сессии в памяти
+        active_sessions.clear()
+        
+        deleted_count = result.rowcount
+        
+        return {
+            "success": True,
+            "message": f"Удалено {deleted_count} записей аналитики"
+        }
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

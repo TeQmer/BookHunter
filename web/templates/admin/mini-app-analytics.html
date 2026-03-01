@@ -28,16 +28,29 @@
             </div>
         </div>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0"><i class="fas fa-save"></i> Сохранение отчёта</h6>
             </div>
             <div class="card-body">
                 <button id="save-report-btn" class="btn btn-success">
-                    <i class="fas fa-download"></i> Сохранить текущий отчёт
+                    <i class="fas fa-download"></i> Сохранить отчёт
                 </button>
-                <span class="text-muted ms-2">Сохранит данные в CSV файл</span>
+                <span class="text-muted ms-2">CSV</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-eraser"></i> Очистка данных</h6>
+            </div>
+            <div class="card-body">
+                <button id="clear-analytics-btn" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Очистить аналитику
+                </button>
+                <span class="text-muted ms-2">Удалить все записи</span>
             </div>
         </div>
     </div>
@@ -307,6 +320,40 @@ document.addEventListener('DOMContentLoaded', function() {
             link.href = URL.createObjectURL(blob);
             link.download = `mini_app_analytics_${reportDays}days_${dateStr}.csv`;
             link.click();
+        });
+    }
+    
+    // Очистка аналитики
+    const clearBtn = document.getElementById('clear-analytics-btn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', async function() {
+            if (!confirm('Вы уверены, что хотите удалить все данные аналитики Mini App? Это действие нельзя отменить.')) {
+                return;
+            }
+            
+            try {
+                clearBtn.disabled = true;
+                clearBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Удаление...';
+                
+                const response = await fetch('/api/activity/mini-app/clear', {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Данные аналитики успешно очищены! Обновите страницу.');
+                    window.location.reload();
+                } else {
+                    alert('Ошибка: ' + (data.detail || 'Неизвестная ошибка'));
+                    clearBtn.disabled = false;
+                    clearBtn.innerHTML = '<i class="fas fa-trash"></i> Очистить аналитику';
+                }
+            } catch (error) {
+                alert('Ошибка при удалении: ' + error.message);
+                clearBtn.disabled = false;
+                clearBtn.innerHTML = '<i class="fas fa-trash"></i> Очистить аналитику';
+            }
         });
     }
 });
