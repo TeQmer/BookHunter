@@ -94,6 +94,9 @@ class BookHunterApp {
         });
     }
 
+    // Сохраняем user_id при старте сессии
+    _currentUserId = null;
+
     /**
      * Начало сессии пользователя
      */
@@ -105,13 +108,16 @@ class BookHunterApp {
                 return;
             }
 
+            // Сохраняем user_id для использования при завершении сессии
+            this._currentUserId = String(user.id);
+
             const response = await fetch(`${this.apiBaseUrl}/api/activity/mini-app/session/start`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    user_id: String(user.id),
+                    user_id: this._currentUserId,
                     platform: 'telegram'
                 })
             });
@@ -121,7 +127,7 @@ class BookHunterApp {
             if (data.success && data.session_id) {
                 this.sessionId = data.session_id;
                 this.sessionStartTime = Date.now();
-                console.log('[startSession] Сессия начата, session_id:', this.sessionId, 'user_id:', user.id);
+                console.log('[startSession] Сессия начата, session_id:', this.sessionId, 'user_id:', this._currentUserId);
             } else {
                 console.warn('[startSession] Не удалось начать сессию:', data);
             }
@@ -139,8 +145,8 @@ class BookHunterApp {
         }
 
         try {
-            const user = window.tg.getUser();
-            const userId = user?.id ? String(user.id) : null;
+            // Используем сохранённый user_id вместо попытки получить его заново
+            const userId = this._currentUserId;
             
             // Вычисляем продолжительность сессии
             const durationSeconds = Math.round((Date.now() - this.sessionStartTime) / 1000);
@@ -158,11 +164,12 @@ class BookHunterApp {
             });
 
             const data = await response.json();
-            console.log('[endSession] Сессия завершена, duration:', durationSeconds, 'секунд');
+            console.log('[endSession] Сессия завершена, user_id:', userId, 'duration:', durationSeconds, 'секунд');
             
             // Сбрасываем переменные сессии
             this.sessionId = null;
             this.sessionStartTime = null;
+            this._currentUserId = null;
         } catch (error) {
             console.error('[endSession] Ошибка:', error);
         }
