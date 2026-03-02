@@ -151,8 +151,15 @@ class WildberriesParser(BaseParser):
                             break
                             
                         elif response.status == 429:
-                            parser_logger.warning("[Wildberries] Rate limit (429)")
-                            await asyncio.sleep(10)
+                            parser_logger.warning("[Wildberries] Rate limit (429), увеличиваем задержку...")
+                            await asyncio.sleep(30)  # Большая задержка при 429
+                            # Пробуем еще раз без continue, выходим после повторной попытки
+                            retry_count = getattr(self, '_retry_count', 0)
+                            if retry_count >= 1:
+                                parser_logger.error("[Wildberries] Превышен лимит повторов после 429")
+                                break
+                            self._retry_count = retry_count + 1
+                            parser_logger.info(f"[Wildberries] Повторная попытка {self._retry_count}/1")
                             continue
                         
                         else:
