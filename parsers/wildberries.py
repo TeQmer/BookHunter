@@ -17,8 +17,8 @@ class WildberriesParser(BaseParser):
         # Задержки для WB - больше чем для Chitai-Gorod из-за защиты
         super().__init__("wildberries", delay_min=2.0, delay_max=4.0)
         self.base_url = "https://www.wildberries.ru"
-        # Правильный API URL (исправлено)
-        self.api_url = "https://search.wb.ru"
+        # Правильный API URL из рабочего парсера!
+        self.api_url = "https://www.wildberries.ru/__internal/u-search/exactmatch/ru/common/v18"
         
         # Флаг для отслеживания обновления cookies
         self._cookies_update_triggered = False
@@ -30,40 +30,30 @@ class WildberriesParser(BaseParser):
     
     def _get_headers(self, include_token: bool = False) -> Dict[str, str]:
         """
-        Получение заголовков - МИНИМАЛЬНЫЙ набор как в рабочем парсере
+        Получение заголовков - как в рабочем парсере FedorSmorodskii
         """
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0)"
+            "accept": "*/*",
+            "accept-language": "ru-RU,ru;q=0.9",
+            "content-type": "application/json",
+            "sec-ch-ua": '"Not_A Brand";v="99", "Chromium";v="142"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+            "referer": "https://www.wildberries.ru/",
         }
-        
-        # Токен опционально
-        if include_token:
-            try:
-                from services.token_manager import get_token_manager
-                token_manager = get_token_manager()
-                wb_cookies = token_manager.get_wildberries_cookies()
-                if wb_cookies and 'x_wbaas_token' in wb_cookies:
-                    headers["x-wbaas-token"] = wb_cookies['x_wbaas_token']
-            except Exception:
-                pass
         
         return headers
     
     def _get_cookies(self) -> Optional[Dict[str, str]]:
-        """Получение cookies из Redis или минимальные"""
-        try:
-            from services.token_manager import get_token_manager
-            token_manager = get_token_manager()
-            cookies = token_manager.get_wildberries_cookies()
-            if cookies:
-                return cookies
-        except Exception as e:
-            parser_logger.warning(f"[Wildberries] Не удалось получить cookies: {e}")
-        
-        # Возвращаем минимальные cookies как fallback
+        """Получение cookies - используем рабочие из парсера FedorSmorodskii"""
+        # Рабочие cookies из успешного парсера!
         return {
-            "_wbauid": "892233731763147891",
-            "_cp": "1"
+            "x_wbaas_token": "1.1000.a68eb290181f459082e3165ba3118991.MTV8NDUuMjQ5LjEwNi4xMjF8TW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDs",
+            "_wbauid": "9946458701771941728"
         }
     
     async def _wait_for_cookies_update(self, timeout: int = 30) -> bool:
@@ -192,19 +182,24 @@ class WildberriesParser(BaseParser):
                 page_books = []
                 
                 for page in range(1, max_pages + 1):
-                    # РАБОЧИЙ URL из рабочего парсера!
-                    search_url = f"https://catalog.wb.ru/catalog/{shard}/catalog"
+                    # РАБОЧИЙ URL из FedorSmorodskii парсера!
+                    search_url = f"{self.api_url}/search"
                     
                     # Параметры как в рабочем парсере
                     params = {
+                        "ab_testid": "dis_cb",
                         "appType": 1,
                         "curr": "rub",
                         "dest": "-1257786",
-                        "locale": "ru",
+                        "hide_vflags": "4294967296",
+                        "inheritFilters": "false",
+                        "lang": "ru",
                         "page": page,
                         "query": query,
+                        "resultset": "catalog",
                         "sort": "popular",
-                        "spp": 0  # без скидки для простоты
+                        "spp": 30,
+                        "suppressSpellcheck": "false"
                     }
             
                     # Получаем заголовки с token
