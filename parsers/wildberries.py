@@ -50,14 +50,21 @@ class WildberriesParser(BaseParser):
         return headers
     
     def _get_cookies(self) -> Optional[Dict[str, str]]:
-        """Получение cookies из Redis"""
+        """Получение cookies из Redis или минимальные"""
         try:
             from services.token_manager import get_token_manager
             token_manager = get_token_manager()
-            return token_manager.get_wildberries_cookies()
+            cookies = token_manager.get_wildberries_cookies()
+            if cookies:
+                return cookies
         except Exception as e:
             parser_logger.warning(f"[Wildberries] Не удалось получить cookies: {e}")
-            return None
+        
+        # Возвращаем минимальные cookies как fallback
+        return {
+            "_wbauid": "892233731763147891",
+            "_cp": "1"
+        }
     
     async def _wait_for_cookies_update(self, timeout: int = 30) -> bool:
         """
@@ -169,11 +176,18 @@ class WildberriesParser(BaseParser):
             parser_logger.info(f"[Wildberries] {attempt_info}: поиск '{query}'")
             
             try:
+                # Пробуем получить cookies из Redis
                 cookies = self._get_cookies()
-                if cookies:
-                    parser_logger.info(f"[Wildberries] Используем cookies: {len(cookies)} шт")
+                
+                # Если нет - добавляем минимальные cookies которые могут помочь
+                if not cookies:
+                    cookies = {
+                        "_wbauid": "892233731763147891",
+                        "_cp": "1"
+                    }
+                    parser_logger.info("[Wildberries] Используем базовые cookies")
                 else:
-                    parser_logger.info("[Wildberries] Работаем без cookies")
+                    parser_logger.info(f"[Wildberries] Используем cookies: {len(cookies)} шт")
                 
                 page_books = []
                 
@@ -196,7 +210,9 @@ class WildberriesParser(BaseParser):
                     # Получаем заголовки с token
                     headers = self._get_headers(include_token=True)
                     
-                    await self._random_delay()
+                    # Большая случайная задержка перед запросом (3-8 секунд)
+                    import random
+                    await asyncio.sleep(random.uniform(3, 8))
                     
                     async with aiohttp.ClientSession() as session:
                         async with session.get(
