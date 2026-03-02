@@ -15,7 +15,7 @@ class WildberriesParser(BaseParser):
         # Задержки для WB - больше чем для Chitai-Gorod из-за защиты
         super().__init__("wildberries", delay_min=1.5, delay_max=3.0)
         self.base_url = "https://www.wildberries.ru"
-        self.api_url = "https://search.wb.ru"
+        # self.api_url = "https://search.wb.ru"
         
         # Флаг для отслеживания обновления cookies
         self._cookies_update_triggered = False
@@ -113,17 +113,15 @@ class WildberriesParser(BaseParser):
                 parser_logger.warning("[Wildberries] Cookies не найдены!")
             
             for page in range(1, max_pages + 1):
-                # Пробуем разные API endpoints
-                # Старый API (может работать лучше)
-                search_url = f"{self.api_url}/exactmatch/ru/common/v4/search"
+                # Используем API каталога
+                search_url = f"https://catalog.wb.ru/catalog/catalog_ajax"
+                
+                # Другие попытки API
+                # search_url = f"{self.api_url}/exactmatch/ru/common/v4/search"
                 params = {
-                    "appType": 1,
-                    "curr": "rub",
-                    "dest": "-1257786",  # Москва (можно сделать настраиваемым)
-                    "lang": "ru",
+                    "category": 9855,  # Книги
                     "page": page,
                     "query": query,
-                    "resultset": "catalog",
                     "sort": "popular",
                     "spp": 30
                 }
