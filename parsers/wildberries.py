@@ -46,9 +46,20 @@ class WildberriesParser(BaseParser):
             try:
                 from services.token_manager import get_token_manager
                 token_manager = get_token_manager()
+                
+                # Сначала пробуем получить из cookies
                 wb_cookies = token_manager.get_wildberries_cookies()
                 if wb_cookies and 'x_wbaas_token' in wb_cookies:
                     headers["x-wbaas-token"] = wb_cookies['x_wbaas_token']
+                    parser_logger.info("[Wildberries] Используем x-wbaas-token из cookies")
+                else:
+                    # Fallback на env
+                    token = token_manager.get_wildberries_token_fallback()
+                    if token:
+                        headers["x-wbaas-token"] = token
+                        parser_logger.info("[Wildberries] Используем x-wbaas-token из .env (fallback)")
+                    else:
+                        parser_logger.warning("[Wildberries] Токен не найден ни в cookies, ни в .env!")
             except Exception as e:
                 parser_logger.warning(f"[Wildberries] Не удалось получить token: {e}")
         
