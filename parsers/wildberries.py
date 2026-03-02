@@ -209,12 +209,16 @@ class WildberriesParser(BaseParser):
                     import random
                     await asyncio.sleep(random.uniform(3, 8))
                     
+                    # Используем прокси
+                    proxy = "http://195.9.15.186:10080"
+                    
                     async with aiohttp.ClientSession() as session:
                         async with session.get(
                             search_url, 
                             params=params, 
                             headers=headers,
-                            cookies=cookies
+                            cookies=cookies,
+                            proxy=proxy
                         ) as response:
                             if response.status == 200:
                                 data = await response.json()
