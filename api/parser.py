@@ -221,17 +221,20 @@ async def parse_books_from_body(
                     logger.warning(f"Ошибка проверки Redis: {e}")
             
             if not parse_already_running:
-                # Запускаем фоновую задачу парсинга с использованием ключевых слов
+                # Запускаем фоновую задачу парсинга для каждого источника
                 # max_pages=1 означает парсить только первую страницу (25 книг)
-                task = parse_books.delay(query=query, source=source, fetch_details=fetch_details, max_pages=1)
-                logger.info(f"Запущен парсинг для запроса: '{query}' (task_id: {task.id}, fetch_details={fetch_details})")
+                task_ids = []
+                for src in sources:
+                    task = parse_books.delay(query=query, source=src, fetch_details=fetch_details, max_pages=1)
+                    task_ids.append({"source": src, "task_id": task.id})
+                    logger.info(f"Запущен парсинг для '{query}' из '{src}' (task_id: {task.id})")
                 
                 return {
-                    "task_id": task.id,
+                    "tasks": task_ids,
                     "status": "started",
-                    "message": f"Книги не найдены в базе. Парсинг запущен для запроса: '{query}'",
+                    "message": f"Книги не найдены в базе. Парсинг запущен для источников: {', '.join(sources)}",
                     "query": query,
-                    "source": source,
+                    "sources": sources,
                     "fetch_details": fetch_details,
                     "books": books_list,
                     "total": total,
@@ -247,7 +250,7 @@ async def parse_books_from_body(
             "status": "found_in_db",
             "message": f"Найдено {total} книг в базе данных",
             "query": query,
-            "source": source,
+            "sources": sources,
             "books": books_list,
             "total": total,
             "found_in_db": True,
