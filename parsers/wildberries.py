@@ -205,19 +205,17 @@ class WildberriesParser(BaseParser):
                     import random
                     await asyncio.sleep(random.uniform(3, 8))
                     
-                    # Используем платный мобильный прокси
-                    proxy = "http://Teqmer12:Rusik88228@109.248.7.208:10083"
+                    # Используем резидентский прокси
+                    proxy = "http://RusiknQ7:6751f2kI6@109.248.7.209:10055"
                     
-                    # Ограничение соединений для прокси
-                    connector = aiohttp.TCPConnector(limit=1, limit_per_host=1)
-                    async with aiohttp.ClientSession(connector=connector) as session:
+                    # Работа с прокси через aiohttp
+                    async with aiohttp.ClientSession() as session:
                         async with session.get(
                             search_url, 
                             params=params, 
                             headers=headers,
                             cookies=cookies,
-                            proxy=proxy,
-                            timeout=aiohttp.ClientTimeout(total=30)
+                            proxy=proxy
                         ) as response:
                             if response.status == 200:
                                 data = await response.json()
