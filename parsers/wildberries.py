@@ -29,51 +29,25 @@ class WildberriesParser(BaseParser):
     
     def _get_headers(self, include_token: bool = False) -> Dict[str, str]:
         """
-        Получение заголовков запроса с реалистичным User-Agent
-        
-        Args:
-            include_token: Добавлять ли x-wbaas-token в заголовки
+        Получение заголовков запроса - МИНИМАЛЬНЫЙ набор как в работающем curl
         """
-        import uuid
-        
         headers = {
             "accept": "*/*",
-            "accept-language": "ru,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0",
-            "sec-ch-ua": '"Chromium";v="141", "Not/A Brand";v="8", "Microsoft Edge";v="141"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-site",
-            "origin": "https://www.wildberries.ru",
-            "referer": "https://www.wildberries.ru/catalog/0/search.aspx?search=",
-            "x-queryid": f"qid{int(time.time() * 1000)}",
-            "x-userid": "0",
-            "priority": "u=1, i",
+            "accept-language": "ru-RU,ru;q=0.9",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         }
         
-        # Добавляем x-wbaas-token если запрошено
+        # Токен больше НЕ НУЖЕН - API работает без него!
+        # Оставляю для совместимости, но он не обязателен
         if include_token:
             try:
                 from services.token_manager import get_token_manager
                 token_manager = get_token_manager()
-                
-                # Сначала пробуем получить из cookies
                 wb_cookies = token_manager.get_wildberries_cookies()
                 if wb_cookies and 'x_wbaas_token' in wb_cookies:
                     headers["x-wbaas-token"] = wb_cookies['x_wbaas_token']
-                    parser_logger.info("[Wildberries] Используем x-wbaas-token из cookies")
-                else:
-                    # Fallback на env
-                    token = token_manager.get_wildberries_token_fallback()
-                    if token:
-                        headers["x-wbaas-token"] = token
-                        parser_logger.info("[Wildberries] Используем x-wbaas-token из .env (fallback)")
-                    else:
-                        parser_logger.warning("[Wildberries] Токен не найден ни в cookies, ни в .env!")
-            except Exception as e:
-                parser_logger.warning(f"[Wildberries] Не удалось получить token: {e}")
+            except Exception:
+                pass
         
         return headers
     
@@ -192,14 +166,13 @@ class WildberriesParser(BaseParser):
             parser_logger.info(f"[Wildberries] {attempt_info}: поиск '{query}'")
             
             try:
-                # Получаем актуальные cookies перед каждым запросом
+                # Cookies больше НЕ НУЖНЫ - API работает без них!
+                # Оставляем для совместимости если будут
                 cookies = self._get_cookies()
                 if cookies:
                     parser_logger.info(f"[Wildberries] Используем cookies: {len(cookies)} шт")
-                    if 'x_wbaas_token' in cookies:
-                        parser_logger.debug(f"[Wildberries] x_wbaas_token: {cookies['x_wbaas_token'][:20]}...")
                 else:
-                    parser_logger.warning("[Wildberries] Cookies не найдены!")
+                    parser_logger.info("[Wildberries] Работаем без cookies (не нужны)")
                 
                 page_books = []
                 
