@@ -382,6 +382,89 @@ class TokenManager:
         except Exception as e:
             logger.error(f"Ошибка отправки статистики в Telegram: {e}")
 
+    # ==================== Wildberries ====================
+
+    def get_wildberries_cookies(self) -> Optional[Dict[str, str]]:
+        """
+        Получение cookies Wildberries из Redis
+
+        Returns:
+            Словарь cookies или None
+        """
+        try:
+            redis_client = self._get_redis_client()
+            cookies_json = redis_client.get("wildberries_cookies")
+
+            if cookies_json:
+                import json
+                cookies = json.loads(cookies_json)
+                logger.info(f"WB Cookies получены из Redis: {len(cookies)} cookies")
+                return cookies
+            else:
+                logger.warning("WB Cookies не найдены в Redis")
+                return None
+
+        except Exception as e:
+            logger.error(f"Ошибка получения WB cookies: {e}")
+            return None
+
+    def save_wildberries_cookies(self, cookies: Dict[str, str], ttl: int = 43200) -> bool:
+        """
+        Сохранение cookies Wildberries в Redis
+
+        Args:
+            cookies: Словарь cookies
+            ttl: Время жизни в секундах (по умолчанию 12 часов)
+
+        Returns:
+            True при успехе, False при ошибке
+        """
+        try:
+            redis_client = self._get_redis_client()
+            import json
+            cookies_json = json.dumps(cookies)
+            redis_client.setex("wildberries_cookies", ttl, cookies_json)
+            logger.info(f"WB Cookies сохранены в Redis (TTL: {ttl} сек)")
+            return True
+
+        except Exception as e:
+            logger.error(f"Ошибка сохранения WB cookies: {e}")
+            return False
+
+    def get_wildberries_token_fallback(self) -> Optional[str]:
+        """
+        Получение токена WB с fallback на env
+
+        Returns:
+            Токен или None
+        """
+        # Сначала пробуем из cookies
+        cookies = self.get_wildberries_cookies()
+        if cookies and 'x_wbaas_token' in cookies:
+            return cookies['x_wbaas_token']
+
+        # Fallback на env
+        return os.getenv("WB_X_WBAAS_TOKEN")
+
+    def trigger_wildberries_cookies_update(self) -> bool:
+        """
+        Триггер Celery задачи для обновления cookies WB
+
+        Returns:
+            True при успехе, False при ошибке
+        """
+        try:
+            from services.celery_app import celery_app
+            result = celery_app.send_task(
+                "services.celery_tasks.update_wildberries_cookies",
+                countdown=5
+            )
+            logger.info(f"Задача обновления WB cookies отправлена: {result.id}")
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка триггера обновления WB cookies: {e}")
+            return False
+
 
 # Глобальный экземпляр для использования в приложении
 _token_manager_instance = None

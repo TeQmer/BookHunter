@@ -2,14 +2,16 @@ from typing import Dict, Type
 from parsers.base import BaseParser
 from services.logger import parser_logger
 
-# Импортируем парсеры (пока только ChitaiGorod)
+# Импортируем парсеры
 try:
     from parsers.chitai_gorod import ChitaiGorodParser
+    from parsers.wildberries import WildberriesParser
     PARSERS_AVAILABLE = True
 except ImportError as e:
     parser_logger.warning(f"Не удалось загрузить парсеры: {e}")
     PARSERS_AVAILABLE = False
     ChitaiGorodParser = None
+    WildberriesParser = None
 
 class ParserFactory:
     """Фабрика для создания парсеров магазинов"""
@@ -28,6 +30,11 @@ class ParserFactory:
         if ChitaiGorodParser:
             self._parsers["chitai-gorod"] = ChitaiGorodParser
             parser_logger.info("Парсер 'Читай-город' загружен")
+    
+        # Регистрируем парсер "Wildberries"
+        if WildberriesParser:
+            self._parsers["wildberries"] = WildberriesParser
+            parser_logger.info("Парсер 'Wildberries' загружен")
     
     def get_parser(self, source_name: str) -> BaseParser:
         """Получение парсера по названию источника"""

@@ -481,11 +481,20 @@ async def search_books_api(
 @router.get("/api/smart-search")
 async def smart_search_books(
     q: str = Query(..., description="Поисковый запрос"),
-    source: str = Query("chitai-gorod", description="Источник парсинга"),
+    sources: str = Query("chitai-gorod,wildberries", description="Источники через запятую"),
+    min_discount: int = Query(None, description="Минимальная скидка"),
+    max_price: int = Query(None, description="Максимальная цена"),
     db: AsyncSession = Depends(get_db)
 ):
     """Умный поиск книг: показываем ВСЕ книги из БД, сортируем по релевантности"""
     try:
+        # Парсим список источников
+        sources_list = [s.strip() for s in sources.split(",") if s.strip()]
+        if not sources_list:
+            sources_list = ["chitai-gorod", "wildberries"]
+
+        logger.info(f"[smart-search] Запрос: {q}, источники: {sources_list}")
+
         # Импортируем логику умного поиска
         from services.search_utils import is_book_similar, is_exact_match
         
@@ -512,6 +521,15 @@ async def smart_search_books(
         else:
             search_query = select(Book)
             
+        # Фильтр по источникам
+        search_query = search_query.where(Book.source.in_(sources_list))
+
+        # Фильтры по скидке и цене
+        if min_discount is not None:
+            search_query = search_query.where(Book.discount_percent >= min_discount)
+        if max_price is not None:
+            search_query = search_query.where(Book.current_price <= max_price)
+
         search_query = search_query.order_by(Book.parsed_at.desc()).limit(50)
         
         result = await db.execute(search_query)
@@ -536,8 +554,8 @@ async def smart_search_books(
         # Объединяем: точные первыми, потом частичные
         all_relevant_books = exact_matches + partial_matches
         
-        logger.info(f"Smart search '{q}': найдено {len(db_books)} в базе, точных: {len(exact_matches)}, частичных: {len(partial_matches)}")
-        
+        logger.info(f"[smart-search] Найдено в базе: {len(all_relevant_books)}")
+
         # ВСЕГДА возвращаем книги из базы (даже частично релевантные)
         if all_relevant_books:
             status = "found_exact" if exact_matches else "found_partial"
@@ -546,7 +564,7 @@ async def smart_search_books(
             return JSONResponse({
                 "success": True,
                 "query": q,
-                "source": source,
+                "sources": sources_list,
                 "books": all_relevant_books,
                 "found_count": len(all_relevant_books),
                 "exact_match_count": len(exact_matches),
@@ -557,18 +575,21 @@ async def smart_search_books(
         # Только если совсем ничего нет - запускаем парсинг
         logger.info(f"Книги не найдены в базе для '{q}', запускаем парсинг")
         
-        # Запускаем парсинг в фоне
+        # Запускаем парсинг для каждого источника
         from services.celery_tasks import parse_books
-        task = parse_books.delay(q, source)
+        task_ids = []
+        for src in sources_list:
+            task = parse_books.delay(q, src)
+            task_ids.append({"source": src, "task_id": task.id})
         
         return JSONResponse({
             "success": True,
             "query": q,
-            "source": source,
+            "sources": sources_list,
             "books": [],
             "found_count": 0,
             "status": "parsing_started",
-            "task_id": task.id,
+            "tasks": task_ids,
             "message": f"Книги по запросу '{q}' не найдены в каталоге. Запущен поиск новых книг..."
         })
         

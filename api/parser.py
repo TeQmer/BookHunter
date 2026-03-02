@@ -52,9 +52,15 @@ def check_request_limit(sync_db: Session, telegram_id: int) -> tuple[bool, Optio
         return True, None, ""
 
 
-async def search_books_in_db(query: str, db: AsyncSession, limit: int = 50) -> tuple[List[dict], int]:
+async def search_books_in_db(query: str, db: AsyncSession, sources: List[str] = None, limit: int = 50) -> tuple[List[dict], int]:
     """
     Ищет книги в базе данных по запросу.
+    
+    Args:
+        query: Поисковый запрос
+        db: Сессия базы данных
+        sources: Список источников для фильтрации (если None - все)
+        limit: Максимальное количество результатов
     
     Returns:
         tuple: (books_list: List[dict], total: int)
@@ -75,6 +81,10 @@ async def search_books_in_db(query: str, db: AsyncSession, limit: int = 50) -> t
         db_query = select(Book).where(or_(*word_conditions))
     else:
         db_query = select(Book)
+            
+    # Фильтр по источникам
+    if sources:
+        db_query = db_query.where(Book.source.in_(sources))
             
     # Подсчёт общего количества
     count_result = await db.execute(select(func.count()).select_from(db_query.subquery()))
@@ -135,7 +145,14 @@ async def parse_books_from_body(
 
     try:
         query = data.get("query")
-        source = data.get("source", "chitai-gorod")
+        
+        # Поддержка как строки, так и массива источников
+        sources_param = data.get("sources", ["chitai-gorod", "wildberries"])
+        if isinstance(sources_param, str):
+            sources = [sources_param]
+        else:
+            sources = sources_param
+        
         fetch_details = data.get("fetch_details", False)
         telegram_id = data.get("telegram_id")
         
@@ -150,13 +167,13 @@ async def parse_books_from_body(
                 # Лимит исчерпан - ищем только в базе данных
                 logger.info(f"Лимит исчерпан для пользователя {telegram_id}. Ищем только в базе данных.")
                 
-                books_list, total = await search_books_in_db(query, db)
+                books_list, total = await search_books_in_db(query, db, sources=sources)
                 
                 return {
                     "status": "limit_exceeded",
                     "message": error_message,
                     "query": query,
-                    "source": source,
+                    "sources": sources,
                     "books": books_list,
                     "total": total,
                     "found_in_db": True,
@@ -167,7 +184,7 @@ async def parse_books_from_body(
             logger.info(f"Пользователь {telegram_id} использует запрос ({user.daily_requests_used}/{user.daily_requests_limit})")
 
         # Сначала ищем в базе данных
-        books_list, total = await search_books_in_db(query, db)
+        books_list, total = await search_books_in_db(query, db, sources=sources)
         
         # Запускаем парсинг ТОЛЬКО если книги НЕ найдены в базе
         should_parse = total == 0
@@ -449,14 +466,14 @@ async def get_available_sources():
     """Получение списка доступных источников для парсинга"""
     
     try:
-        # Простой список источников
         sources = {
-            "chitai-gorod": "Читай-город"
+            "chitai-gorod": "Читай-город",
+            "wildberries": "Wildberries"
         }
         
         return {
             "sources": sources,
-            "default_source": "chitai-gorod"
+            "default_sources": ["chitai-gorod", "wildberries"]  # По умолчанию оба
         }
         
     except Exception as e:

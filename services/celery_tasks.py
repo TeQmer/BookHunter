@@ -2195,3 +2195,212 @@ async def _cleanup_books_async():
             await db.rollback()
             raise
  
+
+# =============================================================================
+# Задача обновления cookies Wildberries (каждые 12 часов)
+# =============================================================================
+
+@celery_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 600})
+def update_wildberries_cookies(self):
+    """
+    Обновление cookies Wildberries через FlareSolverr
+
+    Эта задача:
+    1. Запрашивает страницу WB через FlareSolverr
+    2. Извлекает cookies (включая x-wbaas-token)
+    3. Сохраняет cookies в Redis
+    4. Проверяет работоспособность cookies
+
+    Запускается:
+    - По расписанию (каждые 12 часов)
+    - При обнаружении 401 ошибки в парсере WB
+    """
+    import requests
+    import json
+
+    def run_async_task():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(_update_wildberries_cookies_async())
+        finally:
+            loop.close()
+
+    try:
+        celery_logger.info("Начинаем обновление cookies Wildberries через FlareSolverr")
+        result = run_async_task()
+        celery_logger.info(f"Обновление cookies WB завершено: {result}")
+        return result
+    except Exception as e:
+        celery_logger.error(f"Ошибка при обновлении cookies WB: {e}")
+        raise self.retry(countdown=600, exc=e)
+
+
+async def _update_wildberries_cookies_async():
+    """Асинхронное обновление cookies Wildberries"""
+
+    import requests
+    import json
+
+    try:
+        # Получаем URL FlareSolverr из переменных окружения
+        flaresolverr_url = os.getenv("FLARESOLVERR_URL", "http://flaresolverr:8191/v1")
+        celery_logger.info(f"Используем FlareSolverr: {flaresolverr_url}")
+
+        # Формируем запрос к FlareSolverr для WB
+        flaresolverr_request = {
+            "cmd": "request.get",
+            "url": "https://www.wildberries.ru",
+            "maxTimeout": 60000,
+            "disableMedia": True
+        }
+
+        celery_logger.info("Отправляем запрос к FlareSolverr для WB...")
+        response = requests.post(
+            flaresolverr_url,
+            json=flaresolverr_request,
+            timeout=90
+        )
+
+        if response.status_code != 200:
+            celery_logger.error(f"FlareSolverr вернул ошибку: {response.status_code}")
+            return {"status": "error", "message": f"FlareSolverr error: {response.status_code}"}
+
+        data = response.json()
+
+        if data.get("status") != "ok":
+            celery_logger.error(f"FlareSolverr вернул неуспешный статус: {data}")
+            return {"status": "error", "message": f"FlareSolverr status: {data.get('status')}"}
+
+        # Извлекаем cookies
+        solution = data.get("solution", {})
+        cookies = solution.get("cookies", [])
+
+        celery_logger.info(f"Получено {len(cookies)} cookies от WB:")
+        for cookie in cookies:
+            cookie_name = cookie.get("name", "")
+            cookie_value = cookie.get("value", "")
+            if len(cookie_value) > 50:
+                cookie_value = cookie_value[:50] + "..."
+            celery_logger.info(f"  - {cookie_name}: {cookie_value}")
+
+        # Создаем словарь cookies
+        cookies_dict = {}
+        for cookie in cookies:
+            cookies_dict[cookie.get("name")] = cookie.get("value")
+
+        # Проверяем наличие x-wbaas-token
+        x_wbaas_token = cookies_dict.get("x-wbaas-token")
+
+        # Проверяем работоспособность cookies
+        celery_logger.info("Проверяем работоспособность cookies WB...")
+
+        api_url = "https://search.wb.ru/exactmatch/ru/common/v18/search"
+        params = {
+            "appType": 1,
+            "curr": "rub",
+            "dest": "-1257786",
+            "lang": "ru",
+            "page": 1,
+            "query": "книги",
+            "resultset": "catalog",
+            "sort": "popular",
+            "spp": 30
+        }
+
+        headers = {
+            "accept": "*/*",
+            "accept-language": "ru,en;q=0.9",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 YaBrowser/25.12.0.0 Yowser/2.5",
+            "origin": "https://www.wildberries.ru",
+            "referer": "https://www.wildberries.ru/",
+        }
+
+        # Добавляем x-wbaas-token если есть
+        if x_wbaas_token:
+            headers["x-wbaas-token"] = x_wbaas_token
+
+        check_response = requests.get(api_url, headers=headers, params=params, cookies=cookies_dict, timeout=30)
+
+        if check_response.status_code == 200:
+            celery_logger.info("Cookies WB работают корректно!")
+
+            # Сохраняем cookies в Redis
+            try:
+                from services.token_manager import get_token_manager
+                token_manager = get_token_manager()
+                token_manager.save_wildberries_cookies(cookies_dict, ttl=43200)  # 12 часов
+                celery_logger.info(f"Cookies WB сохранены в Redis (TTL: 12 часов)")
+            except Exception as redis_error:
+                celery_logger.error(f"Ошибка сохранения cookies в Redis: {redis_error}")
+
+            # Отправляем уведомление об успехе
+            try:
+                from services.token_manager import get_token_manager
+                token_manager = get_token_manager()
+                token_manager.send_token_notification(
+                    "success",
+                    "✅ Cookies Wildberries успешно обновлены",
+                    f"Получено {len(cookies_dict)} cookies\nx-wbaas-token: {'есть' if x_wbaas_token else 'нет'}"
+                )
+            except Exception as notify_error:
+                celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
+
+            return {
+                "status": "success",
+                "message": "Cookies updated successfully",
+                "cookies_count": len(cookies_dict),
+                "has_token": bool(x_wbaas_token)
+            }
+
+        elif check_response.status_code == 401:
+            celery_logger.error("Cookies WB недействительны (401)")
+
+            try:
+                from services.token_manager import get_token_manager
+                token_manager = get_token_manager()
+                token_manager.send_token_notification(
+                    "error",
+                    "❌ Cookies WB недействительны (401)",
+                    "API WB вернул ошибку авторизации"
+                )
+            except Exception as notify_error:
+                celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
+
+            return {"status": "error", "message": "Cookies are invalid (401)"}
+
+        else:
+            celery_logger.error(f"Неожиданный статус при проверке cookies WB: {check_response.status_code}")
+            return {"status": "error", "message": f"Unexpected status: {check_response.status_code}"}
+
+    except requests.Timeout:
+        celery_logger.error("Таймаут при запросе к FlareSolverr для WB")
+
+        try:
+            from services.token_manager import get_token_manager
+            token_manager = get_token_manager()
+            token_manager.send_token_notification(
+                "error",
+                "❌ Таймаут при запросе к FlareSolverr для WB",
+                "FlareSolverr не ответил вовремя"
+            )
+        except Exception as notify_error:
+            celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
+
+        return {"status": "error", "message": "FlareSolverr timeout"}
+    except Exception as e:
+        celery_logger.error(f"Ошибка при обновлении cookies WB: {e}")
+
+        try:
+            from services.token_manager import get_token_manager
+            token_manager = get_token_manager()
+            token_manager.send_token_notification(
+                "error",
+                "❌ Ошибка при обновлении cookies WB",
+                f"Ошибка: {str(e)}"
+            )
+        except Exception as notify_error:
+            celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
+
+        return {"status": "error", "message": str(e)}
+ 

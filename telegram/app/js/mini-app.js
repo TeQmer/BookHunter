@@ -823,9 +823,20 @@ class BookHunterApp {
                 // Умный поиск: сначала база данных, потом парсинг
                 useSmartSearch = true;
                 url = `${this.apiBaseUrl}/web/books/api/smart-search?q=${encodeURIComponent(params.query)}`;
+                
+                // По умолчанию оба источника
+                let sourcesParam;
                 if (params.source) {
-                    url += `&source=${params.source}`;
+                    if (typeof params.source === 'string') {
+                        sourcesParam = params.source;
+                    } else {
+                        sourcesParam = params.source.join(',');
+                    }
+                } else {
+                    sourcesParam = 'chitai-gorod,wildberries';
                 }
+                url += `&sources=${sourcesParam}`;
+                
                 if (params.discount) {
                     url += `&min_discount=${params.discount}`;
                 }
@@ -898,7 +909,16 @@ class BookHunterApp {
             // Если книг нет и это поиск - запускаем парсинг
             if (useSmartSearch && this.data.books.length === 0) {
                 console.log('[loadBooks] Книг нет в базе, запускаем парсинг...');
-                await this.startParsing(params.query, params.source || 'chitai-gorod');
+                // По умолчанию оба источника
+                let sources = null;
+                if (params.source) {
+                    if (typeof params.source === 'string') {
+                        sources = [params.source];
+                    } else {
+                        sources = params.source;
+                    }
+                }
+                await this.startParsing(params.query, sources);
                 return;
             }
 
@@ -950,10 +970,20 @@ class BookHunterApp {
 
     /**
      * Запуск парсинга книг
+     * @param {string} query - Поисковый запрос
+     * @param {string[]|null} sources - Массив источников (null = оба по умолчанию)
      */
-    async startParsing(query, source = 'chitai-gorod') {
+    async startParsing(query, sources = null) {
         try {
             console.log('[startParsing] Запускаем парсинг для:', query);
+
+            // По умолчанию оба источника
+            if (!sources) {
+                sources = ['chitai-gorod', 'wildberries'];
+            } else if (typeof sources === 'string') {
+                // Обратная совместимость: если передана строка - преобразуем в массив
+                sources = [sources];
+            }
 
             // Получаем telegram_id для проверки лимитов (задача #6)
             let telegramId = window.tg.getChatId();
@@ -963,7 +993,7 @@ class BookHunterApp {
 
             const requestBody = {
                 query,
-                source,
+                sources,
                 fetch_details: false
             };
 
@@ -988,8 +1018,11 @@ class BookHunterApp {
             const data = await response.json();
             console.log('[startParsing] Ответ:', data);
 
-            // Показываем сообщение о парсинге
-            if (data.task_id) {
+            // Показываем сообщение о парсинге (поддержка нескольких задач)
+            if (data.tasks && data.tasks.length > 0) {
+                // Если несколько задач - показываем статус для первой
+                this.showParsingStatus(data.tasks[0].task_id, query);
+            } else if (data.task_id) {
                 this.showParsingStatus(data.task_id, query);
             } else {
                 this.showError('Не удалось запустить поиск книг');
