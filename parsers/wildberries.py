@@ -29,16 +29,29 @@ class WildberriesParser(BaseParser):
     
     def _get_headers(self, include_token: bool = False) -> Dict[str, str]:
         """
-        Получение заголовков запроса - МИНИМАЛЬНЫЙ набор как в работающем curl
+        Получение заголовков запроса - полный набор как в реальном браузере
         """
+        import uuid
+        
+        # Генерируем уникальный session ID
+        session_id = str(uuid.uuid4())
+        
         headers = {
-            "accept": "*/*",
-            "accept-language": "ru-RU,ru;q=0.9",
+            "accept": "application/json, text/plain, */*",
+            "accept-encoding": "gzip, deflate, br",
+            "accept-language": "ru-RU,ru;q=0.9,en;q=0.8",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "sec-ch-ua": '"Chromium";v="120", "Google Chrome";v="120", "Not_A Brand";v="99"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
+            "x-session-id": session_id,
+            "x-queryid": f"qid{session_id[:16]}",
         }
         
-        # Токен больше НЕ НУЖЕН - API работает без него!
-        # Оставляю для совместимости, но он не обязателен
+        # Токен опционально
         if include_token:
             try:
                 from services.token_manager import get_token_manager
@@ -239,10 +252,9 @@ class WildberriesParser(BaseParser):
                                 break
                                 
                             elif response.status == 429:
-                                # Rate limit - используем динамическую задержку как в Читай-городе
-                                retry_after = response.headers.get("Retry-After")
-                                wait_time = int(retry_after) if retry_after else 30
-                                wait_time = min(wait_time, 120)  # Максимум 2 минуты
+                                # Rate limit - большая случайная задержка
+                                import random
+                                wait_time = random.randint(60, 180)  # 1-3 минуты
                                 
                                 parser_logger.warning(f"[Wildberries] Rate limit (429), ждём {wait_time} сек...")
                                 await asyncio.sleep(wait_time)
