@@ -27,18 +27,23 @@ class WildberriesParser(BaseParser):
         Args:
             include_token: Добавлять ли x-wbaas-token в заголовки
         """
+        import uuid
+        
         headers = {
             "accept": "*/*",
-            "accept-language": "ru,en;q=0.9",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 YaBrowser/25.12.0.0 Yowser/2.5",
-            "sec-ch-ua": '"Chromium";v="142", "YaBrowser";v="25.12", "Not_A Brand";v="99", "Yowser";v="2.5"',
+            "accept-language": "ru,en;q=0.9,en-GB;q=0.8,en-US;q=0.7",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0",
+            "sec-ch-ua": '"Chromium";v="141", "Not/A Brand";v="8", "Microsoft Edge";v="141"',
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": '"Windows"',
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "same-site",
             "origin": "https://www.wildberries.ru",
-            "referer": "https://www.wildberries.ru/",
+            "referer": "https://www.wildberries.ru/catalog/0/search.aspx?search=",
+            "x-queryid": f"qid{int(time.time() * 1000)}",
+            "x-userid": "0",
+            "priority": "u=1, i",
         }
         
         # Добавляем x-wbaas-token если запрошено
@@ -108,8 +113,9 @@ class WildberriesParser(BaseParser):
                 parser_logger.warning("[Wildberries] Cookies не найдены!")
             
             for page in range(1, max_pages + 1):
-                # WB использует API каталога
-                search_url = f"{self.api_url}/exactmatch/ru/common/v18/search"
+                # Пробуем разные API endpoints
+                # Старый API (может работать лучше)
+                search_url = f"{self.api_url}/exactmatch/ru/common/v4/search"
                 params = {
                     "appType": 1,
                     "curr": "rub",
