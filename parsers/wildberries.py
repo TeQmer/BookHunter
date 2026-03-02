@@ -7,6 +7,7 @@ import asyncio
 import re
 import time
 import random
+from urllib.parse import quote, urlencode
 
 
 class WildberriesParser(BaseParser):
@@ -172,6 +173,10 @@ class WildberriesParser(BaseParser):
         self._retry_with_new_cookies = False
         self._request_attempts = 0
         
+        # Используем CodeTabs прокси для обхода блокировки
+        use_proxy = True
+        proxy_url = "https://api.codetabs.com/v1/proxy?quest="
+        
         # Цикл с повторами (до 2 попыток при 401)
         while self._request_attempts < self._max_attempts:
             self._request_attempts += 1
@@ -180,19 +185,15 @@ class WildberriesParser(BaseParser):
             
             try:
                 # Cookies больше НЕ НУЖНЫ - API работает без них!
-                # Оставляем для совместимости если будут
                 cookies = self._get_cookies()
                 if cookies:
                     parser_logger.info(f"[Wildberries] Используем cookies: {len(cookies)} шт")
                 else:
-                    parser_logger.info("[Wildberries] Работаем без cookies (не нужны)")
+                    parser_logger.info("[Wildberries] Работаем без cookies")
                 
                 page_books = []
                 
                 for page in range(1, max_pages + 1):
-                    # Используем ПРАВИЛЬНЫЙ API URL
-                    search_url = f"{self.api_url}/exactmatch/ru/common/v4/search"
-                    
                     # Правильные параметры API
                     params = {
                         "appType": 1,
@@ -206,6 +207,21 @@ class WildberriesParser(BaseParser):
                         "spp": 30
                     }
             
+                    # Формируем URL с параметрами
+                    direct_url = f"{self.api_url}/exactmatch/ru/common/v4/search?{urlencode(params)}"
+                    
+                    # Через прокси CodeTabs (параметры уже в URL)
+                    if use_proxy:
+                        search_url = proxy_url + quote(direct_url)
+                    else:
+                        search_url = direct_url
+                    
+                    # При прямом запросе params не нужны (уже в URL)
+                    if use_proxy:
+                        request_params = None
+                    else:
+                        request_params = params
+            
                     # Получаем заголовки с token
                     headers = self._get_headers(include_token=True)
                     
@@ -214,7 +230,7 @@ class WildberriesParser(BaseParser):
                     async with aiohttp.ClientSession() as session:
                         async with session.get(
                             search_url, 
-                            params=params, 
+                            params=request_params, 
                             headers=headers,
                             cookies=cookies
                         ) as response:
