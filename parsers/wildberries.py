@@ -210,7 +210,7 @@ class WildberriesParser(BaseParser):
                     await asyncio.sleep(random.uniform(3, 8))
                     
                     # Используем прокси из free-proxy-list
-                    proxy = "http://154.65.39.7:80"
+                    proxy = "http://103.118.46.61:8080"
                     
                     # Ограничение соединений для прокси
                     connector = aiohttp.TCPConnector(limit=1, limit_per_host=1)
