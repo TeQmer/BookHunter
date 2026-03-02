@@ -1016,18 +1016,17 @@ async def _parse_books_async(query: str, source: str, fetch_details: bool = Fals
                 parse_limit = min(parse_limit, additional_limit)
                 celery_logger.info(f"Допарсинг из очереди: {parse_limit} книг")
             
-            # Импортируем реальный парсер
-            if source == "chitai-gorod":
-                try:
-                    # Правильный импорт парсера
-                    from parsers.chitai_gorod import ChitaiGorodParser
-                    parser = ChitaiGorodParser()
-                    celery_logger.info(f"Парсер успешно импортирован: {parser}")
-                except ImportError as e:
-                    celery_logger.error(f"Не удалось импортировать парсер: {e}")
-                    # Создаем заглушку для демонстрации
-                    parser = MockParser()
-            else:
+            # Импортируем реальный парсер через фабрику
+            try:
+                from parsers.factory import ParserFactory
+                factory = ParserFactory()
+                parser = factory.get_parser(source)
+                celery_logger.info(f"Парсер успешно получен через фабрику: {parser.__class__.__name__}")
+            except ImportError as e:
+                celery_logger.error(f"Не удалось импортировать парсер: {e}")
+                parser = MockParser()
+            except ValueError as e:
+                celery_logger.error(f"Ошибка получения парсера: {e}")
                 raise ValueError(f"Неподдерживаемый источник: {source}")
             
             celery_logger.info(f"Начинаем парсинг для запроса: '{query}' (fetch_details={fetch_details}, limit={parse_limit})")
@@ -1078,7 +1077,7 @@ async def _parse_books_async(query: str, source: str, fetch_details: bool = Fals
                 except Exception as book_error:
                     celery_logger.error(f"Ошибка сохранения книги {book.title}: {book_error}")
                     continue
-            
+                
             # ШАГ 4: Добавляем ВСЕ найденные книги в Google Sheets (топ-5 по цене)
             if books:
                 await _add_to_sheets_batch(books)
@@ -1102,7 +1101,7 @@ async def _parse_books_async(query: str, source: str, fetch_details: bool = Fals
                 "limit_used": parse_limit,
                 "was_loaded": is_loaded
             }
-            
+
         except Exception as e:
             celery_logger.error(f"Ошибка асинхронного парсинга: {e}")
             await _log_parsing_result(db, source, "error", str(e))
@@ -1124,7 +1123,7 @@ def scan_discounts(self):
             return loop.run_until_complete(_scan_discounts_async())
         finally:
             loop.close()
-    
+
     try:
         result = run_async_task()
         celery_logger.info(f"Сканирование скидок завершено. Найдено акционных книг: {result}")
@@ -1672,7 +1671,7 @@ async def _update_chitai_gorod_token_async():
             celery_logger.error(f"Ошибка отправки уведомления: {notify_error}")
 
         return {"status": "error", "message": str(e)}
-
+ 
 
 # =============================================================================
 # Задача проверки подписок по ценам с парсингом (каждые 4 часа)
