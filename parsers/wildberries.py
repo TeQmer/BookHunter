@@ -49,12 +49,8 @@ class WildberriesParser(BaseParser):
         return headers
     
     def _get_cookies(self) -> Optional[Dict[str, str]]:
-        """Получение cookies - используем рабочие из парсера FedorSmorodskii"""
-        # Рабочие cookies из успешного парсера!
-        return {
-            "x_wbaas_token": "1.1000.a68eb290181f459082e3165ba3118991.MTV8NDUuMjQ5LjEwNi4xMjF8TW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDs",
-            "_wbauid": "9946458701771941728"
-        }
+        """Получение cookies - без них, пусть прокси сам всё сделал"""
+        return None
     
     async def _wait_for_cookies_update(self, timeout: int = 30) -> bool:
         """
@@ -202,8 +198,8 @@ class WildberriesParser(BaseParser):
                         "suppressSpellcheck": "false"
                     }
             
-                    # Получаем заголовки с token
-                    headers = self._get_headers(include_token=True)
+                    # Без токена - пусть работает как есть
+                    headers = self._get_headers(include_token=False)
                     
                     # Большая случайная задержка перед запросом (3-8 секунд)
                     import random
