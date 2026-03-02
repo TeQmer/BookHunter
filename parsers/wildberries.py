@@ -210,7 +210,7 @@ class WildberriesParser(BaseParser):
                     await asyncio.sleep(random.uniform(3, 8))
                     
                     # Используем прокси
-                    proxy = "http://195.9.15.186:10080"
+                    proxy = "http://158.160.215.167:8127"
                     
                     async with aiohttp.ClientSession() as session:
                         async with session.get(
