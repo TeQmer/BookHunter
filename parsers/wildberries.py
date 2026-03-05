@@ -26,8 +26,8 @@ class WildberriesParser(BaseParser):
         
         # Пул мобильных прокси
         self.proxies = [
-            "http://ykUV2B:SAaAg6Ah4Eb8@mproxy.site:13602",  # новый
-            "http://yMKAw7:yr3yt8aryC7G@fproxy.site:14388",  # старый
+            "http://ykUV2B:SAaAg6Ah4Eb8@mproxy.site:13602",
+            "http://yMKAw7:yr3yt8aryC7G@fproxy.site:14388",
         ]
         self._current_proxy_index = 0
         
@@ -270,6 +270,18 @@ class WildberriesParser(BaseParser):
                             parser_logger.error(f"[Wildberries] HTTP {r.status_code}")
                             
                     except Exception as e:
+                        # Проверяем, что ошибка связана с прокси
+                        error_str = str(e).lower()
+                        if "proxy" in error_str or "connection" in error_str:
+                            if self._use_proxy and len(self.proxies) > 1:
+                                self._rotate_proxy()
+                                parser_logger.warning(f"[Wildberries] Ошибка прокси, меняем")
+                                continue
+                            # Все прокси не работают - пробуем без прокси
+                            if self._use_proxy:
+                                self._use_proxy = False
+                                parser_logger.warning(f"[Wildberries] Прокси недоступны, пробуем без прокси")
+                                continue
                         parser_logger.error(f"[Wildberries] Ошибка запроса: {e}")
                     
                     # Если достигли лимита
