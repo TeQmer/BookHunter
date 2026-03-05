@@ -180,19 +180,10 @@ class WildberriesParser(BaseParser):
                         if r.status_code == 200:
                             data = r.json()
                             
-                            # Логируем структуру ответа для отладки
-                            if page == 1:
-                                parser_logger.info(f"[Wildberries] Ключи ответа: {list(data.keys())}")
-                            
                             # Пробуем разные пути
                             products = data.get("data", {}).get("products", [])
                             if not products:
-                                products = data.get("search_result", {}).get("products", [])
-                            if not products:
                                 products = data.get("products", [])
-                            
-                            if not products and page == 1:
-                                parser_logger.warning(f"[Wildberries] Ответ: {str(data)[:500]}")
                             
                             parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
                             
@@ -282,13 +273,27 @@ class WildberriesParser(BaseParser):
             if not title:
                 return None
                 
-            # Цены - WB хранит в копейках в поле priceU
+            # Цены - WB хранит в копейках
+            # Пробуем разные поля для цены
             price_u = product.get("priceU", 0)
-            current_price = price_u / 100 if price_u else 0
+            sale_price_u = product.get("salePriceU", 0)
             
-            # Цена без скидки
-            old_price_u = product.get("oldPrice", 0)
-            original_price = old_price_u / 100 if old_price_u else current_price
+            # Используем salePriceU если есть, иначе priceU
+            if sale_price_u:
+                current_price = sale_price_u / 100
+            elif price_u:
+                current_price = price_u / 100
+            else:
+                current_price = 0
+            
+            # Цена без скидки - пробуем разные поля
+            original_price = product.get("originalPrice", 0)
+            if not original_price:
+                original_price = product.get("priceU", 0)
+            if original_price:
+                original_price = original_price / 100
+            else:
+                original_price = current_price
             
             # Вычисляем скидку
             discount_percent = None
