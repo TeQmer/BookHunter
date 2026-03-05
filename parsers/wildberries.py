@@ -144,7 +144,7 @@ class WildberriesParser(BaseParser):
                     # Пробуем search.wb.ru/exactmatch - как в работающих парсерах
                     search_url = "https://search.wb.ru/exactmatch/ru/common/v4/search"
                     
-                    # Параметры - добавим subjectId для книг
+                    # Параметры
                     params = {
                         "appType": 1,
                         "curr": "rub",
@@ -154,8 +154,7 @@ class WildberriesParser(BaseParser):
                         "query": query,
                         "resultset": "catalog",
                         "sort": "popular",
-                        "spp": 30,
-                        "subject": 9085  # Книги
+                        "spp": 30
                     }
             
                     headers = self._get_headers()
@@ -193,9 +192,19 @@ class WildberriesParser(BaseParser):
                             parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
                             
                             for product in products:
-                                book = self._parse_product(product, query)
-                                if book:
-                                    page_books.append(book)
+                                # Фильтр - только книги
+                                name = product.get("name", "").lower()
+                                entity = product.get("entity", "").lower()
+                                
+                                # Проверяем что это книга
+                                is_book = ("книг" in name or "книжк" in name or 
+                                          "книга" in name or "книжечк" in name or
+                                          entity == "книги" or "book" in name)
+                                
+                                if is_book:
+                                    book = self._parse_product(product, query)
+                                    if book:
+                                        page_books.append(book)
                             
                         elif r.status_code == 429:
                             # Если с прокси 429, пробуем без прокси
