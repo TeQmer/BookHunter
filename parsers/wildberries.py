@@ -196,15 +196,25 @@ class WildberriesParser(BaseParser):
                                 name = product.get("name", "").lower()
                                 entity = product.get("entity", "").lower()
                                 
+                                # Исключаем канцелярию
+                                excluded_words = [
+                                    "закладка", "канцеляр", "тетрад", "ручка", 
+                                    "карандаш", "маркер", "стикер", "пенал",
+                                    "набор канцеляр", "альбом для"
+                                ]
+                                is_excluded = any(word in name for word in excluded_words)
+                                
                                 # Проверяем что это книга
                                 is_book = ("книг" in name or "книжк" in name or 
                                           "книга" in name or "книжечк" in name or
                                           entity == "книги" or "book" in name)
                                 
-                                if is_book:
-                                    book = self._parse_product(product, query)
-                                    if book:
-                                        page_books.append(book)
+                                if is_excluded or not is_book:
+                                    continue
+                                
+                                book = self._parse_product(product, query)
+                                if book:
+                                    page_books.append(book)
                             
                         elif r.status_code == 429:
                             # Если с прокси 429, пробуем без прокси
