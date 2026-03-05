@@ -100,8 +100,13 @@ class WildberriesParser(BaseParser):
                             params=params, 
                             headers=headers
                         ) as response:
+                            parser_logger.info(f"[Wildberries] HTTP status: {response.status}")
+                            
                             if response.status == 200:
                                 data = await response.json()
+                                parser_logger.info(f"[Wildberries] Response keys: {data.keys()}")
+                                if "data" in data:
+                                    parser_logger.info(f"[Wildberries] Data keys: {data['data'].keys()}")
                                 products = data.get("data", {}).get("products", [])
                                 
                                 if not products:
