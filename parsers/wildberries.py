@@ -379,20 +379,43 @@ class WildberriesParser(BaseParser):
             # Бренд (часто = автор для книг)
             author = product.get("brand", "")
             
+            # Из extended_data получаем дополнительную инфу
+            extended = product.get("extended", {})
+            
+            # Издательство
+            publisher = None
+            if extended:
+                publisher = extended.get("supplier", "")
+                if not publisher:
+                    # Пробуем из seller
+                    seller = extended.get("seller", {})
+                    if seller:
+                        publisher = seller.get("name", "")
+            
+            # Жанры (категории)
+            genres = None
+            if extended:
+                categories = extended.get("categories", [])
+                if categories:
+                    genres = ", ".join([c.get("name", "") for c in categories if c.get("name")])
+            
+            # Рейтинг
+            rating = extended.get("rating", 0) if extended else 0
+            
             # Создаем объект книги
             book = Book(
                 source="wildberries",
                 source_id=source_id,
                 title=title,
                 author=author if author else None,
-                publisher=None,
+                publisher=publisher,
                 binding=None,
                 current_price=current_price,
                 original_price=original_price if original_price != current_price else None,
                 discount_percent=discount_percent,
                 url=product_url,
                 image_url=image_url,
-                genres=None,
+                genres=genres,
                 isbn=None
             )
             
