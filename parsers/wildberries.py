@@ -28,12 +28,12 @@ class WildberriesParser(BaseParser):
         self._request_attempts = 0
         self._max_attempts = 3
         
-        # Shard для разных категорий
+        # Shard для разных категории
         self._shards = [
-            "books/catalog",    # основной для книг
+            "kniggy/catalog",   # популярный для книг
+            "books/catalog",    
             "book/catalog", 
-            "kniggy",           # другой вариант
-            "giftbooks/catalog",  # для книг и подарков
+            "ebook/catalog",    # электронные книги
             "product/catalog",    # общий
         ]
         self._current_shard = 0
@@ -51,6 +51,28 @@ class WildberriesParser(BaseParser):
         }
         return headers
     
+    def _find_book_shard(self, catalog, depth=0):
+        """Рекурсивный поиск shard для книг"""
+        if depth > 3:  # ограничиваем глубину
+            return None
+    
+        if isinstance(catalog, list):
+            for item in catalog:
+                result = self._find_book_shard(item, depth)
+                if result:
+                    return result
+        elif isinstance(catalog, dict):
+            name = catalog.get('name', '').lower()
+            # Ищем "Книги" или "Электронные книги"
+            if 'книг' in name and 'подарочн' not in name:
+                shard = catalog.get('shard')
+                if shard:
+                    return shard
+            # Ищем в дочерних
+            if 'childs' in catalog:
+                return self._find_book_shard(catalog['childs'], depth + 1)
+        return None
+    
     def _init_shard(self):
         """Получение правильного shard для книг из каталога WB"""
         try:
@@ -64,14 +86,13 @@ class WildberriesParser(BaseParser):
             r = requests.get(url, headers=headers, proxies=proxies, timeout=10)
             if r.status_code == 200:
                 catalog = r.json()
-                # Ищем раздел "Книги"
-                for item in catalog:
-                    if item.get('name') == 'Книги' or 'книг' in item.get('name', '').lower():
-                        shard = item.get('shard')
-                        if shard:
-                            self._shards.insert(0, shard)
-                            parser_logger.info(f"[Wildberries] Найден shard для книг: {shard}")
-                            return
+                # Ищем раздел "Книги" рекурсивно
+                shard = self._find_book_shard(catalog)
+                if shard:
+                    self._shards.insert(0, shard)
+                    parser_logger.info(f"[Wildberries] Найден shard для книг: {shard}")
+                else:
+                    parser_logger.warning(f"[Wildberries] Не найден shard для книг в каталоге")
         except Exception as e:
             parser_logger.warning(f"[Wildberries] Не удалось получить shard: {e}")
     
