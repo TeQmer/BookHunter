@@ -24,8 +24,21 @@ class WildberriesParser(BaseParser):
         # Мобильный API endpoints
         self.mobile_search_url = "https://m.wildberries.ru/api/v1/search"
         
-        # Мобильный прокси
-        self.proxy = "http://yMKAw7:yr3yt8aryC7G@fproxy.site:14388"
+        # Пул мобильных прокси
+        self.proxies = [
+            "http://ykUV2B:SAaAg6Ah4Eb8@mproxy.site:13602",  # новый
+            "http://yMKAw7:yr3yt8aryC7G@fproxy.site:14388",  # старый
+        ]
+        self._current_proxy_index = 0
+        
+    @property
+    def proxy(self) -> str:
+        return self.proxies[self._current_proxy_index]
+    
+    def _rotate_proxy(self):
+        """Ротирует прокси при бане"""
+        self._current_proxy_index = (self._current_proxy_index + 1) % len(self.proxies)
+        parser_logger.info(f"[Wildberries] Сменили прокси на: {self.proxy}")
         
         # Счетчик попыток
         self._request_attempts = 0
@@ -217,11 +230,11 @@ class WildberriesParser(BaseParser):
                                     page_books.append(book)
                             
                         elif r.status_code == 429:
-                            # Если с прокси 429, пробуем без прокси
-                            if self._use_proxy:
-                                self._use_proxy = False
-                                parser_logger.warning(f"[Wildberries] 429 с прокси, пробуем без прокси")
-                                await asyncio.sleep(2)
+                            # Пробуем ротировать прокси
+                            if self._use_proxy and len(self.proxies) > 1:
+                                self._rotate_proxy()
+                                parser_logger.warning(f"[Wildberries] 429, меняем прокси")
+                                await asyncio.sleep(3)
                                 continue
                             wait_time = random.randint(30, 60)
                             parser_logger.warning(f"[Wildberries] Rate limit (429), ждём {wait_time} сек...")
@@ -233,10 +246,10 @@ class WildberriesParser(BaseParser):
                             break
                         
                         elif r.status_code == 404:
-                            # Если с прокси 404, пробуем без прокси
-                            if self._use_proxy:
-                                self._use_proxy = False
-                                parser_logger.warning(f"[Wildberries] 404 с прокси, пробуем без прокси")
+                            # Ротируем прокси
+                            if self._use_proxy and len(self.proxies) > 1:
+                                self._rotate_proxy()
+                                parser_logger.warning(f"[Wildberries] 404, меняем прокси")
                                 continue
                             # Пробуем следующий shard
                             self._current_shard = (self._current_shard + 1) % len(self._shards)
