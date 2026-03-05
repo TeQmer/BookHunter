@@ -185,9 +185,7 @@ class WildberriesParser(BaseParser):
                             if not products:
                                 products = data.get("products", [])
                             
-                            # Отладка - показываем первый продукт
-                            if page == 1 and products:
-                                parser_logger.info(f"[Wildberries] Пример продукта: {products[0]}")
+                            # Убираем отладочный вывод
                             
                             parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
                             
