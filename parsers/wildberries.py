@@ -18,8 +18,11 @@ class WildberriesParser(BaseParser):
         super().__init__("wildberries", delay_min=2.0, delay_max=5.0)
         self.base_url = "https://www.wildberries.ru"
         
-        # Каталожный API (работает!)
-        self.catalog_url = "https://catalog.wb.ru/catalog"
+        # Мобильный API (работает в антидетекте!)
+        self.mobile_api = "https://m.wildberries.ru"
+        
+        # Мобильный API endpoints
+        self.mobile_search_url = "https://m.wildberries.ru/api/v1/search"
         
         # Мобильный прокси
         self.proxy = "http://yMKAw7:yr3yt8aryC7G@fproxy.site:14388"
@@ -138,19 +141,20 @@ class WildberriesParser(BaseParser):
                 page_books = []
                 
                 for page in range(1, max_pages + 1):
-                    # Каталожный API как в рабочем примере
-                    search_url = self._get_catalog_url()
+                    # Пробуем search.wb.ru/exactmatch - как в работающих парсерах
+                    search_url = "https://search.wb.ru/exactmatch/ru/common/v4/search"
                     
-                    # Параметры как в рабочем парсере
+                    # Параметры
                     params = {
                         "appType": 1,
                         "curr": "rub",
                         "dest": "-1257786",
                         "locale": "ru",
                         "page": page,
+                        "query": query,
+                        "resultset": "catalog",
                         "sort": "popular",
-                        "spp": 0,
-                        "query": query
+                        "spp": 30
                     }
             
                     headers = self._get_headers()
@@ -338,7 +342,7 @@ class WildberriesParser(BaseParser):
             product_id = match.group(1)
             
             # API детальной информации
-            detail_url = f"{self.catalog_url}/{self._shards[0]}?appType=1&curr=rub&dest=-1257786&locale=ru&page=1&product={product_id}"
+            detail_url = f"https://search.wb.ru/exactmatch/ru/common/v4/product/{product_id}"
             
             headers = self._get_headers()
             
@@ -379,17 +383,18 @@ class WildberriesParser(BaseParser):
         books = []
         
         try:
-            # Используем каталожный API
-            discount_url = f"{self.catalog_url}/{self._shards[0]}"
+            # Используем search.wb.ru
+            discount_url = "https://search.wb.ru/exactmatch/ru/common/v4/search"
             params = {
                 "appType": 1,
                 "curr": "rub",
                 "dest": "-1257786",
                 "locale": "ru",
                 "page": 1,
+                "query": "книги",
+                "resultset": "catalog",
                 "sort": "popular",
-                "spp": 0,
-                "query": "книги"
+                "spp": 30
             }
             
             headers = self._get_headers()
