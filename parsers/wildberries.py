@@ -17,8 +17,11 @@ class WildberriesParser(BaseParser):
         super().__init__("wildberries", delay_min=2.0, delay_max=5.0)
         self.base_url = "https://www.wildberries.ru"
         
-        # Рабочий API
-        self.api_url = "https://search.wb.ru/exactmatch/ru/common/v4"
+        # Рабочий API - пробуем разные версии
+        self.api_urls = [
+            "https://search.wb.ru/exactmatch/ru/common/v4",
+            "https://search.wb.ru/exactmatch/ru/common/v13",
+        ]
         
         # Мобильный прокси
         self.proxy = "http://yMKAw7:yr3yt8aryC7G@fproxy.site:14388"
@@ -26,22 +29,27 @@ class WildberriesParser(BaseParser):
         # Счетчик попыток
         self._request_attempts = 0
         self._max_attempts = 3
-    
+        self._current_api = 0
+        
     def _get_headers(self) -> Dict[str, str]:
-        """Получение заголовков запроса"""
+        """Получение заголовков запроса - как в реальном браузере"""
+        # Случайный User-Agent
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        ]
+        
         headers = {
-            "accept": "application/json",
-            "accept-language": "ru-RU,ru;q=0.9,en;q=0.8",
-            "accept-encoding": "gzip, deflate, br",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "referer": "https://www.wildberries.ru/catalog/0/search.aspx?search=гарри+поттер",
-            "origin": "https://www.wildberries.ru",
-            "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-site",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "accept-language": "ru-RU,ru;q=0.9",
+            "accept-encoding": "gzip, deflate",
+            "cache-control": "no-cache",
+            "pragma": "no-cache",
+            "upgrade-insecure-requests": "1",
+            "user-agent": random.choice(user_agents),
+            "referer": "https://www.wildberries.ru/",
         }
         return headers
     
@@ -81,8 +89,9 @@ class WildberriesParser(BaseParser):
                 page_books = []
                 
                 for page in range(1, max_pages + 1):
-                    # Рабочий API v4
-                    search_url = f"{self.api_url}/search"
+                    # Пробуем разные API
+                    api_base = self.api_urls[self._current_api]
+                    search_url = f"{api_base}/search"
                     
                     # Параметры
                     params = {
@@ -130,11 +139,11 @@ class WildberriesParser(BaseParser):
                                         page_books.append(book)
                                 
                             elif response.status == 429:
-                                # Rate limit - большая задержка
-                                wait_time = random.randint(60, 120)
-                                parser_logger.warning(f"[Wildberries] Rate limit (429), ждём {wait_time} сек...")
-                                await asyncio.sleep(wait_time)
-                                continue
+                                # Пробуем следующий API
+                                self._current_api = (self._current_api + 1) % len(self.api_urls)
+                                parser_logger.warning(f"[Wildberries] Rate limit (429), пробуем API #{self._current_api}")
+                                await asyncio.sleep(5)
+                                break
                             
                             elif response.status == 403:
                                 parser_logger.warning("[Wildberries] 403 Forbidden")
@@ -260,7 +269,7 @@ class WildberriesParser(BaseParser):
             product_id = match.group(1)
             
             # API детальной информации
-            detail_url = f"{self.api_url}/product/{product_id}"
+            detail_url = f"{self.api_urls[0]}/product/{product_id}"
             
             headers = self._get_headers()
             
@@ -294,7 +303,7 @@ class WildberriesParser(BaseParser):
         
         try:
             # Используем API v4
-            discount_url = f"{self.api_url}/search"
+            discount_url = f"{self.api_urls[0]}/search"
             params = {
                 "appType": 1,
                 "curr": "rub",
