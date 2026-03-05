@@ -144,7 +144,7 @@ class WildberriesParser(BaseParser):
                     # Пробуем search.wb.ru/exactmatch - как в работающих парсерах
                     search_url = "https://search.wb.ru/exactmatch/ru/common/v4/search"
                     
-                    # Параметры
+                    # Параметры - добавим subjectId для книг
                     params = {
                         "appType": 1,
                         "curr": "rub",
@@ -154,7 +154,8 @@ class WildberriesParser(BaseParser):
                         "query": query,
                         "resultset": "catalog",
                         "sort": "popular",
-                        "spp": 30
+                        "spp": 30,
+                        "subject": 9085  # Книги
                     }
             
                     headers = self._get_headers()
