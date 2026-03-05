@@ -10,14 +10,17 @@ import random
 
 
 class WildberriesParser(BaseParser):
-    """Парсер для Wildberries (wb.ru) - без cookies и прокси"""
+    """Парсер для Wildberries (wb.ru) - с мобильным прокси"""
     
     def __init__(self):
         # Задержки для WB - побольше чем для Chitai-Gorod
-        super().__init__("wildberries", delay_min=1.5, delay_max=3.0)
+        super().__init__("wildberries", delay_min=2.0, delay_max=4.0)
         self.base_url = "https://www.wildberries.ru"
         # Правильный API URL (v13 - работает без cookies!)
         self.api_url = "https://search.wb.ru/exactmatch/ru/common/v13"
+        
+        # Мобильный прокси
+        self.proxy = "http://yMKAw7:yr3yt8aryC7G@nproxy.site:14388"
         
         # Счетчик попыток
         self._request_attempts = 0
@@ -72,7 +75,7 @@ class WildberriesParser(BaseParser):
                     # Рабочий URL из видео - v13 без cookies!
                     search_url = f"{self.api_url}/search"
                     
-                    # Параметры как в работающем примере
+                    # Параметры - добавим cat для категории книг (категория 9856)
                     params = {
                         "ab_testing": "false",
                         "appType": 1,
@@ -85,7 +88,8 @@ class WildberriesParser(BaseParser):
                         "resultset": "catalog",
                         "sort": "popular",
                         "spp": 30,
-                        "suppressSpellcheck": "false"
+                        "suppressSpellcheck": "false",
+                        "cat": "9856"  # Категория книг
                     }
             
                     headers = self._get_headers()
@@ -93,28 +97,28 @@ class WildberriesParser(BaseParser):
                     # Задержка перед запросом
                     await asyncio.sleep(random.uniform(1, 2))
                     
-                    # БЕЗ ПРОКСИ и БЕЗ COOKIES!
+                    # С мобильным прокси
                     async with aiohttp.ClientSession() as session:
                         async with session.get(
                             search_url, 
                             params=params, 
-                            headers=headers
+                            headers=headers,
+                            proxy=self.proxy
                         ) as response:
                             parser_logger.info(f"[Wildberries] HTTP status: {response.status}")
                             
                             if response.status == 200:
                                 data = await response.json()
-                                parser_logger.info(f"[Wildberries] Response keys: {data.keys()}")
                                 
                                 # Пробуем разные пути к продуктам
                                 products = data.get("data", {}).get("products", [])
                                 if not products:
                                     products = data.get("search_result", {}).get("products", [])
                                 if not products:
-                                    # Логируем структуру
-                                    parser_logger.info(f"[Wildberries] search_result: {data.get('search_result', {})}")
+                                    # Логируем структуру для отладки
+                                    parser_logger.warning(f"[Wildberries] Пустой поиск. Keys: {list(data.keys())[:5]}")
                                 
-                                parser_logger.info(f"[Wildberries] Найдено продуктов: {len(products)}")
+                                parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
                                 
                                 if not products:
                                     parser_logger.warning(f"[Wildberries] Пустой ответ на странице {page}")
@@ -266,7 +270,8 @@ class WildberriesParser(BaseParser):
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     detail_url, 
-                    headers=headers
+                    headers=headers,
+                    proxy=self.proxy
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -314,7 +319,8 @@ class WildberriesParser(BaseParser):
                 async with session.get(
                     discount_url, 
                     params=params,
-                    headers=headers
+                    headers=headers,
+                    proxy=self.proxy
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
