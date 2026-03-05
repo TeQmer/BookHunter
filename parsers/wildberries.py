@@ -14,16 +14,20 @@ class WildberriesParser(BaseParser):
     
     def __init__(self):
         # Задержки для WB - побольше чем для Chitai-Gorod
-        super().__init__("wildberries", delay_min=3.0, delay_max=6.0)
+        super().__init__("wildberries", delay_min=2.0, delay_max=5.0)
         self.base_url = "https://www.wildberries.ru"
         
-        # Используем краулерский API (менее защищенный)
-        self.api_url = "https://www.wildberries.ru/webapi/search/mobile/v2/search"
+        # Рабочий API
+        self.api_url = "https://search.wb.ru/exactmatch/ru/common/v4"
+        
+        # Базовая кука для определения региона (может помочь)
+        self._cookies = {
+            "_wbauid": str(random.randint(1000000000, 9999999999)),
+        }
         
         # Счетчик попыток
         self._request_attempts = 0
-        self._max_attempts = 5
-        self._current_api_index = 0
+        self._max_attempts = 3
     
     def _get_headers(self) -> Dict[str, str]:
         """Получение заголовков запроса"""
@@ -79,14 +83,20 @@ class WildberriesParser(BaseParser):
                 page_books = []
                 
                 for page in range(1, max_pages + 1):
-                    # Используем мобильный API
-                    search_url = self.api_url
+                    # Рабочий API v4
+                    search_url = f"{self.api_url}/search"
                     
-                    # Параметры для мобильного API
+                    # Параметры
                     params = {
-                        "query": query,
+                        "appType": 1,
+                        "curr": "rub",
+                        "dest": "-1257786",
+                        "lang": "ru",
                         "page": page,
-                        "limit": 100
+                        "query": query,
+                        "resultset": "catalog",
+                        "sort": "popular",
+                        "spp": 30
                     }
             
                     headers = self._get_headers()
@@ -94,12 +104,13 @@ class WildberriesParser(BaseParser):
                     # Задержка перед запросом
                     await asyncio.sleep(random.uniform(1, 2))
                     
-                    # Без прокси
+                    # С куки
                     async with aiohttp.ClientSession() as session:
                         async with session.get(
                             search_url, 
                             params=params, 
-                            headers=headers
+                            headers=headers,
+                            cookies=self._cookies
                         ) as response:
                             parser_logger.info(f"[Wildberries] HTTP status: {response.status}")
                             
