@@ -14,19 +14,15 @@ class WildberriesParser(BaseParser):
     
     def __init__(self):
         # Задержки для WB - побольше чем для Chitai-Gorod
-        super().__init__("wildberries", delay_min=2.0, delay_max=4.0)
+        super().__init__("wildberries", delay_min=3.0, delay_max=6.0)
         self.base_url = "https://www.wildberries.ru"
         
-        # Пробуем разные API
-        self.api_urls = [
-            "https://search.wb.ru/exactmatch/ru/common/v4",
-            "https://search.wb.ru/exactmatch/ru/common/v13",
-            "https://catalog.wb.ru/catalog/online/search",
-        ]
+        # Используем краулерский API (менее защищенный)
+        self.api_url = "https://www.wildberries.ru/webapi/search/mobile/v2/search"
         
         # Счетчик попыток
         self._request_attempts = 0
-        self._max_attempts = 3
+        self._max_attempts = 5
         self._current_api_index = 0
     
     def _get_headers(self) -> Dict[str, str]:
@@ -83,21 +79,14 @@ class WildberriesParser(BaseParser):
                 page_books = []
                 
                 for page in range(1, max_pages + 1):
-                    # Пробуем разные API
-                    api_url = self.api_urls[self._current_api_index]
-                    search_url = f"{api_url}/search"
+                    # Используем мобильный API
+                    search_url = self.api_url
                     
-                    # Параметры для v4/v13
+                    # Параметры для мобильного API
                     params = {
-                        "appType": 1,
-                        "curr": "rub",
-                        "dest": "-1257786",
-                        "lang": "ru",
-                        "page": page,
                         "query": query,
-                        "resultset": "catalog",
-                        "sort": "popular",
-                        "spp": 30
+                        "page": page,
+                        "limit": 100
                     }
             
                     headers = self._get_headers()
@@ -122,10 +111,7 @@ class WildberriesParser(BaseParser):
                                 if not products:
                                     products = data.get("search_result", {}).get("products", [])
                                 if not products:
-                                    # Пробуем следующий API
-                                    self._current_api_index = (self._current_api_index + 1) % len(self.api_urls)
-                                    parser_logger.warning(f"[Wildberries] Пустой ответ, пробуем API #{self._current_api_index}")
-                                    break
+                                    parser_logger.warning(f"[Wildberries] Пустой ответ на странице {page}")
                                 
                                 parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
                                 
@@ -140,11 +126,11 @@ class WildberriesParser(BaseParser):
                                 parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
                                 
                             elif response.status == 429:
-                                # Rate limit - пробуем следующий API
-                                self._current_api_index = (self._current_api_index + 1) % len(self.api_urls)
-                                parser_logger.warning(f"[Wildberries] Rate limit (429), пробуем следующий API: {self._current_api_index}")
-                                await asyncio.sleep(5)
-                                break  # Выходим и пробуем с новым API
+                                # Rate limit - большая задержка
+                                wait_time = random.randint(60, 120)
+                                parser_logger.warning(f"[Wildberries] Rate limit (429), ждём {wait_time} сек...")
+                                await asyncio.sleep(wait_time)
+                                continue
                             
                             elif response.status == 403:
                                 parser_logger.warning("[Wildberries] 403 Forbidden")
@@ -270,7 +256,7 @@ class WildberriesParser(BaseParser):
             product_id = match.group(1)
             
             # API детальной информации
-            detail_url = f"{self.api_urls[0]}/product/{product_id}"
+            detail_url = f"{self.api_url}/product/{product_id}"
             
             headers = self._get_headers()
             
@@ -302,9 +288,8 @@ class WildberriesParser(BaseParser):
         books = []
         
         try:
-            # Используем первый рабочий API
-            api_url = self.api_urls[0]
-            discount_url = f"{api_url}/search"
+            # Используем мобильный API
+            discount_url = self.api_url
             params = {
                 "ab_testing": "false",
                 "appType": 1,
