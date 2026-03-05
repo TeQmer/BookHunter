@@ -216,11 +216,13 @@ class WildberriesParser(BaseParser):
                                 name = product.get("name", "").lower()
                                 entity = product.get("entity", "").lower()
                                 
-                                # Исключаем канцелярию
+                                # Исключаем канцелярию и не-товары
                                 excluded_words = [
                                     "закладка", "канцеляр", "тетрад", "ручка", 
                                     "карандаш", "маркер", "стикер", "пенал",
-                                    "набор канцеляр", "альбом для"
+                                    "набор канцеляр", "альбом для",
+                                    "развивашка", "головоломк",  # это для детей, не книги
+                                    "раскраск", "пропись", "азбука"
                                 ]
                                 is_excluded = any(word in name for word in excluded_words)
                                 
