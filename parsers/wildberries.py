@@ -28,8 +28,13 @@ class WildberriesParser(BaseParser):
         self._request_attempts = 0
         self._max_attempts = 3
         
-        # Shard для книг (нужно определять динамически)
-        self._shard = "book"
+        # Shard для разных категорий
+        self._shards = [
+            "books/catalog",    # основной для книг
+            "book/catalog", 
+            "kniggy",           # другой вариант
+        ]
+        self._current_shard = 0
     
     def _get_headers(self) -> Dict[str, str]:
         """Простой заголовок как в рабочем парсере"""
@@ -38,10 +43,10 @@ class WildberriesParser(BaseParser):
         }
         return headers
     
-    def _get_catalog_url(self, query: str) -> str:
+    def _get_catalog_url(self) -> str:
         """Формирование URL для поиска по книгам"""
         # Используем каталожный API как в рабочем примере
-        return f"{self.catalog_url}/{self._shard}/catalog"
+        return f"{self.catalog_url}/{self._shards[self._current_shard]}"
     
     async def search_books(
         self,
@@ -80,7 +85,7 @@ class WildberriesParser(BaseParser):
                 
                 for page in range(1, max_pages + 1):
                     # Каталожный API как в рабочем примере
-                    search_url = self._get_catalog_url(query)
+                    search_url = self._get_catalog_url()
                     
                     # Параметры как в рабочем парсере
                     params = {
@@ -91,7 +96,7 @@ class WildberriesParser(BaseParser):
                         "page": page,
                         "sort": "popular",
                         "spp": 0,
-                        f"query{self._shard}": query  # querybook=гарри поттер
+                        "query": query
                     }
             
                     headers = self._get_headers()
@@ -133,6 +138,13 @@ class WildberriesParser(BaseParser):
                         elif r.status_code == 403:
                             parser_logger.warning("[Wildberries] 403 Forbidden")
                             break
+                        
+                        elif r.status_code == 404:
+                            # Пробуем следующий shard
+                            self._current_shard = (self._current_shard + 1) % len(self._shards)
+                            parser_logger.warning(f"[Wildberries] 404, пробуем shard #{self._current_shard}")
+                            if page == 1:  # только на первой странице
+                                break
                         
                         else:
                             parser_logger.error(f"[Wildberries] HTTP {r.status_code}")
@@ -257,7 +269,7 @@ class WildberriesParser(BaseParser):
             product_id = match.group(1)
             
             # API детальной информации
-            detail_url = f"{self.catalog_url}/{self._shard}/catalog?appType=1&curr=rub&dest=-1257786&locale=ru&page=1&product={product_id}"
+            detail_url = f"{self.catalog_url}/{self._shards[0]}?appType=1&curr=rub&dest=-1257786&locale=ru&page=1&product={product_id}"
             
             headers = self._get_headers()
             
@@ -295,7 +307,7 @@ class WildberriesParser(BaseParser):
         
         try:
             # Используем каталожный API
-            discount_url = f"{self.catalog_url}/{self._shard}/catalog"
+            discount_url = f"{self.catalog_url}/{self._shards[0]}"
             params = {
                 "appType": 1,
                 "curr": "rub",
@@ -304,7 +316,7 @@ class WildberriesParser(BaseParser):
                 "page": 1,
                 "sort": "popular",
                 "spp": 0,
-                f"query{self._shard}": "книги"
+                "query": "книги"
             }
             
             headers = self._get_headers()
