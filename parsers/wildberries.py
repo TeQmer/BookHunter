@@ -277,27 +277,16 @@ class WildberriesParser(BaseParser):
             if not title:
                 return None
                 
-            # Цены - WB хранит в копейках
-            # Пробуем разные поля для цены
-            price_u = product.get("priceU", 0)
-            sale_price_u = product.get("salePriceU", 0)
-            
-            # Используем salePriceU если есть, иначе priceU
-            if sale_price_u:
-                current_price = sale_price_u / 100
-            elif price_u:
-                current_price = price_u / 100
+            # Цены - структура изменилась
+            # Цена в sizes[0].price.product (копейки)
+            sizes = product.get("sizes", [])
+            if sizes and len(sizes) > 0:
+                price_data = sizes[0].get("price", {})
+                current_price = price_data.get("product", 0) / 100 if price_data.get("product") else 0
+                original_price = price_data.get("basic", 0) / 100 if price_data.get("basic") else current_price
             else:
                 current_price = 0
-            
-            # Цена без скидки - пробуем разные поля
-            original_price = product.get("originalPrice", 0)
-            if not original_price:
-                original_price = product.get("priceU", 0)
-            if original_price:
-                original_price = original_price / 100
-            else:
-                original_price = current_price
+                original_price = 0
             
             # Вычисляем скидку
             discount_percent = None
