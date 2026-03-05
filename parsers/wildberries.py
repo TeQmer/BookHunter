@@ -19,8 +19,8 @@ class WildberriesParser(BaseParser):
         
         # Пробуем разные API
         self.api_urls = [
-            "https://search.wb.ru/exactmatch/ru/common/v13",
             "https://search.wb.ru/exactmatch/ru/common/v4",
+            "https://search.wb.ru/exactmatch/ru/common/v13",
             "https://catalog.wb.ru/catalog/online/search",
         ]
         
@@ -32,10 +32,18 @@ class WildberriesParser(BaseParser):
     def _get_headers(self) -> Dict[str, str]:
         """Получение заголовков запроса"""
         headers = {
-            "accept": "*/*",
-            "accept-language": "ru-RU,ru;q=0.9",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
-            "referer": "https://www.wildberries.ru/",
+            "accept": "application/json",
+            "accept-language": "ru-RU,ru;q=0.9,en;q=0.8",
+            "accept-encoding": "gzip, deflate, br",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "referer": "https://www.wildberries.ru/catalog/0/search.aspx?search=гарри+поттер",
+            "origin": "https://www.wildberries.ru",
+            "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
         }
         return headers
     
@@ -79,20 +87,17 @@ class WildberriesParser(BaseParser):
                     api_url = self.api_urls[self._current_api_index]
                     search_url = f"{api_url}/search"
                     
-                    # Параметры для v13
+                    # Параметры для v4/v13
                     params = {
-                        "ab_testing": "false",
                         "appType": 1,
                         "curr": "rub",
                         "dest": "-1257786",
-                        "hide_dtype": 13,
                         "lang": "ru",
                         "page": page,
                         "query": query,
                         "resultset": "catalog",
                         "sort": "popular",
-                        "spp": 30,
-                        "suppressSpellcheck": "false"
+                        "spp": 30
                     }
             
                     headers = self._get_headers()
