@@ -7,6 +7,7 @@ import asyncio
 import re
 import time
 import random
+import requests
 
 
 class WildberriesParser(BaseParser):
@@ -17,11 +18,8 @@ class WildberriesParser(BaseParser):
         super().__init__("wildberries", delay_min=2.0, delay_max=5.0)
         self.base_url = "https://www.wildberries.ru"
         
-        # Рабочий API - пробуем разные версии
-        self.api_urls = [
-            "https://search.wb.ru/exactmatch/ru/common/v4",
-            "https://search.wb.ru/exactmatch/ru/common/v13",
-        ]
+        # Каталожный API (работает!)
+        self.catalog_url = "https://catalog.wb.ru/catalog"
         
         # Мобильный прокси
         self.proxy = "http://yMKAw7:yr3yt8aryC7G@fproxy.site:14388"
@@ -29,29 +27,21 @@ class WildberriesParser(BaseParser):
         # Счетчик попыток
         self._request_attempts = 0
         self._max_attempts = 3
-        self._current_api = 0
         
+        # Shard для книг (нужно определять динамически)
+        self._shard = "book"
+    
     def _get_headers(self) -> Dict[str, str]:
-        """Получение заголовков запроса - как в реальном браузере"""
-        # Случайный User-Agent
-        user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-        ]
-        
+        """Простой заголовок как в рабочем парсере"""
         headers = {
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "accept-language": "ru-RU,ru;q=0.9",
-            "accept-encoding": "gzip, deflate",
-            "cache-control": "no-cache",
-            "pragma": "no-cache",
-            "upgrade-insecure-requests": "1",
-            "user-agent": random.choice(user_agents),
-            "referer": "https://www.wildberries.ru/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0)"
         }
         return headers
+    
+    def _get_catalog_url(self, query: str) -> str:
+        """Формирование URL для поиска по книгам"""
+        # Используем каталожный API как в рабочем примере
+        return f"{self.catalog_url}/{self._shard}/catalog"
     
     async def search_books(
         self,
@@ -89,21 +79,19 @@ class WildberriesParser(BaseParser):
                 page_books = []
                 
                 for page in range(1, max_pages + 1):
-                    # Пробуем разные API
-                    api_base = self.api_urls[self._current_api]
-                    search_url = f"{api_base}/search"
+                    # Каталожный API как в рабочем примере
+                    search_url = self._get_catalog_url(query)
                     
-                    # Параметры
+                    # Параметры как в рабочем парсере
                     params = {
                         "appType": 1,
                         "curr": "rub",
                         "dest": "-1257786",
-                        "lang": "ru",
+                        "locale": "ru",
                         "page": page,
-                        "query": query,
-                        "resultset": "catalog",
                         "sort": "popular",
-                        "spp": 30
+                        "spp": 0,
+                        f"query{self._shard}": query  # querybook=гарри поттер
                     }
             
                     headers = self._get_headers()
@@ -111,46 +99,46 @@ class WildberriesParser(BaseParser):
                     # Задержка перед запросом
                     await asyncio.sleep(random.uniform(1, 2))
                     
-                    # С прокси
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(
+                    # Используем requests (как в рабочем примере) с прокси
+                    try:
+                        r = requests.get(
                             search_url, 
                             params=params, 
                             headers=headers,
-                            proxy=self.proxy
-                        ) as response:
-                            parser_logger.info(f"[Wildberries] HTTP status: {response.status}")
+                            proxies={"http": self.proxy, "https": self.proxy},
+                            timeout=10
+                        )
+                        parser_logger.info(f"[Wildberries] HTTP status: {r.status_code}")
+                        
+                        if r.status_code == 200:
+                            data = r.json()
+                            products = data.get("data", {}).get("products", [])
                             
-                            if response.status == 200:
-                                data = await response.json()
-                                
-                                # Пробуем разные пути к продуктам
-                                products = data.get("data", {}).get("products", [])
-                                if not products:
-                                    products = data.get("search_result", {}).get("products", [])
-                                if not products:
-                                    parser_logger.warning(f"[Wildberries] Пустой ответ на странице {page}")
-                                
-                                parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
-                                
-                                for product in products:
-                                    book = self._parse_product(product, query)
-                                    if book:
-                                        page_books.append(book)
-                                
-                            elif response.status == 429:
-                                # Пробуем следующий API
-                                self._current_api = (self._current_api + 1) % len(self.api_urls)
-                                parser_logger.warning(f"[Wildberries] Rate limit (429), пробуем API #{self._current_api}")
-                                await asyncio.sleep(5)
-                                break
+                            if not products:
+                                parser_logger.warning(f"[Wildberries] Пустой ответ на странице {page}")
                             
-                            elif response.status == 403:
-                                parser_logger.warning("[Wildberries] 403 Forbidden")
-                                break
+                            parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
                             
-                            else:
-                                parser_logger.error(f"[Wildberries] HTTP {response.status}")
+                            for product in products:
+                                book = self._parse_product(product, query)
+                                if book:
+                                    page_books.append(book)
+                            
+                        elif r.status_code == 429:
+                            wait_time = random.randint(30, 60)
+                            parser_logger.warning(f"[Wildberries] Rate limit (429), ждём {wait_time} сек...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        
+                        elif r.status_code == 403:
+                            parser_logger.warning("[Wildberries] 403 Forbidden")
+                            break
+                        
+                        else:
+                            parser_logger.error(f"[Wildberries] HTTP {r.status_code}")
+                            
+                    except Exception as e:
+                        parser_logger.error(f"[Wildberries] Ошибка запроса: {e}")
                     
                     # Если достигли лимита
                     if limit and len(page_books) >= limit:
@@ -269,21 +257,25 @@ class WildberriesParser(BaseParser):
             product_id = match.group(1)
             
             # API детальной информации
-            detail_url = f"{self.api_urls[0]}/product/{product_id}"
+            detail_url = f"{self.catalog_url}/{self._shard}/catalog?appType=1&curr=rub&dest=-1257786&locale=ru&page=1&product={product_id}"
             
             headers = self._get_headers()
             
             await self._random_delay()
             
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
+            # Используем requests
+            try:
+                r = requests.get(
                     detail_url, 
                     headers=headers,
-                    proxy=self.proxy
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return self._parse_product(data, "")
+                    proxies={"http": self.proxy, "https": self.proxy},
+                    timeout=10
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    return self._parse_product(data, "")
+            except Exception as e:
+                parser_logger.error(f"[Wildberries] Ошибка получения деталей: {e}")
                         
         except Exception as e:
             parser_logger.error(f"[Wildberries] Ошибка получения деталей: {e}")
@@ -302,39 +294,41 @@ class WildberriesParser(BaseParser):
         books = []
         
         try:
-            # Используем API v4
-            discount_url = f"{self.api_urls[0]}/search"
+            # Используем каталожный API
+            discount_url = f"{self.catalog_url}/{self._shard}/catalog"
             params = {
                 "appType": 1,
                 "curr": "rub",
                 "dest": "-1257786",
-                "lang": "ru",
+                "locale": "ru",
                 "page": 1,
-                "query": "книги",
-                "resultset": "catalog",
                 "sort": "popular",
-                "spp": 30
+                "spp": 0,
+                f"query{self._shard}": "книги"
             }
             
             headers = self._get_headers()
             
             await self._random_delay()
             
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
+            try:
+                r = requests.get(
                     discount_url, 
                     params=params,
                     headers=headers,
-                    proxy=self.proxy
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        products = data.get("data", {}).get("products", [])
-                        
-                        for product in products:
-                            book = self._parse_product(product, "")
-                            if book and book.discount_percent and book.discount_percent >= 15:
-                                books.append(book)
+                    proxies={"http": self.proxy, "https": self.proxy},
+                    timeout=10
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    products = data.get("data", {}).get("products", [])
+                    
+                    for product in products:
+                        book = self._parse_product(product, "")
+                        if book and book.discount_percent and book.discount_percent >= 15:
+                            books.append(book)
+            except Exception as e:
+                parser_logger.error(f"[Wildberries] Ошибка сканирования: {e}")
             
             # Удаляем дубликаты
             unique_books = []
