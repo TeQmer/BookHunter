@@ -36,6 +36,9 @@ class WildberriesParser(BaseParser):
         ]
         self._current_shard = 0
     
+        # Попробуем сначала без прокси
+        self._use_proxy = True
+    
     def _get_headers(self) -> Dict[str, str]:
         """Простой заголовок как в рабочем парсере"""
         headers = {
@@ -104,13 +107,17 @@ class WildberriesParser(BaseParser):
                     # Задержка перед запросом
                     await asyncio.sleep(random.uniform(1, 2))
                     
-                    # Используем requests (как в рабочем примере) с прокси
+                    # Используем requests
+                    proxies = None
+                    if self._use_proxy:
+                        proxies = {"http": self.proxy, "https": self.proxy}
+                    
                     try:
                         r = requests.get(
                             search_url, 
                             params=params, 
                             headers=headers,
-                            proxies={"http": self.proxy, "https": self.proxy},
+                            proxies=proxies,
                             timeout=10
                         )
                         parser_logger.info(f"[Wildberries] HTTP status: {r.status_code}")
@@ -130,6 +137,12 @@ class WildberriesParser(BaseParser):
                                     page_books.append(book)
                             
                         elif r.status_code == 429:
+                            # Если с прокси 429, пробуем без прокси
+                            if self._use_proxy:
+                                self._use_proxy = False
+                                parser_logger.warning(f"[Wildberries] 429 с прокси, пробуем без прокси")
+                                await asyncio.sleep(2)
+                                continue
                             wait_time = random.randint(30, 60)
                             parser_logger.warning(f"[Wildberries] Rate limit (429), ждём {wait_time} сек...")
                             await asyncio.sleep(wait_time)
@@ -140,6 +153,11 @@ class WildberriesParser(BaseParser):
                             break
                         
                         elif r.status_code == 404:
+                            # Если с прокси 404, пробуем без прокси
+                            if self._use_proxy:
+                                self._use_proxy = False
+                                parser_logger.warning(f"[Wildberries] 404 с прокси, пробуем без прокси")
+                                continue
                             # Пробуем следующий shard
                             self._current_shard = (self._current_shard + 1) % len(self._shards)
                             parser_logger.warning(f"[Wildberries] 404, пробуем shard #{self._current_shard}")
@@ -276,11 +294,15 @@ class WildberriesParser(BaseParser):
             await self._random_delay()
             
             # Используем requests
+            proxies = None
+            if self._use_proxy:
+                proxies = {"http": self.proxy, "https": self.proxy}
+            
             try:
                 r = requests.get(
                     detail_url, 
                     headers=headers,
-                    proxies={"http": self.proxy, "https": self.proxy},
+                    proxies=proxies,
                     timeout=10
                 )
                 if r.status_code == 200:
@@ -323,12 +345,16 @@ class WildberriesParser(BaseParser):
             
             await self._random_delay()
             
+            proxies = None
+            if self._use_proxy:
+                proxies = {"http": self.proxy, "https": self.proxy}
+            
             try:
                 r = requests.get(
                     discount_url, 
                     params=params,
                     headers=headers,
-                    proxies={"http": self.proxy, "https": self.proxy},
+                    proxies=proxies,
                     timeout=10
                 )
                 if r.status_code == 200:
