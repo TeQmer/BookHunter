@@ -123,7 +123,9 @@ class WildberriesParser(BaseParser):
         Returns:
             Список найденных книг
         """
-        await self.log_operation("search", "info", f"Поиск книг по запросу: {query}")
+        # Автоматически добавляем "книги" к запросу для более точных результатов
+        search_query = f"{query} книги"
+        await self.log_operation("search", "info", f"Поиск книг по запросу: {search_query}")
         
         search_start = time.time()
         books = []
@@ -151,7 +153,7 @@ class WildberriesParser(BaseParser):
                         "dest": "-1257786",
                         "locale": "ru",
                         "page": page,
-                        "query": query,
+                        "query": search_query,
                         "resultset": "catalog",
                         "sort": "popular",
                         "spp": 30
