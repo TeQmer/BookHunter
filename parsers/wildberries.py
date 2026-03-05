@@ -179,10 +179,20 @@ class WildberriesParser(BaseParser):
                         
                         if r.status_code == 200:
                             data = r.json()
-                            products = data.get("data", {}).get("products", [])
                             
+                            # Логируем структуру ответа для отладки
+                            if page == 1:
+                                parser_logger.info(f"[Wildberries] Ключи ответа: {list(data.keys())}")
+                            
+                            # Пробуем разные пути
+                            products = data.get("data", {}).get("products", [])
                             if not products:
-                                parser_logger.warning(f"[Wildberries] Пустой ответ на странице {page}")
+                                products = data.get("search_result", {}).get("products", [])
+                            if not products:
+                                products = data.get("products", [])
+                            
+                            if not products and page == 1:
+                                parser_logger.warning(f"[Wildberries] Ответ: {str(data)[:500]}")
                             
                             parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
                             
