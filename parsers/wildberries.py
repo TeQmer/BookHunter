@@ -33,11 +33,16 @@ class WildberriesParser(BaseParser):
             "books/catalog",    # основной для книг
             "book/catalog", 
             "kniggy",           # другой вариант
+            "giftbooks/catalog",  # для книг и подарков
+            "product/catalog",    # общий
         ]
         self._current_shard = 0
     
         # Попробуем сначала без прокси
         self._use_proxy = True
+    
+        # Попробуем найти правильный shard
+        self._init_shard()
     
     def _get_headers(self) -> Dict[str, str]:
         """Простой заголовок как в рабочем парсере"""
@@ -45,6 +50,30 @@ class WildberriesParser(BaseParser):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0)"
         }
         return headers
+    
+    def _init_shard(self):
+        """Получение правильного shard для книг из каталога WB"""
+        try:
+            url = 'https://static-basket-01.wbbasket.ru/vol0/data/main-menu-ru-ru-v3.json'
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0)"}
+            
+            proxies = None
+            if self._use_proxy:
+                proxies = {"http": self.proxy, "https": self.proxy}
+            
+            r = requests.get(url, headers=headers, proxies=proxies, timeout=10)
+            if r.status_code == 200:
+                catalog = r.json()
+                # Ищем раздел "Книги"
+                for item in catalog:
+                    if item.get('name') == 'Книги' or 'книг' in item.get('name', '').lower():
+                        shard = item.get('shard')
+                        if shard:
+                            self._shards.insert(0, shard)
+                            parser_logger.info(f"[Wildberries] Найден shard для книг: {shard}")
+                            return
+        except Exception as e:
+            parser_logger.warning(f"[Wildberries] Не удалось получить shard: {e}")
     
     def _get_catalog_url(self) -> str:
         """Формирование URL для поиска по книгам"""
@@ -76,6 +105,7 @@ class WildberriesParser(BaseParser):
         books = []
         
         self._request_attempts = 0
+        self._current_shard = 0  # сбрасываем shard для каждого нового поиска
         
         # Цикл с повторами
         while self._request_attempts < self._max_attempts:
