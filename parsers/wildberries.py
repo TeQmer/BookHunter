@@ -105,9 +105,16 @@ class WildberriesParser(BaseParser):
                             if response.status == 200:
                                 data = await response.json()
                                 parser_logger.info(f"[Wildberries] Response keys: {data.keys()}")
-                                if "data" in data:
-                                    parser_logger.info(f"[Wildberries] Data keys: {data['data'].keys()}")
+                                
+                                # Пробуем разные пути к продуктам
                                 products = data.get("data", {}).get("products", [])
+                                if not products:
+                                    products = data.get("search_result", {}).get("products", [])
+                                if not products:
+                                    # Логируем структуру
+                                    parser_logger.info(f"[Wildberries] search_result: {data.get('search_result', {})}")
+                                
+                                parser_logger.info(f"[Wildberries] Найдено продуктов: {len(products)}")
                                 
                                 if not products:
                                     parser_logger.warning(f"[Wildberries] Пустой ответ на странице {page}")
