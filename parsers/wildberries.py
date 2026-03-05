@@ -7,119 +7,31 @@ import asyncio
 import re
 import time
 import random
-# Не нужен дополнительный импорт
 
 
 class WildberriesParser(BaseParser):
-    """Парсер для Wildberries (wb.ru) с использованием cookies"""
+    """Парсер для Wildberries (wb.ru) - без cookies и прокси"""
     
     def __init__(self):
-        # Задержки для WB - больше чем для Chitai-Gorod из-за защиты
-        super().__init__("wildberries", delay_min=2.0, delay_max=4.0)
+        # Задержки для WB - побольше чем для Chitai-Gorod
+        super().__init__("wildberries", delay_min=1.5, delay_max=3.0)
         self.base_url = "https://www.wildberries.ru"
-        # Правильный API URL из рабочего парсера!
-        self.api_url = "https://www.wildberries.ru/__internal/u-search/exactmatch/ru/common/v18"
+        # Правильный API URL (v13 - работает без cookies!)
+        self.api_url = "https://search.wb.ru/exactmatch/ru/common/v13"
         
-        # Флаг для отслеживания обновления cookies
-        self._cookies_update_triggered = False
-        # Флаг для отслеживания повторной попытки
-        self._retry_with_new_cookies = False
         # Счетчик попыток
         self._request_attempts = 0
         self._max_attempts = 3
     
-    def _get_headers(self, include_token: bool = False) -> Dict[str, str]:
-        """
-        Получение заголовков - как в рабочем парсере FedorSmorodskii
-        """
+    def _get_headers(self) -> Dict[str, str]:
+        """Получение заголовков запроса"""
         headers = {
             "accept": "*/*",
             "accept-language": "ru-RU,ru;q=0.9",
-            "content-type": "application/json",
-            "sec-ch-ua": '"Not_A Brand";v="99", "Chromium";v="142"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
             "referer": "https://www.wildberries.ru/",
         }
-        
         return headers
-    
-    def _get_cookies(self) -> Optional[Dict[str, str]]:
-        """Получение cookies - без них, пусть прокси сам всё сделал"""
-        return None
-    
-    async def _wait_for_cookies_update(self, timeout: int = 30) -> bool:
-        """
-        Ожидание обновления cookies в Redis
-        Аналогично Читай-городу - ждём появления новых cookies
-        
-        Args:
-            timeout: Максимальное время ожидания в секундах
-            
-        Returns:
-            True если cookies обновлены, False если таймаут
-        """
-        parser_logger.info(f"[Wildberries] Ожидаем обновления cookies (timeout: {timeout} сек)...")
-        
-        start_time = time.time()
-        last_cookie_hash = None
-        
-        # Получаем хеш текущих cookies для сравнения
-        current_cookies = self._get_cookies()
-        if current_cookies:
-            last_cookie_hash = hash(frozenset(current_cookies.items()))
-        
-        while time.time() - start_time < timeout:
-            await asyncio.sleep(2)  # Проверяем каждые 2 секунды
-            
-            # Получаем актуальные cookies
-            new_cookies = self._get_cookies()
-            if new_cookies:
-                new_hash = hash(frozenset(new_cookies.items()))
-                
-                # Если хеш изменился - cookies обновлены
-                if new_hash != last_cookie_hash:
-                    parser_logger.info("[Wildberries] Cookies обновлены!")
-                    return True
-                else:
-                    parser_logger.debug("[Wildberries] Cookies ещё не обновлены...")
-            else:
-                parser_logger.debug("[Wildberries] Cookies не найдены в Redis...")
-        
-        parser_logger.warning("[Wildberries] Таймаут ожидания обновления cookies")
-        return False
-    
-    async def _refresh_cookies_and_retry(self) -> bool:
-        """
-        Принудительное обновление cookies и ожидание
-        Используется при 401 ошибке
-        """
-        parser_logger.info("[Wildberries] Запускаем обновление cookies...")
-        
-        try:
-            from services.token_manager import get_token_manager
-            token_manager = get_token_manager()
-            
-            # Триггерим обновление
-            token_manager.trigger_wildberries_cookies_update()
-            
-            # Ждём обновления
-            cookies_updated = await self._wait_for_cookies_update(timeout=30)
-            
-            if cookies_updated:
-                parser_logger.info("[Wildberries] Cookies успешно обновлены, готовимся к повтору...")
-                return True
-            else:
-                parser_logger.error("[Wildberries] Не удалось обновить cookies")
-                return False
-                
-        except Exception as e:
-            parser_logger.error(f"[Wildberries] Ошибка при обновлении cookies: {e}")
-            return False
     
     async def search_books(
         self,
@@ -145,15 +57,7 @@ class WildberriesParser(BaseParser):
         search_start = time.time()
         books = []
         
-        # Сброс флагов перед новым поиском
-        self._cookies_update_triggered = False
-        self._retry_with_new_cookies = False
         self._request_attempts = 0
-        
-        # Используем другой API URL как в рабочем парсере
-        # URL как в https://github.com/onmaxon/parser_wildberries_2025
-        # shard для книг - нужно получить из каталога
-        shard = "book"  # для книг
         
         # Цикл с повторами
         while self._request_attempts < self._max_attempts:
@@ -162,33 +66,19 @@ class WildberriesParser(BaseParser):
             parser_logger.info(f"[Wildberries] {attempt_info}: поиск '{query}'")
             
             try:
-                # Пробуем получить cookies из Redis
-                cookies = self._get_cookies()
-                
-                # Если нет - добавляем минимальные cookies которые могут помочь
-                if not cookies:
-                    cookies = {
-                        "_wbauid": "892233731763147891",
-                        "_cp": "1"
-                    }
-                    parser_logger.info("[Wildberries] Используем базовые cookies")
-                else:
-                    parser_logger.info(f"[Wildberries] Используем cookies: {len(cookies)} шт")
-                
                 page_books = []
                 
                 for page in range(1, max_pages + 1):
-                    # РАБОЧИЙ URL из FedorSmorodskii парсера!
+                    # Рабочий URL из видео - v13 без cookies!
                     search_url = f"{self.api_url}/search"
                     
-                    # Параметры как в рабочем парсере
+                    # Параметры как в работающем примере
                     params = {
-                        "ab_testid": "dis_cb",
+                        "ab_testing": "false",
                         "appType": 1,
                         "curr": "rub",
                         "dest": "-1257786",
-                        "hide_vflags": "4294967296",
-                        "inheritFilters": "false",
+                        "hide_dtype": 13,
                         "lang": "ru",
                         "page": page,
                         "query": query,
@@ -198,31 +88,24 @@ class WildberriesParser(BaseParser):
                         "suppressSpellcheck": "false"
                     }
             
-                    # Без токена - пусть работает как есть
-                    headers = self._get_headers(include_token=False)
+                    headers = self._get_headers()
                     
-                    # Большая случайная задержка перед запросом (3-8 секунд)
-                    import random
-                    await asyncio.sleep(random.uniform(3, 8))
+                    # Задержка перед запросом
+                    await asyncio.sleep(random.uniform(1, 2))
                     
-                    # Используем резидентский прокси
-                    proxy = "http://RusiknQ7:6751f2kI6@109.248.7.209:10055"
-                    
-                    # Работа с прокси через aiohttp
+                    # БЕЗ ПРОКСИ и БЕЗ COOKIES!
                     async with aiohttp.ClientSession() as session:
                         async with session.get(
                             search_url, 
                             params=params, 
-                            headers=headers,
-                            cookies=cookies,
-                            proxy=proxy
+                            headers=headers
                         ) as response:
                             if response.status == 200:
                                 data = await response.json()
-                                # Структура ответа может отличаться
                                 products = data.get("data", {}).get("products", [])
+                                
                                 if not products:
-                                    products = data.get("products", [])
+                                    parser_logger.warning(f"[Wildberries] Пустой ответ на странице {page}")
                                 
                                 for product in products:
                                     book = self._parse_product(product, query)
@@ -231,39 +114,15 @@ class WildberriesParser(BaseParser):
                                 
                                 parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
                                 
-                            elif response.status == 401:
-                                parser_logger.warning(f"[Wildberries] Ошибка авторизации (401) - {attempt_info}")
-                                
-                                # Если ещё есть попытки - пробуем обновить cookies и повторить
-                                if self._request_attempts < self._max_attempts:
-                                    cookies_updated = await self._refresh_cookies_and_retry()
-                                    if cookies_updated:
-                                        parser_logger.info("[Wildberries] Cookies обновлены, повторяем запрос...")
-                                        # Выходим из внутреннего цикла и начинаем сначала
-                                        break
-                                    else:
-                                        parser_logger.error("[Wildberries] Не удалось обновить cookies")
-                                else:
-                                    parser_logger.error("[Wildberries] Превышен лимит попыток")
-                                
-                                await self._handle_cookies_expired()
-                                page_books = []  # Очищаем результаты
-                                break
-                                
                             elif response.status == 429:
-                                # Rate limit - большая случайная задержка
-                                import random
-                                wait_time = random.randint(60, 180)  # 1-3 минуты
-                                
+                                # Rate limit - большая задержка
+                                wait_time = random.randint(30, 60)
                                 parser_logger.warning(f"[Wildberries] Rate limit (429), ждём {wait_time} сек...")
                                 await asyncio.sleep(wait_time)
-                                
-                                # Повторяем страницу
                                 continue
                             
                             elif response.status == 403:
-                                parser_logger.warning("[Wildberries] 403 Forbidden - возможно блокировка")
-                                await self._handle_cookies_expired()
+                                parser_logger.warning("[Wildberries] 403 Forbidden")
                                 break
                             
                             else:
@@ -273,14 +132,14 @@ class WildberriesParser(BaseParser):
                     if limit and len(page_books) >= limit:
                         break
                 
-                # Если получили результаты и нет 401 - выходим из цикла попыток
+                # Если получили результаты - выходим
                 if page_books:
                     books = page_books
                     break
                     
-                # Если это была попытка с 401 и cookies не обновились - пробуем ещё раз
+                # Иначе пробуем ещё раз
                 if self._request_attempts < self._max_attempts:
-                    await asyncio.sleep(3)  # Небольшая пауза перед повтором
+                    await asyncio.sleep(3)
                     continue
                 else:
                     break
@@ -304,18 +163,6 @@ class WildberriesParser(BaseParser):
         parser_logger.info(f"⏱️ Поиск занял: {search_time:.2f} сек")
         
         return books
-    
-    async def _handle_cookies_expired(self):
-        """Обработка истекших cookies - триггер обновления"""
-        if not self._cookies_update_triggered:
-            try:
-                from services.token_manager import get_token_manager
-                token_manager = get_token_manager()
-                token_manager.trigger_wildberries_cookies_update()
-                self._cookies_update_triggered = True
-                parser_logger.info("[Wildberries] Триггер обновления cookies отправлен")
-            except Exception as e:
-                parser_logger.error(f"[Wildberries] Ошибка триггера: {e}")
     
     def _parse_product(self, product: dict, query: str) -> Optional[Book]:
         """Преобразование данных продукта в модель Book"""
@@ -397,19 +244,17 @@ class WildberriesParser(BaseParser):
                 
             product_id = match.group(1)
             
-            # API детальной информации
-            detail_url = f"{self.api_url}/exactmatch/ru/common/v18/product/{product_id}"
+            # API детальной информации - используем v13
+            detail_url = f"{self.api_url}/product/{product_id}"
             
-            cookies = self._get_cookies()
-            headers = self._get_headers(include_token=True)
+            headers = self._get_headers()
             
             await self._random_delay()
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     detail_url, 
-                    headers=headers,
-                    cookies=cookies
+                    headers=headers
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -432,21 +277,24 @@ class WildberriesParser(BaseParser):
         books = []
         
         try:
-            discount_url = f"{self.api_url}/exactmatch/ru/common/v18/search"
+            # Используем v13 как в рабочем примере
+            discount_url = f"{self.api_url}/search"
             params = {
+                "ab_testing": "false",
                 "appType": 1,
                 "curr": "rub",
                 "dest": "-1257786",
+                "hide_dtype": 13,
                 "lang": "ru",
                 "page": 1,
                 "query": "книги",
                 "resultset": "catalog",
                 "sort": "popular",
-                "spp": 30
+                "spp": 30,
+                "suppressSpellcheck": "false"
             }
             
-            cookies = self._get_cookies()
-            headers = self._get_headers(include_token=True)
+            headers = self._get_headers()
             
             await self._random_delay()
             
@@ -454,8 +302,7 @@ class WildberriesParser(BaseParser):
                 async with session.get(
                     discount_url, 
                     params=params,
-                    headers=headers,
-                    cookies=cookies
+                    headers=headers
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
