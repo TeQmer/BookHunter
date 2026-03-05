@@ -31,6 +31,10 @@ class WildberriesParser(BaseParser):
         ]
         self._current_proxy_index = 0
         
+        # Счетчик попыток
+        self._request_attempts = 0
+        self._max_attempts = 3
+        
     @property
     def proxy(self) -> str:
         return self.proxies[self._current_proxy_index]
