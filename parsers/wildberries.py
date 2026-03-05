@@ -123,9 +123,9 @@ class WildberriesParser(BaseParser):
         Returns:
             Список найденных книг
         """
-        # Автоматически добавляем "книги" к запросу для более точных результатов
-        search_query = f"{query} книги"
-        await self.log_operation("search", "info", f"Поиск книг по запросу: {search_query}")
+        # Используем оригинальный запрос
+        search_query = query
+        await self.log_operation("search", "info", f"Поиск книг по запросу: {query}")
         
         search_start = time.time()
         books = []
@@ -260,6 +260,24 @@ class WildberriesParser(BaseParser):
                 parser_logger.error(f"[Wildberries] Ошибка поиска: {e}")
                 await self.log_operation("search", "error", f"Ошибка поиска: {e}")
                 break
+        
+        # Дедупликация: оставляем только книги с минимальной ценой для каждого названия
+        if books:
+            unique_books = {}
+            for book in books:
+                # Нормализуем название - убираем лишнее
+                normalized_title = book.title.lower().strip()
+                
+                if normalized_title not in unique_books:
+                    unique_books[normalized_title] = book
+                else:
+                    # Если уже есть, оставляем с меньшей ценой
+                    if book.current_price < unique_books[normalized_title].current_price:
+                        unique_books[normalized_title] = book
+            
+            books = list(unique_books.values())
+            # Сортируем по цене (по возрастанию)
+            books.sort(key=lambda x: x.current_price)
         
         # Применяем лимит
         if limit and len(books) > limit:
