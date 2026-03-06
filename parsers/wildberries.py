@@ -207,7 +207,17 @@ class WildberriesParser(BaseParser):
                             if not products:
                                 products = data.get("products", [])
                             
-                            # Убираем отладочный вывод
+                            # ОТЛАДКА: посмотрим структуру первого продукта
+                            if products and page == 1:
+                                first_prod = products[0]
+                                parser_logger.info(f"[Wildberries] Первый продукт ключи: {list(first_prod.keys())}")
+                                # Пробуем найти изображения
+                                if "images" in first_prod:
+                                    parser_logger.info(f"[Wildberries] images: {first_prod['images']}")
+                                if "media" in first_prod:
+                                    parser_logger.info(f"[Wildberries] media: {first_prod['media']}")
+                                if "image" in first_prod:
+                                    parser_logger.info(f"[Wildberries] image: {first_prod['image']}")
                             
                             parser_logger.info(f"[Wildberries] Страница {page}: найдено {len(products)} товаров")
                             
