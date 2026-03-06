@@ -536,16 +536,30 @@ class WildberriesParser(BaseParser):
             # URL для детальной информации
             card_info_url = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{source_id}/info/ru/card.json"
             
-            headers = self._get_headers()
+            # Расширенные заголовки как в браузере
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
+                "Accept": "application/json",
+                "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+                "Referer": "https://www.wildberries.ru/",
+            }
+            
             proxies = None
             if self._use_proxy:
                 proxies = {"http": self.proxy, "https": self.proxy}
             
             r = requests.get(card_info_url, headers=headers, proxies=proxies, timeout=10)
             if r.status_code == 200:
-                return r.json()
+                data = r.json()
+                # Логируем структуру для отладки
+                parser_logger.info(f"[Wildberries] card.json ключи: {list(data.keys())}")
+                if "grouped_options" in data:
+                    parser_logger.info(f"[Wildberries] grouped_options: {data['grouped_options']}")
+                if "options" in data:
+                    parser_logger.info(f"[Wildberries] options: {data['options']}")
+                return data
             else:
-                parser_logger.warning(f"[Wildberries] card.json вернул {r.status_code}")
+                parser_logger.warning(f"[Wildberries] card.json вернул {r.status_code}: {card_info_url}")
         except Exception as e:
             parser_logger.warning(f"[Wildberries] Ошибка получения card info: {e}")
         
@@ -617,11 +631,22 @@ class WildberriesParser(BaseParser):
                                         if not book.publisher:
                                             book.publisher = value
                             
+                            # Также пробуем из options (другой формат)
+                            options = card_info.get("options", [])
+                            for opt in options:
+                                name = opt.get("name", "").lower()
+                                value = opt.get("value", "")
+                                
+                                if "автор" in name:
+                                    if not book.author:
+                                        book.author = value
+                                elif "переплет" in name:
+                                    if not book.binding:
+                                        book.binding = value
+                            
                             # Описание
                             description = card_info.get("description", "")
-                            if description:
-                                # Можно сохранить в отдельное поле если нужно
-                                pass
+                            parser_logger.info(f"[Wildberries] description: {description[:100] if description else 'None'}")
                     
                     return book
             except Exception as e:
