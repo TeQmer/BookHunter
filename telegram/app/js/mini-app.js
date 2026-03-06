@@ -969,120 +969,6 @@ class BookHunterApp {
     }
 
     /**
-     * Запуск парсинга книг
-     * @param {string} query - Поисковый запрос
-     * @param {string[]|null} sources - Массив источников (null = оба по умолчанию)
-     */
-    async startParsing(query, sources = null) {
-        try {
-            console.log('[startParsing] Запускаем парсинг для:', query);
-
-            // По умолчанию оба источника
-            if (!sources) {
-                sources = ['chitai-gorod', 'wildberries'];
-            } else if (typeof sources === 'string') {
-                // Обратная совместимость: если передана строка - преобразуем в массив
-                sources = [sources];
-            }
-
-            // Получаем telegram_id для проверки лимитов (задача #6)
-            let telegramId = window.tg.getChatId();
-            if (!telegramId) {
-                telegramId = window.tg.getQueryId();
-            }
-
-            const requestBody = {
-                query,
-                sources,
-                fetch_details: false
-            };
-
-            // Добавляем telegram_id если есть
-            if (telegramId) {
-                requestBody.telegram_id = telegramId;
-            }
-
-            const response = await fetch(`${this.apiBaseUrl}/api/parser/parse-body`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody)
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || 'Ошибка запуска парсинга');
-            }
-
-            const data = await response.json();
-            console.log('[startParsing] Ответ:', data);
-
-            // Показываем сообщение о парсинге (поддержка нескольких задач)
-            if (data.tasks && data.tasks.length > 0) {
-                // Если несколько задач - показываем статус для первой
-                this.showParsingStatus(data.tasks[0].task_id, query);
-            } else if (data.task_id) {
-                this.showParsingStatus(data.task_id, query);
-            } else {
-                this.showError('Не удалось запустить поиск книг');
-            }
-        } catch (error) {
-            console.error('[startParsing] Ошибка:', error);
-            this.showError(error.message || 'Не удалось запустить поиск книг');
-        }
-    }
-
-    /**
-     * Показать статус парсинга и периодически обновлять
-     */
-    async showParsingStatus(taskId, query) {
-        console.log('[showParsingStatus] Показываем статус парсинга:', taskId);
-
-        const container = document.getElementById('books-container');
-        if (!container) return;
-
-        container.innerHTML = `
-            <div class="card" style="text-align: center; padding: 24px;">
-                <div class="loading__spinner" style="margin: 0 auto 16px;"></div>
-                <h4 style="margin-bottom: 8px;">Поиск книг...</h4>
-                <p style="color: var(--text-secondary); font-size: 0.9rem;">
-                    Ищем книги по запросу "${query}" на сайте магазина...
-                </p>
-                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 12px;">
-                    Это может занять несколько секунд
-                </p>
-            </div>
-        `;
-
-        // Периодически проверяем статус
-        const checkInterval = setInterval(async () => {
-            try {
-                const response = await fetch(`${this.apiBaseUrl}/api/parser/parse/${taskId}`);
-                const data = await response.json();
-
-                console.log('[showParsingStatus] Статус:', data.status);
-
-                if (data.status === 'completed') {
-                    clearInterval(checkInterval);
-                    console.log('[showParsingStatus] Парсинг завершен, загружаем книги');
-                    await this.loadBooks({ query });
-                } else if (data.status === 'error') {
-                    clearInterval(checkInterval);
-                    container.innerHTML = this.getEmptyState('Ошибка поиска', 'Не удалось найти книги. Попробуйте другой запрос.');
-                }
-            } catch (error) {
-                console.error('[showParsingStatus] Ошибка проверки статуса:', error);
-            }
-        }, 2000);
-
-        // Таймаут 30 секунд
-        setTimeout(() => {
-            clearInterval(checkInterval);
-        }, 30000);
-    }
-
-    /**
      * Отрисовка списка книг
      */
     renderBooks(books, isSearch = false) {
@@ -1578,35 +1464,55 @@ class BookHunterApp {
             `;
         }
 
-        // Сразу запускаем парсинг (без проверки базы данных)
-        await this.startParsing(query, 'chitai-gorod');
+        // Сразу запускаем поиск (с проверкой базы данных, затем парсинг если нужно)
+        // По умолчанию используются оба источника: chitai-gorod и wildberries
+        await this.startParsing(query);
     }
         
     /**
-     * Запуск парсинга книг (ВСЕГДА парсит, не ищет в базе)
+     * Запуск парсинга книг (ищет в базе, если нет - парсит)
+     * @param {string} query - Поисковый запрос
+     * @param {string|string[]} [sources='chitai-gorod'] - Источник или массив источников (по умолчанию оба: chitai-gorod и wildberries)
      */
-    async startParsing(query, source = 'chitai-gorod') {
+    async startParsing(query, sources = ['chitai-gorod', 'wildberries']) {
         try {
-            console.log('[startParsing] Запускаем парсинг для:', query);
+            console.log('[startParsing] Запускаем поиск для:', query, 'sources:', sources);
 
-            // Используем /api/parser/parse который ВСЕГДА запускает парсинг
-            const response = await fetch(`${this.apiBaseUrl}/api/parser/parse?query=${encodeURIComponent(query)}&source=${source}`, {
-                method: 'POST'
+            // Нормализуем sources в массив
+            const sourcesArray = Array.isArray(sources) ? sources : [sources];
+
+            // Используем /api/parser/parse-body который ищет в базе и парсит если нужно
+            const response = await fetch(`${this.apiBaseUrl}/api/parser/parse-body`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    query: query,
+                    sources: sourcesArray
+                })
             });
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || 'Ошибка запуска парсинга');
+                throw new Error(errorData.detail || 'Ошибка запуска поиска');
             }
 
             const data = await response.json();
             console.log('[startParsing] Ответ:', data);
 
-            // Показываем сообщение о парсинге
-            if (data.task_id) {
-                this.showParsingStatus(data.task_id, query);
+            // Обрабатываем ответ
+            if (data.tasks && data.tasks.length > 0) {
+                // Запущен парсинг - показываем статус первого таска
+                const firstTask = data.tasks[0];
+                this.showParsingStatus(firstTask.task_id, query);
+            } else if (data.books && data.books.length > 0) {
+                // Книги уже есть в базе - загружаем их
+                this.showToast('Найдено в базе: ' + data.books.length + ' книг', 'success');
+                await this.loadBooks({ query });
             } else {
-                this.showError('Не удалось запустить поиск книг');
+                // Нет результатов
+                this.showError('Книги не найдены');
             }
         } catch (error) {
             console.error('[startParsing] Ошибка:', error);
