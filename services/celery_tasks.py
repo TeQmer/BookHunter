@@ -85,7 +85,7 @@ async def _check_all_alerts_async():
                 celery_logger.info("Нет активных подписок для проверки")
                 return 0
             
-            # Импортируем реальный парсер
+            # Импортируем парсеры
             try:
                 import sys
                 import os
@@ -96,11 +96,14 @@ async def _check_all_alerts_async():
                     sys.path.append(root_dir)
                 
                 from parsers.chitai_gorod import ChitaiGorodParser
-                parser = ChitaiGorodParser()
+                from parsers.wildberries import WildberriesParser
+                chitai_parser = ChitaiGorodParser()
+                wb_parser = WildberriesParser()
             except ImportError as e:
-                celery_logger.warning(f"Не удалось импортировать парсер: {e}")
+                celery_logger.warning(f"Не удалось импортировать парсеры: {e}")
                 # Создаем заглушку для демонстрации
-                parser = MockParser()
+                chitai_parser = MockParser()
+                wb_parser = MockParser()
             
             books_found = 0
             notifications_created = 0
@@ -109,6 +112,15 @@ async def _check_all_alerts_async():
             
             for alert in alerts:
                 try:
+                    # Выбираем парсер на основе источника книги в подписке
+                    source = alert.book_source if alert.book_source else "chitai-gorod"
+                    if source == "wildberries":
+                        parser = wb_parser
+                        celery_logger.info(f"Используем парсер WB для подписки {alert.id}")
+                    else:
+                        parser = chitai_parser
+                        celery_logger.info(f"Используем парсер Chitai-Gorod для подписки {alert.id}")
+                    
                     # Если есть URL книги - парсим её напрямую
                     books = []
                     if alert.book_url:
@@ -120,7 +132,7 @@ async def _check_all_alerts_async():
                                 # Конвертируем Book в ParserBook
                                 from dataclasses import replace
                                 parser_book = ParserBook(
-                                    source="chitai-gorod",
+                                    source=source,
                                     source_id=book.source_id or "",
                                     title=book.title or "",
                                     author=book.author or "",
@@ -149,10 +161,13 @@ async def _check_all_alerts_async():
                         if alert.book_author:
                             search_query += f" {alert.book_author}"
                         
-                        celery_logger.info(f"Поиск книг для подписки {alert.id}: '{search_query}'")
+                        celery_logger.info(f"Поиск книг для подписки {alert.id}: '{search_query}' (источник: {source})")
                         
-                        # Реальный поиск книг
-                        books = await parser.search_books(search_query)
+                        # Реальный поиск книг (только по нужному источнику)
+                        all_books = await parser.search_books(search_query)
+                        
+                        # Фильтруем книги только по нужному источнику
+                        books = [b for b in all_books if b.source == source]
                     
                     if not books:
                         celery_logger.info(f"Книги не найдены для запроса: {search_query}")
@@ -233,10 +248,10 @@ async def _check_all_alerts_async():
             celery_logger.error(f"Критическая ошибка при проверке подписок: {e}")
             await _log_parsing_result(db, "alert_check", "error", str(e))
             raise
-
+ 
 async def _is_book_suitable_for_alert(book: ParserBook, alert: Alert) -> bool:
     """Проверка, подходит ли книга под условия подписки"""
-    
+
     celery_logger.info(f"🔍 Проверка книги: '{book.title}' для подписки '{alert.book_title}'")
     celery_logger.info(f"   💰 Цена книги: {book.current_price} руб. (оригинальная: {book.original_price} руб., скидка: {book.discount_percent}%)")
     celery_logger.info(f"   Условия подписки: target_price={alert.target_price}, min_discount={alert.min_discount}")
