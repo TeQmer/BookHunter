@@ -518,6 +518,39 @@ class WildberriesParser(BaseParser):
             parser_logger.error(f"[Wildberries] Ошибка парсинга продукта: {e}")
             return None
     
+    async def _get_card_info(self, source_id: str) -> Optional[dict]:
+        """Получение детальной информации о карточке товара (автор, переплет и т.д.)"""
+        try:
+            nm_id = int(source_id)
+            vol = nm_id // 100000
+            part = nm_id // 1000
+            
+            # Определяем basket
+            vol_shards = [143, 287, 431, 719, 1007, 1061, 1115, 1169, 1313, 1601, 1655, 1919, 2045, 2189, 2405, 2621, 2837, 3053, 3269, 3485, 3701, 3917, 4133, 4349, 4555, 4877, 5189, 5501, 5813, 6125, 6437, 6749, 7061, 7373, 7685, 7997, 8309, 8621, 8933, 9245, 9557]
+            integer_shard = bisect.bisect_left(vol_shards, vol) + 1
+            if integer_shard <= 9:
+                basket_num = f"0{integer_shard}"
+            else:
+                basket_num = str(integer_shard)
+            
+            # URL для детальной информации
+            card_info_url = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{source_id}/info/ru/card.json"
+            
+            headers = self._get_headers()
+            proxies = None
+            if self._use_proxy:
+                proxies = {"http": self.proxy, "https": self.proxy}
+            
+            r = requests.get(card_info_url, headers=headers, proxies=proxies, timeout=10)
+            if r.status_code == 200:
+                return r.json()
+            else:
+                parser_logger.warning(f"[Wildberries] card.json вернул {r.status_code}")
+        except Exception as e:
+            parser_logger.warning(f"[Wildberries] Ошибка получения card info: {e}")
+        
+        return None
+    
     async def get_book_details(self, url: str) -> Optional[Book]:
         """
         Получение детальной информации о книге
@@ -558,7 +591,39 @@ class WildberriesParser(BaseParser):
                 )
                 if r.status_code == 200:
                     data = r.json()
-                    return self._parse_product(data, "")
+                    book = self._parse_product(data, "")
+                    
+                    # Получаем детальную информацию (автор, переплет)
+                    if book:
+                        card_info = await self._get_card_info(product_id)
+                        if card_info:
+                            # Парсим grouped_options
+                            grouped_options = card_info.get("grouped_options", [])
+                            for group in grouped_options:
+                                options = group.get("options", [])
+                                for opt in options:
+                                    name = opt.get("name", "").lower()
+                                    value = opt.get("value", "")
+                                    
+                                    # Автор
+                                    if "автор" in name:
+                                        if not book.author:
+                                            book.author = value
+                                    # Переплет
+                                    elif "переплет" in name or "обложка" in name:
+                                        book.binding = value
+                                    # Издательство
+                                    elif "издательство" in name or "publisher" in name:
+                                        if not book.publisher:
+                                            book.publisher = value
+                            
+                            # Описание
+                            description = card_info.get("description", "")
+                            if description:
+                                # Можно сохранить в отдельное поле если нужно
+                                pass
+                    
+                    return book
             except Exception as e:
                 parser_logger.error(f"[Wildberries] Ошибка получения деталей: {e}")
                         
