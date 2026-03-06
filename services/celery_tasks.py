@@ -310,6 +310,10 @@ async def _save_book(db: AsyncSession, book: ParserBook):
     """Сохранение книги в базу данных"""
     
     try:
+        # Для Wildberries не сохраняем author и binding - ставим "Coming soon"
+        is_wildberries = book.source == "wildberries"
+        coming_soon = "Coming soon"
+        
         # Проверяем, существует ли книга
         result = await db.execute(
             select(DBBook).where(
@@ -328,11 +332,13 @@ async def _save_book(db: AsyncSession, book: ParserBook):
             # Обновляем дополнительные поля если они изменились
             if book.title != existing_book.title:
                 existing_book.title = book.title
-            if book.author != existing_book.author:
+            # Для ВБ не обновляем author и binding
+            if not is_wildberries and book.author != existing_book.author:
                 existing_book.author = book.author
             if book.publisher != existing_book.publisher:
                 existing_book.publisher = book.publisher
-            if book.binding != existing_book.binding:
+            # Для ВБ не обновляем binding
+            if not is_wildberries and book.binding != existing_book.binding:
                 existing_book.binding = book.binding
             if book.image_url != existing_book.image_url:
                 existing_book.image_url = book.image_url
@@ -355,9 +361,9 @@ async def _save_book(db: AsyncSession, book: ParserBook):
                 source=book.source,
                 source_id=book.source_id,
                 title=book.title,
-                author=book.author,
+                author=coming_soon if is_wildberries else book.author,
                 publisher=book.publisher,
-                binding=book.binding,
+                binding=coming_soon if is_wildberries else book.binding,
                 current_price=book.current_price,
                 original_price=book.original_price,
                 discount_percent=book.discount_percent,
