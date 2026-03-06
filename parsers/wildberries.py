@@ -491,14 +491,22 @@ class WildberriesParser(BaseParser):
             
             # Издательство (из supplier)
             publisher = None
+            supplier = None
             if extended:
-                publisher = extended.get("supplier", "")
-                if not publisher:
+                supplier = extended.get("supplier", "")
+                if not supplier:
                     # Пробуем из seller
                     seller = extended.get("seller", {})
                     if seller:
-                        publisher = seller.get("name", "")
+                        supplier = seller.get("name", "")
+                        publisher = supplier
             
+            # ФИЛЬТРАЦИЯ РЕСЕЙЛЕРОВ!
+            # Если supplier не "Wildberries" и не пустой - это ресейлер, пропускаем
+            if supplier and supplier != "Wildberries" and "wildberries" not in supplier.lower():
+                parser_logger.info(f"[Wildberries] Пропускаем ресейлера: {supplier}")
+                return None
+                
             # Автор - для WB это сложно, часто автор не указан отдельно
             # Пробуем взять из названия (обычно формат "Название | Автор")
             author = None
