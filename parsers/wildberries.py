@@ -393,8 +393,18 @@ class WildberriesParser(BaseParser):
                     # Номер бакета = id % 16
                     geo_num = int(id_str) % 16
                     
-                    # Рабочий формат: basket-{geo_num}.wbbasket.ru
-                    image_url = f"https://basket-{geo_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                    # Пробуем оба формата (может меняться в зависимости от времени/региона)
+                    # Формат 1: basket-N.wbbasket.ru
+                    # Формат 2: rst-basket-cdn-N.geobasket.ru
+                    url1 = f"https://basket-{geo_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                    url2 = f"https://rst-basket-cdn-{geo_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                    
+                    # Логируем оба для отладки
+                    parser_logger.info(f"[Wildberries] URL1: {url1}")
+                    parser_logger.info(f"[Wildberries] URL2: {url2}")
+                    
+                    # Используем первый (он чаще работает)
+                    image_url = url1
                     parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
                 except Exception as e:
                     parser_logger.warning(f"[Wildberries] Не удалось сформировать URL фото: {e}")
