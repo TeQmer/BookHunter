@@ -393,45 +393,11 @@ class WildberriesParser(BaseParser):
                     vol = nm_id // 100000
                     part = nm_id // 1000
                     
-                    # Определяем номер бакета по диапазону vol
-                    if vol <= 143:
-                        basket_num = "01"
-                    elif vol <= 287:
-                        basket_num = "02"
-                    elif vol <= 431:
-                        basket_num = "03"
-                    elif vol <= 719:
-                        basket_num = "04"
-                    elif vol <= 1007:
-                        basket_num = "05"
-                    elif vol <= 1061:
-                        basket_num = "06"
-                    elif vol <= 1115:
-                        basket_num = "07"
-                    elif vol <= 1169:
-                        basket_num = "08"
-                    elif vol <= 1313:
-                        basket_num = "09"
-                    elif vol <= 1601:
-                        basket_num = "10"
-                    elif vol <= 1655:
-                        basket_num = "11"
-                    elif vol <= 1919:
-                        basket_num = "12"
-                    elif vol <= 2045:
-                        basket_num = "13"
-                    elif vol <= 2189:
-                        basket_num = "14"
-                    elif vol <= 2405:
-                        basket_num = "15"
-                    elif vol <= 2621:
-                        basket_num = "16"
-                    elif vol <= 2837:
-                        basket_num = "17"
-                    else:
-                        basket_num = "18"
+                    # Используем rst-basket-cdn-N.geobasket.ru - он работает для всех товаров
+                    # geo_num = vol % 16
+                    geo_num = vol % 16
                     
-                    image_url = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                    image_url = f"https://rst-basket-cdn-{geo_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
                     parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
                     parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
                 except Exception as e:
@@ -440,51 +406,15 @@ class WildberriesParser(BaseParser):
             # Также проверяем есть ли поле pics (количество изображений)
             pics_count = product.get("pics", 0)
             if pics_count > 0 and not image_url:
-                # Если есть картинки, формируем URL по формуле
+                # Если есть картинки, формируем URL
                 id_str = str(source_id)
                 nm_id = int(id_str)
                 vol = nm_id // 100000
                 part = nm_id // 1000
                 
-                # Определяем номер бакета
-                if vol <= 143:
-                    basket_num = "01"
-                elif vol <= 287:
-                    basket_num = "02"
-                elif vol <= 431:
-                    basket_num = "03"
-                elif vol <= 719:
-                    basket_num = "04"
-                elif vol <= 1007:
-                    basket_num = "05"
-                elif vol <= 1061:
-                    basket_num = "06"
-                elif vol <= 1115:
-                    basket_num = "07"
-                elif vol <= 1169:
-                    basket_num = "08"
-                elif vol <= 1313:
-                    basket_num = "09"
-                elif vol <= 1601:
-                    basket_num = "10"
-                elif vol <= 1655:
-                    basket_num = "11"
-                elif vol <= 1919:
-                    basket_num = "12"
-                elif vol <= 2045:
-                    basket_num = "13"
-                elif vol <= 2189:
-                    basket_num = "14"
-                elif vol <= 2405:
-                    basket_num = "15"
-                elif vol <= 2621:
-                    basket_num = "16"
-                elif vol <= 2837:
-                    basket_num = "17"
-                else:
-                    basket_num = "18"
-                
-                image_url = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                # Используем rst-basket-cdn
+                geo_num = vol % 16
+                image_url = f"https://rst-basket-cdn-{geo_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
             
             # Из extended_data получаем дополнительную инфу
             extended = product.get("extended", {})
