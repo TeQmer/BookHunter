@@ -378,9 +378,10 @@ class WildberriesParser(BaseParser):
             # URL книги
             product_url = f"{self.base_url}/catalog/{source_id}/detail.aspx"
             
-            # Изображение - формируем URL по ID товара
-            # Используем basket-01.wb.ru (работает вместо заблокированного images.wb.ru)
+            # Изображение - пробуем получить из API напрямую
             image_url = None
+            
+            # Пробуем разные форматы URL изображений WB
             if source_id:
                 try:
                     id_str = str(source_id)
@@ -390,8 +391,19 @@ class WildberriesParser(BaseParser):
                     vol = id_str[:4] if len(id_str) >= 4 else id_str
                     part = id_str[:7] if len(id_str) >= 7 else id_str
                     
-                    # Формат с basket-01.wb.ru (альтернатива images.wb.ru)
-                    image_url = f"https://basket-01.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                    # Пробуем несколько форматов
+                    url_formats = [
+                        f"https://static.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp",
+                        f"https://cdn1.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp",
+                        f"https://basket-01.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp",
+                    ]
+                    
+                    # Пробуем каждый формат
+                    for url in url_formats:
+                        parser_logger.info(f"[Wildberries] Пробуем URL: {url}")
+                    
+                    # Используем первый формат
+                    image_url = url_formats[0]
                     parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
                 except Exception as e:
                     parser_logger.warning(f"[Wildberries] Не удалось сформировать URL фото: {e}")
@@ -403,7 +415,7 @@ class WildberriesParser(BaseParser):
                 id_str = str(source_id)
                 vol = id_str[:4] if len(id_str) >= 4 else id_str
                 part = id_str[:7] if len(id_str) >= 7 else id_str
-                image_url = f"https://basket-01.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                image_url = f"https://static.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
             
             # Из extended_data получаем дополнительную инфу
             extended = product.get("extended", {})
