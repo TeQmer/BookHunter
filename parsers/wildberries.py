@@ -390,8 +390,8 @@ class WildberriesParser(BaseParser):
                     vol = id_str[:4] if len(id_str) >= 4 else id_str
                     part = id_str[:7] if len(id_str) >= 7 else id_str
                     
-                    # Номер гео-бакета = part % 16
-                    geo_num = int(part) % 16
+                    # Номер гео-бакета = id % 16
+                    geo_num = int(id_str) % 16
                     
                     # Рабочий формат: rst-basket-cdn-{geo_num}.geobasket.ru
                     image_url = f"https://rst-basket-cdn-{geo_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
@@ -406,7 +406,7 @@ class WildberriesParser(BaseParser):
                 id_str = str(source_id)
                 vol = id_str[:4] if len(id_str) >= 4 else id_str
                 part = id_str[:7] if len(id_str) >= 7 else id_str
-                geo_num = int(part) % 16
+                geo_num = int(id_str) % 16
                 image_url = f"https://rst-basket-cdn-{geo_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
             
             # Из extended_data получаем дополнительную инфу
