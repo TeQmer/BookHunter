@@ -386,25 +386,53 @@ class WildberriesParser(BaseParser):
                     id_str = str(source_id)
                     parser_logger.info(f"[Wildberries] Формирование image_url для source_id={id_str}")
                     
-                    # vol = первые 4 цифры, part = первые 6 цифр
-                    vol = id_str[:4] if len(id_str) >= 4 else id_str
-                    part = id_str[:6] if len(id_str) >= 6 else id_str
+                    # Формула из StackOverflow:
+                    # vol = nm / 100000, part = nm / 1000
+                    # basket-N определяется по диапазону vol
+                    nm_id = int(id_str)
+                    vol = nm_id // 100000
+                    part = nm_id // 1000
                     
-                    # Номер бакета = id % 16
-                    geo_num = int(id_str) % 16
+                    # Определяем номер бакета по диапазону vol
+                    if vol <= 143:
+                        basket_num = "01"
+                    elif vol <= 287:
+                        basket_num = "02"
+                    elif vol <= 431:
+                        basket_num = "03"
+                    elif vol <= 719:
+                        basket_num = "04"
+                    elif vol <= 1007:
+                        basket_num = "05"
+                    elif vol <= 1061:
+                        basket_num = "06"
+                    elif vol <= 1115:
+                        basket_num = "07"
+                    elif vol <= 1169:
+                        basket_num = "08"
+                    elif vol <= 1313:
+                        basket_num = "09"
+                    elif vol <= 1601:
+                        basket_num = "10"
+                    elif vol <= 1655:
+                        basket_num = "11"
+                    elif vol <= 1919:
+                        basket_num = "12"
+                    elif vol <= 2045:
+                        basket_num = "13"
+                    elif vol <= 2189:
+                        basket_num = "14"
+                    elif vol <= 2405:
+                        basket_num = "15"
+                    elif vol <= 2621:
+                        basket_num = "16"
+                    elif vol <= 2837:
+                        basket_num = "17"
+                    else:
+                        basket_num = "18"
                     
-                    # Пробуем оба формата (может меняться в зависимости от времени/региона)
-                    # Формат 1: basket-N.wbbasket.ru
-                    # Формат 2: rst-basket-cdn-N.geobasket.ru
-                    url1 = f"https://basket-{geo_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
-                    url2 = f"https://rst-basket-cdn-{geo_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
-                    
-                    # Логируем оба для отладки
-                    parser_logger.info(f"[Wildberries] URL1: {url1}")
-                    parser_logger.info(f"[Wildberries] URL2: {url2}")
-                    
-                    # Используем первый (он чаще работает)
-                    image_url = url1
+                    image_url = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                    parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
                     parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
                 except Exception as e:
                     parser_logger.warning(f"[Wildberries] Не удалось сформировать URL фото: {e}")
@@ -412,12 +440,51 @@ class WildberriesParser(BaseParser):
             # Также проверяем есть ли поле pics (количество изображений)
             pics_count = product.get("pics", 0)
             if pics_count > 0 and not image_url:
-                # Если есть картинки, формируем URL
+                # Если есть картинки, формируем URL по формуле
                 id_str = str(source_id)
-                vol = id_str[:4] if len(id_str) >= 4 else id_str
-                part = id_str[:6] if len(id_str) >= 6 else id_str
-                geo_num = int(id_str) % 16
-                image_url = f"https://basket-{geo_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                nm_id = int(id_str)
+                vol = nm_id // 100000
+                part = nm_id // 1000
+                
+                # Определяем номер бакета
+                if vol <= 143:
+                    basket_num = "01"
+                elif vol <= 287:
+                    basket_num = "02"
+                elif vol <= 431:
+                    basket_num = "03"
+                elif vol <= 719:
+                    basket_num = "04"
+                elif vol <= 1007:
+                    basket_num = "05"
+                elif vol <= 1061:
+                    basket_num = "06"
+                elif vol <= 1115:
+                    basket_num = "07"
+                elif vol <= 1169:
+                    basket_num = "08"
+                elif vol <= 1313:
+                    basket_num = "09"
+                elif vol <= 1601:
+                    basket_num = "10"
+                elif vol <= 1655:
+                    basket_num = "11"
+                elif vol <= 1919:
+                    basket_num = "12"
+                elif vol <= 2045:
+                    basket_num = "13"
+                elif vol <= 2189:
+                    basket_num = "14"
+                elif vol <= 2405:
+                    basket_num = "15"
+                elif vol <= 2621:
+                    basket_num = "16"
+                elif vol <= 2837:
+                    basket_num = "17"
+                else:
+                    basket_num = "18"
+                
+                image_url = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
             
             # Из extended_data получаем дополнительную инфу
             extended = product.get("extended", {})
