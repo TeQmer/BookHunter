@@ -196,13 +196,15 @@ async def parse_books_from_body(
         
         if should_parse:
             # Проверяем, не запущен ли уже парсинг для этого запроса (дедупликация)
+            # НО: если force_parse=true (подробный поиск) - всегда запускаем новый парсинг
             import redis
             import os
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
             redis_password = os.getenv("REDIS_PASSWORD")
             
             parse_already_running = False
-            if redis_url and redis_password:
+            # Для подробного поиска (force_parse) не проверяем запущенный парсинг
+            if not force_parse and redis_url and redis_password:
                 try:
                     import re
                     redis_pattern = r'redis://:(?P<password>[^@]+)@(?P<host>[^:]+):(?P<port>\d+)/\d+'
@@ -234,16 +236,18 @@ async def parse_books_from_body(
                     task_ids.append({"source": src, "task_id": task.id})
                     logger.info(f"Запущен парсинг для '{query}' из '{src}' (task_id: {task.id})")
                 
+                # Когда запускается парсинг - НЕ возвращаем книги из базы (они устареют после парсинга)
+                # Фронтенд будет ждать завершения парсинга и загрузит свежие данные
                 return {
                     "tasks": task_ids,
                     "status": "started",
-                    "message": f"Книги не найдены в базе. Парсинг запущен для источников: {', '.join(sources)}",
+                    "message": f"Парсинг запущен для источников: {', '.join(sources)}",
                     "query": query,
                     "sources": sources,
                     "fetch_details": fetch_details,
-                    "books": books_list,
-                    "total": total,
-                    "found_in_db": True,
+                    "books": [],  # Не возвращаем старые книги - дождёмся парсинга
+                    "total": 0,
+                    "found_in_db": False,
                     "parsed": True
                 }
         
