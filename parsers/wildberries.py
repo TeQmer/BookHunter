@@ -379,7 +379,7 @@ class WildberriesParser(BaseParser):
             product_url = f"{self.base_url}/catalog/{source_id}/detail.aspx"
             
             # Изображение - формируем URL по ID товара
-            # WB использует формат: https://images.wb.ru/vol{vol}/part{part}/{id}/images/big/1.webp
+            # Используем basket-01.wb.ru (работает вместо заблокированного images.wb.ru)
             image_url = None
             if source_id:
                 try:
@@ -390,13 +390,9 @@ class WildberriesParser(BaseParser):
                     vol = id_str[:4] if len(id_str) >= 4 else id_str
                     part = id_str[:7] if len(id_str) >= 7 else id_str
                     
-                    # Пробуем разные форматы URL изображений WB
-                    # Основной формат (работает для большинства товаров)
-                    image_url = f"https://images.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                    # Формат с basket-01.wb.ru (альтернатива images.wb.ru)
+                    image_url = f"https://basket-01.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
                     parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
-                    
-                    # Также пробуем i.wb.ru (альтернативный CDN)
-                    # Если не загрузится, можно добавить fallback в CSS/HTML
                 except Exception as e:
                     parser_logger.warning(f"[Wildberries] Не удалось сформировать URL фото: {e}")
             
@@ -407,7 +403,7 @@ class WildberriesParser(BaseParser):
                 id_str = str(source_id)
                 vol = id_str[:4] if len(id_str) >= 4 else id_str
                 part = id_str[:7] if len(id_str) >= 7 else id_str
-                image_url = f"https://images.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                image_url = f"https://basket-01.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
             
             # Из extended_data получаем дополнительную инфу
             extended = product.get("extended", {})
