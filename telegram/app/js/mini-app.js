@@ -1106,10 +1106,19 @@ class BookHunterApp {
             const fallback1 = `https://rst-basket-cdn-${geoNum1}.geobasket.ru/vol${vol}/part${part}/${id}/images/big/1.webp`;
             // Второй fallback: rst-basket-cdn с id % 16
             const fallback2 = `https://rst-basket-cdn-${geoNum2}.geobasket.ru/vol${vol}/part${part}/${id}/images/big/1.webp`;
+            // Третий fallback: rst-basket-cdn с фиксированным 10 (часто встречается)
+            const fallback3 = `https://rst-basket-cdn-10.geobasket.ru/vol${vol}/part${part}/${id}/images/big/1.webp`;
             
-            // Используем оба fallback через onerror цепочкой
+            // Используем цепочку fallback через data атрибуты
             if (fallback1 !== imageUrl && fallback2 !== imageUrl) {
                 fallbackUrl = fallback1;
+                // Добавляем data-fallback для множественного fallback
+            }
+            
+            // Сохраняем все fallback для множественного onerror
+            const fallbacks = [fallback3, fallback2, fallback1].filter(f => f !== imageUrl);
+            if (fallbacks.length > 0) {
+                fallbackUrl = fallbacks[0];
             }
         }
 
