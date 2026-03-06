@@ -1096,10 +1096,21 @@ class BookHunterApp {
             const id = book.source_id;
             const vol = Math.floor(id / 100000);
             const part = Math.floor(id / 1000);
+            
             // Формируем fallback URL с rst-basket-cdn
-            // geo_num вычисляем как (id % 16) для разнообразия
-            const geoNum = (id % 16) + 1;
-            fallbackUrl = `https://rst-basket-cdn-${geoNum}.geobasket.ru/vol${vol}/part${part}/${id}/images/big/1.webp`;
+            // Пробуем разные формулы для geo_num
+            const geoNum1 = (vol % 16);  // vol % 16
+            const geoNum2 = (id % 16);   // id % 16
+            
+            // Первый fallback: rst-basket-cdn с vol % 16
+            const fallback1 = `https://rst-basket-cdn-${geoNum1}.geobasket.ru/vol${vol}/part${part}/${id}/images/big/1.webp`;
+            // Второй fallback: rst-basket-cdn с id % 16
+            const fallback2 = `https://rst-basket-cdn-${geoNum2}.geobasket.ru/vol${vol}/part${part}/${id}/images/big/1.webp`;
+            
+            // Используем оба fallback через onerror цепочкой
+            if (fallback1 !== imageUrl && fallback2 !== imageUrl) {
+                fallbackUrl = fallback1;
+            }
         }
 
         return `
