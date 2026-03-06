@@ -837,6 +837,10 @@ class BookHunterApp {
                 }
                 url += `&sources=${sourcesParam}`;
                 
+                // ВАЖНО: force_parse=true заставляет сервер запустить парсинг для ВСЕХ источников
+                // и вернуть tasks, чтобы фронтенд мог отслеживать завершение
+                url += `&force_parse=true`;
+                
                 if (params.discount) {
                     url += `&min_discount=${params.discount}`;
                 }
@@ -905,8 +909,17 @@ class BookHunterApp {
 
             console.log('[loadBooks] Книги для рендеринга:', this.data.books.length);
             console.log('[loadBooks] Всего книг:', this.catalogBooksTotal);
+            console.log('[loadBooks] data:', data);
 
-            // Если книг нет и это поиск - запускаем парсинг
+            // Проверяем, есть ли задачи парсинга в ответе (появились после добавления force_parse=true)
+            if (useSmartSearch && data.tasks && data.tasks.length > 0) {
+                console.log('[loadBooks] Есть задачи парсинга, показываем статус и ждём завершения:', data.tasks);
+                // Показываем статус парсинга и ждём завершения ВСЕХ задач
+                await this.showParsingStatus(data.tasks, params.query);
+                return; // showParsingStatus сама вызовет loadBooks после завершения
+            }
+
+            // Если книг нет и это поиск - запускаем парсинг (резервный вариант)
             if (useSmartSearch && this.data.books.length === 0) {
                 console.log('[loadBooks] Книг нет в базе, запускаем парсинг...');
                 // По умолчанию оба источника

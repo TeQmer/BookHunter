@@ -484,6 +484,7 @@ async def smart_search_books(
     sources: str = Query("chitai-gorod,wildberries", description="Источники через запятую"),
     min_discount: int = Query(None, description="Минимальная скидка"),
     max_price: int = Query(None, description="Максимальная цена"),
+    force_parse: bool = Query(False, description="Принудительно запустить парсинг для всех источников"),
     db: AsyncSession = Depends(get_db)
 ):
     """Умный поиск книг: показываем ВСЕ книги из БД, сортируем по релевантности"""
@@ -493,7 +494,7 @@ async def smart_search_books(
         if not sources_list:
             sources_list = ["chitai-gorod", "wildberries"]
 
-        logger.info(f"[smart-search] Запрос: {q}, источники: {sources_list}")
+        logger.info(f"[smart-search] Запрос: {q}, источники: {sources_list}, force_parse: {force_parse}")
 
         # Импортируем логику умного поиска
         from services.search_utils import is_book_similar, is_exact_match
@@ -554,9 +555,33 @@ async def smart_search_books(
         # Объединяем: точные первыми, потом частичные
         all_relevant_books = exact_matches + partial_matches
         
-        logger.info(f"[smart-search] Найдено в базе: {len(all_relevant_books)}")
+        logger.info(f"[smart-search] Найдено в базе: {len(all_relevant_books)}, force_parse: {force_parse}")
 
-        # ВСЕГДА возвращаем книги из базы (даже частично релевантные)
+        # Если force_parse=True - всегда запускаем парсинг и возвращаем tasks
+        # Это нужно для фронтенда, чтобы он мог отслеживать завершение ВСЕХ источников
+        if force_parse:
+            logger.info(f"[smart-search] force_parse=True, запускаем парсинг для '{q}'")
+            
+            # Запускаем парсинг для каждого источника
+            from services.celery_tasks import parse_books
+            task_ids = []
+            for src in sources_list:
+                task = parse_books.delay(q, src)
+                task_ids.append({"source": src, "task_id": task.id})
+            
+            # Возвращаем книги из базы + tasks для отслеживания
+            return JSONResponse({
+                "success": True,
+                "query": q,
+                "sources": sources_list,
+                "books": all_relevant_books,  # Возвращаем книги которые уже есть
+                "found_count": len(all_relevant_books),
+                "status": "parsing_started",
+                "tasks": task_ids,
+                "message": f"Запущен поиск книг на всех источниках. Найдено в базе: {len(all_relevant_books)}"
+            })
+        
+        # Обычный режим: если книги есть - возвращаем их сразу
         if all_relevant_books:
             status = "found_exact" if exact_matches else "found_partial"
             message = f"Найдено {len(exact_matches)} точных и {len(partial_matches)} частичных совпадений"

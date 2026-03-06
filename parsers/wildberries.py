@@ -378,42 +378,36 @@ class WildberriesParser(BaseParser):
             # URL книги
             product_url = f"{self.base_url}/catalog/{source_id}/detail.aspx"
             
-            # Изображение - пробуем разные форматы
+            # Изображение - формируем URL по ID товара
+            # WB использует формат: https://images.wb.ru/vol{vol}/part{part}/{id}/images/big/1.webp
             image_url = None
-            images = product.get("images", [])
-            if images:
-                # Пробуем разные пути
-                img_path = images[0].get("path", "")
-                if img_path:
-                    image_url = f"https:{img_path}"
-                # Пробуем thumb
-                if not image_url:
-                    thumb = images[0].get("thumb", "")
-                    if thumb:
-                        image_url = f"https:{thumb}"
-                # Пробуем big
-                if not image_url:
-                    big = images[0].get("big", "")
-                    if big:
-                        image_url = f"https:{big}"
-            
-            # Если нет изображения - пробуем сформировать правильный URL
-            if not image_url and source_id:
+            if source_id:
                 try:
-                    # Формат: https://rst-basket-cdn-X.geobasket.ru/vol{vol}/part{part}/{id}/images/big/1.webp
-                    # ID 444048508 -> vol4440/part444048/444048508
                     id_str = str(source_id)
-                    if len(id_str) >= 8:
-                        vol = id_str[:4]  # первые 4 цифры
-                        part = id_str[:7] if len(id_str) >= 7 else id_str  # первые 7
-                        # Пробуем разные CDN серверы
-                        for cdn_num in range(10, 20):
-                            test_url = f"https://rst-basket-cdn-{cdn_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
-                            # Пока просто используем наиболее вероятный формат
-                            image_url = test_url
-                            break
+                    parser_logger.info(f"[Wildberries] Формирование image_url для source_id={id_str}")
+                    
+                    # vol = первые 4 цифры, part = первые 7 цифр
+                    vol = id_str[:4] if len(id_str) >= 4 else id_str
+                    part = id_str[:7] if len(id_str) >= 7 else id_str
+                    
+                    # Пробуем разные форматы URL изображений WB
+                    # Основной формат (работает для большинства товаров)
+                    image_url = f"https://images.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                    parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
+                    
+                    # Также пробуем i.wb.ru (альтернативный CDN)
+                    # Если не загрузится, можно добавить fallback в CSS/HTML
                 except Exception as e:
                     parser_logger.warning(f"[Wildberries] Не удалось сформировать URL фото: {e}")
+            
+            # Также проверяем есть ли поле pics (количество изображений)
+            pics_count = product.get("pics", 0)
+            if pics_count > 0 and not image_url:
+                # Если есть картинки, формируем URL
+                id_str = str(source_id)
+                vol = id_str[:4] if len(id_str) >= 4 else id_str
+                part = id_str[:7] if len(id_str) >= 7 else id_str
+                image_url = f"https://images.wb.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
             
             # Из extended_data получаем дополнительную инфу
             extended = product.get("extended", {})
@@ -489,6 +483,8 @@ class WildberriesParser(BaseParser):
                 genres=genres,
                 isbn=None
             )
+            
+            parser_logger.info(f"[Wildberries] Создана книга: {title[:30]}... image_url={image_url}")
             
             return book
             
