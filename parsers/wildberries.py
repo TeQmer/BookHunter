@@ -4,6 +4,7 @@ from parsers.base import BaseParser, Book
 from services.logger import parser_logger
 import aiohttp
 import asyncio
+import bisect
 import re
 import time
 import random
@@ -393,11 +394,15 @@ class WildberriesParser(BaseParser):
                     vol = nm_id // 100000
                     part = nm_id // 1000
                     
-                    # Используем rst-basket-cdn-N.geobasket.ru - он работает для всех товаров
-                    # geo_num = vol % 16
-                    geo_num = vol % 16
+                    # Используем правильную формулу определения basket (как в mantesby/parser-wildberries)
+                    vol_shards = [143, 287, 431, 719, 1007, 1061, 1115, 1169, 1313, 1601, 1655, 1919, 2045, 2189, 2405, 2621, 2837, 3053, 3269, 3485, 3701, 3917, 4133, 4349, 4555, 4877, 5189, 5501, 5813, 6125, 6437, 6749, 7061, 7373, 7685, 7997, 8309, 8621, 8933, 9245, 9557]
+                    integer_shard = bisect.bisect_left(vol_shards, vol) + 1
+                    if integer_shard <= 9:
+                        basket_num = f"0{integer_shard}"
+                    else:
+                        basket_num = str(integer_shard)
                     
-                    image_url = f"https://rst-basket-cdn-{geo_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                    image_url = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
                     parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
                     parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
                 except Exception as e:
@@ -412,9 +417,15 @@ class WildberriesParser(BaseParser):
                 vol = nm_id // 100000
                 part = nm_id // 1000
                 
-                # Используем rst-basket-cdn
-                geo_num = vol % 16
-                image_url = f"https://rst-basket-cdn-{geo_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                # Используем правильную формулу определения basket
+                vol_shards = [143, 287, 431, 719, 1007, 1061, 1115, 1169, 1313, 1601, 1655, 1919, 2045, 2189, 2405, 2621, 2837, 3053, 3269, 3485, 3701, 3917, 4133, 4349, 4555, 4877, 5189, 5501, 5813, 6125, 6437, 6749, 7061, 7373, 7685, 7997, 8309, 8621, 8933, 9245, 9557]
+                integer_shard = bisect.bisect_left(vol_shards, vol) + 1
+                if integer_shard <= 9:
+                    basket_num = f"0{integer_shard}"
+                else:
+                    basket_num = str(integer_shard)
+                
+                image_url = f"https://basket-{basket_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
             
             # Из extended_data получаем дополнительную инфу
             extended = product.get("extended", {})
