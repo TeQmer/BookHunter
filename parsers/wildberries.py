@@ -386,15 +386,15 @@ class WildberriesParser(BaseParser):
                     id_str = str(source_id)
                     parser_logger.info(f"[Wildberries] Формирование image_url для source_id={id_str}")
                     
-                    # vol = первые 4 цифры, part = первые 7 цифр
+                    # vol = первые 4 цифры, part = первые 6 цифр
                     vol = id_str[:4] if len(id_str) >= 4 else id_str
-                    part = id_str[:7] if len(id_str) >= 7 else id_str
+                    part = id_str[:6] if len(id_str) >= 6 else id_str
                     
-                    # Номер гео-бакета = id % 16
+                    # Номер бакета = id % 16
                     geo_num = int(id_str) % 16
                     
-                    # Рабочий формат: rst-basket-cdn-{geo_num}.geobasket.ru
-                    image_url = f"https://rst-basket-cdn-{geo_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                    # Рабочий формат: basket-{geo_num}.wbbasket.ru
+                    image_url = f"https://basket-{geo_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
                     parser_logger.info(f"[Wildberries] Сформированный URL: {image_url}")
                 except Exception as e:
                     parser_logger.warning(f"[Wildberries] Не удалось сформировать URL фото: {e}")
@@ -405,9 +405,9 @@ class WildberriesParser(BaseParser):
                 # Если есть картинки, формируем URL
                 id_str = str(source_id)
                 vol = id_str[:4] if len(id_str) >= 4 else id_str
-                part = id_str[:7] if len(id_str) >= 7 else id_str
+                part = id_str[:6] if len(id_str) >= 6 else id_str
                 geo_num = int(id_str) % 16
-                image_url = f"https://rst-basket-cdn-{geo_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                image_url = f"https://basket-{geo_num}.wbbasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
             
             # Из extended_data получаем дополнительную инфу
             extended = product.get("extended", {})
