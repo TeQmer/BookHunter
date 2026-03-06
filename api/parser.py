@@ -186,8 +186,13 @@ async def parse_books_from_body(
         # Сначала ищем в базе данных
         books_list, total = await search_books_in_db(query, db, sources=sources)
         
-        # Запускаем парсинг ТОЛЬКО если книги НЕ найдены в базе
-        should_parse = total == 0
+        # Параметр для принудительного парсинга (подробный поиск)
+        force_parse = data.get("force_parse", False)
+        
+        # Запускаем парсинг если:
+        # 1. books не найдены в базе ИЛИ
+        # 2. force_parse = true (подробный поиск)
+        should_parse = total == 0 or force_parse
         
         if should_parse:
             # Проверяем, не запущен ли уже парсинг для этого запроса (дедупликация)

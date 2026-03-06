@@ -1464,19 +1464,20 @@ class BookHunterApp {
             `;
         }
 
-        // Сразу запускаем поиск (с проверкой базы данных, затем парсинг если нужно)
-        // По умолчанию используются оба источника: chitai-gorod и wildberries
-        await this.startParsing(query);
+        // Сразу запускаем поиск с принудительным парсингом обоих источников
+        // force_parse = true заставляет парсить даже если книги уже есть в базе
+        await this.startParsing(query, ['chitai-gorod', 'wildberries'], true);
     }
         
     /**
-     * Запуск парсинга книг (ищет в базе, если нет - парсит)
+     * Запуск парсинга книг
      * @param {string} query - Поисковый запрос
-     * @param {string|string[]} [sources='chitai-gorod'] - Источник или массив источников (по умолчанию оба: chitai-gorod и wildberries)
+     * @param {string|string[]} [sources=['chitai-gorod', 'wildberries']] - Источник или массив источников
+     * @param {boolean} [forceParse=false] - Принудительный парсинг (игнорирует базу данных)
      */
-    async startParsing(query, sources = ['chitai-gorod', 'wildberries']) {
+    async startParsing(query, sources = ['chitai-gorod', 'wildberries'], forceParse = false) {
         try {
-            console.log('[startParsing] Запускаем поиск для:', query, 'sources:', sources);
+            console.log('[startParsing] Запускаем поиск для:', query, 'sources:', sources, 'forceParse:', forceParse);
 
             // Нормализуем sources в массив
             const sourcesArray = Array.isArray(sources) ? sources : [sources];
@@ -1489,7 +1490,8 @@ class BookHunterApp {
                 },
                 body: JSON.stringify({
                     query: query,
-                    sources: sourcesArray
+                    sources: sourcesArray,
+                    force_parse: forceParse
                 })
             });
 
@@ -1503,9 +1505,8 @@ class BookHunterApp {
 
             // Обрабатываем ответ
             if (data.tasks && data.tasks.length > 0) {
-                // Запущен парсинг - показываем статус первого таска
-                const firstTask = data.tasks[0];
-                this.showParsingStatus(firstTask.task_id, query);
+                // Запущен парсинг - показываем статус всех тасков
+                this.showParsingStatus(data.tasks, query);
             } else if (data.books && data.books.length > 0) {
                 // Книги уже есть в базе - загружаем их
                 this.showToast('Найдено в базе: ' + data.books.length + ' книг', 'success');
@@ -1522,19 +1523,26 @@ class BookHunterApp {
 
     /**
      * Показать статус парсинга и периодически обновлять
+     * @param {Array|Object} tasks - Массив тасков [{task_id, source}] или один таск
+     * @param {string} query - Поисковый запрос
      */
-    async showParsingStatus(taskId, query) {
-        console.log('[showParsingStatus] Показываем статус парсинга:', taskId);
+    async showParsingStatus(tasks, query) {
+        // Нормализуем tasks в массив
+        const tasksArray = Array.isArray(tasks) ? tasks : [tasks];
+        console.log('[showParsingStatus] Показываем статус парсинга для тасков:', tasksArray);
 
         const container = document.getElementById('books-container');
         if (!container) return;
+
+        // Формируем названия источников для отображения
+        const sourceNames = tasksArray.map(t => t.source === 'chitai-gorod' ? 'Читай-город' : 'Wildberries').join(', ');
 
         container.innerHTML = `
             <div class="card" style="text-align: center; padding: 24px;">
                 <div class="loading__spinner" style="margin: 0 auto 16px;"></div>
                 <h4 style="margin-bottom: 8px;">Поиск книг...</h4>
                 <p style="color: var(--text-secondary); font-size: 0.9rem;">
-                    Ищем книги по запросу "${query}" на сайте магазина...
+                    Ищем книги по запросу "${query}" на сайтах: ${sourceNames}
                 </p>
                 <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 12px;">
                     Это может занять несколько секунд
@@ -1542,34 +1550,60 @@ class BookHunterApp {
             </div>
         `;
 
-        // Периодически проверяем статус
-        const checkInterval = setInterval(async () => {
-            try {
-                const response = await fetch(`${this.apiBaseUrl}/api/parser/parse/${taskId}`);
-                const data = await response.json();
+        // Функция проверки статуса всех тасков
+        const checkAllTasks = async () => {
+            let allCompleted = true;
+            let hasError = false;
 
-                console.log('[showParsingStatus] Статус:', data.status);
+            for (const task of tasksArray) {
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/api/parser/parse/${task.task_id}`);
+                    const data = await response.json();
 
-                if (data.status === 'completed') {
-                    clearInterval(checkInterval);
-                    console.log('[showParsingStatus] Парсинг завершен, загружаем книги');
-                    this.showToast('Поиск завершён!', 'success');
-                    await this.loadBooks({ query });
-                } else if (data.status === 'error') {
-                    clearInterval(checkInterval);
-                    container.innerHTML = this.getEmptyState('Ошибка поиска', 'Не удалось найти книги. Попробуйте другой запрос.');
+                    console.log('[showParsingStatus] Таск', task.task_id, 'статус:', data.status);
+
+                    if (data.status === 'completed') {
+                        // Таск завершён
+                    } else if (data.status === 'error') {
+                        hasError = true;
+                    } else {
+                        allCompleted = false;
+                    }
+                } catch (error) {
+                    console.error('[showParsingStatus] Ошибка проверки таска:', task.task_id, error);
+                    allCompleted = false;
                 }
-            } catch (error) {
-                console.error('[showParsingStatus] Ошибка проверки статуса:', error);
+            }
+
+            return { allCompleted, hasError };
+        };
+
+        // Периодически проверяем статус всех тасков
+        const checkInterval = setInterval(async () => {
+            const { allCompleted, hasError } = await checkAllTasks();
+
+            if (allCompleted) {
+                clearInterval(checkInterval);
+                console.log('[showParsingStatus] Все парсеры завершены, загружаем книги');
+                this.showToast('Поиск завершён!', 'success');
+                await this.loadBooks({ query });
+            } else if (hasError) {
+                clearInterval(checkInterval);
+                // Даже если есть ошибки, пробуем загрузить что есть
+                console.log('[showParsingStatus] Некоторые парсеры завершились с ошибкой, загружаем книги');
+                this.showToast('Поиск завершён (не все источники)', 'warning');
+                await this.loadBooks({ query });
             }
         }, 2000);
 
-        // Таймаут 30 секунд
+        // Таймаут 60 секунд (больше потому что два парсера)
         setTimeout(() => {
             clearInterval(checkInterval);
-        }, 30000);
+            console.log('[showParsingStatus] Таймаут, загружаем книги');
+            this.loadBooks({ query });
+        }, 60000);
     }
-        
+
     /**
      * Применение фильтров
      */
