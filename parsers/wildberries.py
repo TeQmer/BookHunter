@@ -387,16 +387,23 @@ class WildberriesParser(BaseParser):
                     if big:
                         image_url = f"https:{big}"
             
-            # Если нет изображения - пробуем изменить ссылку по ID
+            # Если нет изображения - пробуем сформировать правильный URL
             if not image_url and source_id:
-                # WB хранит изображения по ID - пробуем разные форматы
-                image_url = f"https://images.wbstatic.net/catalogcanvas/{source_id}/main.jpg"
-                # Пробуем через wbststatic
-                if not image_url:
-                    image_url = f"https://wbtstatic.com/image/catalogcanvas/{source_id}/main.jpg"
-                # Ещё один формат
-                if not image_url:
-                    image_url = f"https://images.wbstatic.net/s/{source_id}_main.jpg"
+                try:
+                    # Формат: https://rst-basket-cdn-X.geobasket.ru/vol{vol}/part{part}/{id}/images/big/1.webp
+                    # ID 444048508 -> vol4440/part444048/444048508
+                    id_str = str(source_id)
+                    if len(id_str) >= 8:
+                        vol = id_str[:4]  # первые 4 цифры
+                        part = id_str[:7] if len(id_str) >= 7 else id_str  # первые 7
+                        # Пробуем разные CDN серверы
+                        for cdn_num in range(10, 20):
+                            test_url = f"https://rst-basket-cdn-{cdn_num}.geobasket.ru/vol{vol}/part{part}/{id_str}/images/big/1.webp"
+                            # Пока просто используем наиболее вероятный формат
+                            image_url = test_url
+                            break
+                except Exception as e:
+                    parser_logger.warning(f"[Wildberries] Не удалось сформировать URL фото: {e}")
             
             # Из extended_data получаем дополнительную инфу
             extended = product.get("extended", {})
