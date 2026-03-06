@@ -1089,11 +1089,24 @@ class BookHunterApp {
             }
         }
 
+        // Для WB формируем fallback URL (rst-basket-cdn)
+        let imageUrl = book.image_url || '';
+        let fallbackUrl = '';
+        if (book.source === 'wildberries' && book.source_id) {
+            const id = book.source_id;
+            const vol = Math.floor(id / 100000);
+            const part = Math.floor(id / 1000);
+            // Формируем fallback URL с rst-basket-cdn
+            // geo_num вычисляем как (id % 16) для разнообразия
+            const geoNum = (id % 16) + 1;
+            fallbackUrl = `https://rst-basket-cdn-${geoNum}.geobasket.ru/vol${vol}/part${part}/${id}/images/big/1.webp`;
+        }
+
         return `
             <div class="book-card" data-book-id="${book.id}">
                 <div class="book-card__cover">
-                    ${book.image_url
-                        ? `<img src="${book.image_url}" alt="${book.title}">`
+                    ${imageUrl
+                        ? `<img src="${imageUrl}" alt="${book.title}" ${fallbackUrl ? `onerror="this.onerror=null; this.src='${fallbackUrl}'"` : ''}>`
                         : `<div class="book-card__cover-placeholder"><i class="fas fa-book"></i></div>`
                     }
                 </div>
