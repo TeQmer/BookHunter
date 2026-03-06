@@ -86,12 +86,15 @@ class Book(Base):
     
     def to_dict(self):
         """Преобразование в словарь для API"""
+        # Для WB скрываем author и binding в API (но храним в БД)
+        is_wildberries = self.source == "wildberries"
+        
         return {
             "id": self.id,
             "title": self.title,
-            "author": self.author,
+            "author": None if is_wildberries else self.author,
             "publisher": self.publisher,
-            "binding": self.binding,
+            "binding": None if is_wildberries else self.binding,
             "isbn": self.isbn,
             "current_price": float(self.current_price) if self.current_price else 0,
             "original_price": float(self.original_price) if self.original_price else 0,
