@@ -245,7 +245,9 @@ class WildberriesParser(BaseParser):
                                 if is_excluded or not is_book:
                                     continue
                                 
-                                book = self._parse_product(product, query)
+                                # Получаем детали для первых 3 книг на странице (чтобы не замедлять парсинг)
+                                fetch_details = len(page_books) < 3
+                                book = self._parse_product(product, query, fetch_details=fetch_details)
                                 if book:
                                     page_books.append(book)
                             
@@ -349,7 +351,7 @@ class WildberriesParser(BaseParser):
         
         return books
     
-    def _parse_product(self, product: dict, query: str) -> Optional[Book]:
+    def _parse_product(self, product: dict, query: str, fetch_details: bool = False) -> Optional[Book]:
         """Преобразование данных продукта в модель Book"""
         try:
             # ID книги в WB
@@ -493,6 +495,52 @@ class WildberriesParser(BaseParser):
             # Рейтинг
             rating = extended.get("rating", 0) if extended else 0
             
+            # Переплет - пока None
+            binding = None
+            
+            # Если запрошены детали - получаем их из card.json
+            if fetch_details:
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    card_info = loop.run_until_complete(self._get_card_info(source_id))
+                    if card_info:
+                        # Парсим grouped_options
+                        grouped_options = card_info.get("grouped_options", [])
+                        for group in grouped_options:
+                            options = group.get("options", [])
+                            for opt in options:
+                                name = opt.get("name", "").lower()
+                                value = opt.get("value", "")
+                                
+                                # Автор
+                                if "автор" in name:
+                                    if not author:
+                                        author = value
+                                # Переплет
+                                elif "переплет" in name or "обложка" in name:
+                                    binding = value
+                                # Издательство
+                                elif "издательство" in name:
+                                    if not publisher:
+                                        publisher = value
+                        
+                        # Также пробуем из options (другой формат)
+                        options = card_info.get("options", [])
+                        for opt in options:
+                            name = opt.get("name", "").lower()
+                            value = opt.get("value", "")
+                            
+                            if "автор" in name:
+                                if not author:
+                                    author = value
+                            elif "переплет" in name:
+                                if not binding:
+                                    binding = value
+                finally:
+                    loop.close()
+            
             # Создаем объект книги
             book = Book(
                 source="wildberries",
@@ -500,7 +548,7 @@ class WildberriesParser(BaseParser):
                 title=title,
                 author=author if author else None,
                 publisher=publisher,
-                binding=None,
+                binding=binding,
                 current_price=current_price,
                 original_price=original_price if original_price != current_price else None,
                 discount_percent=discount_percent,
@@ -510,7 +558,7 @@ class WildberriesParser(BaseParser):
                 isbn=None
             )
             
-            parser_logger.info(f"[Wildberries] Создана книга: {title[:30]}... image_url={image_url}")
+            parser_logger.info(f"[Wildberries] Создана книга: {title[:30]}... author={author}, binding={binding}")
             
             return book
             
