@@ -368,21 +368,40 @@ class WildberriesParser(BaseParser):
             # URL книги
             product_url = f"{self.base_url}/catalog/{source_id}/detail.aspx"
             
-            # Изображение
+            # Изображение - пробуем разные форматы
             image_url = None
             images = product.get("images", [])
             if images:
+                # Пробуем разные пути
                 img_path = images[0].get("path", "")
                 if img_path:
                     image_url = f"https:{img_path}"
+                # Пробуем thumb
+                if not image_url:
+                    thumb = images[0].get("thumb", "")
+                    if thumb:
+                        image_url = f"https:{thumb}"
+                # Пробуем big
+                if not image_url:
+                    big = images[0].get("big", "")
+                    if big:
+                        image_url = f"https:{big}"
             
-            # Бренд (часто = автор для книг)
-            author = product.get("brand", "")
+            # Если нет изображения - пробуем изменить ссылку по ID
+            if not image_url and source_id:
+                # WB хранит изображения по ID - пробуем разные форматы
+                image_url = f"https://images.wbstatic.net/catalogcanvas/{source_id}/main.jpg"
+                # Пробуем через wbststatic
+                if not image_url:
+                    image_url = f"https://wbtstatic.com/image/catalogcanvas/{source_id}/main.jpg"
+                # Ещё один формат
+                if not image_url:
+                    image_url = f"https://images.wbstatic.net/s/{source_id}_main.jpg"
             
             # Из extended_data получаем дополнительную инфу
             extended = product.get("extended", {})
             
-            # Издательство
+            # Издательство (из supplier)
             publisher = None
             if extended:
                 publisher = extended.get("supplier", "")
@@ -392,12 +411,47 @@ class WildberriesParser(BaseParser):
                     if seller:
                         publisher = seller.get("name", "")
             
-            # Жанры (категории)
+            # Автор - для WB это сложно, часто автор не указан отдельно
+            # Пробуем взять из названия (обычно формат "Название | Автор")
+            author = None
+            if "|" in title:
+                parts = title.split("|")
+                if len(parts) > 1:
+                    potential_author = parts[-1].strip()
+                    # Если не слишком длинное - скорее всего автор
+                    if len(potential_author) < 50:
+                        author = potential_author
+            
+            # Если не нашли автора в названии - оставляем None (не издательство!)
+            if not author:
+                # Для WB author часто = publisher/brand, лучше оставить пустым
+                author = None
+            
+            # Жанры (категории) - пробуем разные источники
             genres = None
+            
+            # 1. Из categories
             if extended:
                 categories = extended.get("categories", [])
                 if categories:
-                    genres = ", ".join([c.get("name", "") for c in categories if c.get("name")])
+                    cat_names = [c.get("name", "") for c in categories if c.get("name")]
+                    if cat_names:
+                        genres = ", ".join(cat_names)
+            
+            # 2. Если нет категорий - пробуем извлечь из названия
+            if not genres:
+                # Часто название содержит жанр: "Книга. Детектив" или "Роман. Фэнтези"
+                title_lower = title.lower()
+                genre_keywords = [
+                    "детектив", "роман", "фэнтези", "фантастика", "приключения",
+                    "история", "биография", "научная", "учебник", "самоучитель",
+                    "поэзия", "проза", "сказка", "детск", "молодёжн",
+                    "триллер", "ужасы", "комедия", "драма", "боевик",
+                    "психолог", "философ", "эзотерик", "религи", "справочник"
+                ]
+                found_genres = [g for g in genre_keywords if g in title_lower]
+                if found_genres:
+                    genres = ", ".join(found_genres)
             
             # Рейтинг
             rating = extended.get("rating", 0) if extended else 0
