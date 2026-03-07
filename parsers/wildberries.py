@@ -25,10 +25,9 @@ class WildberriesParser(BaseParser):
         # Мобильный API endpoints
         self.mobile_search_url = "https://m.wildberries.ru/api/v1/search"
         
-        # Пул мобильных прокси
+        # Пул прокси с авто-ротацией (IP меняется каждые 2 минуты)
         self.proxies = [
-            "http://ykUV2B:SAaAg6Ah4Eb8@mproxy.site:13602",
-            "http://yMKAw7:yr3yt8aryC7G@fproxy.site:14388",
+            "http://0OiybL3yNo:UkGuuMgRmD@91.221.70.204:10225",
         ]
         self._current_proxy_index = 0
         
@@ -39,14 +38,19 @@ class WildberriesParser(BaseParser):
         # Использовать прокси или нет
         self._use_proxy = True
     
+        # Время последней смены прокси (для авто-ротации каждые 2 минуты)
+        self._last_proxy_change = time.time()
+        self._proxy_rotation_interval = 120  # 2 минуты
+    
     @property
     def proxy(self) -> str:
         return self.proxies[self._current_proxy_index]
     
     def _rotate_proxy(self):
-        """Ротирует прокси при бане"""
-        self._current_proxy_index = (self._current_proxy_index + 1) % len(self.proxies)
-        parser_logger.info(f"[Wildberries] Сменили прокси на: {self.proxy}")
+        """Ротирует прокси (прокси сам меняет IP каждые 2 минуты)"""
+        # Сбрасываем таймер ротации
+        self._last_proxy_change = time.time()
+        parser_logger.info(f"[Wildberries] Прокси ротирован (авто-смена каждые 2 мин)")
         
         # Счетчик попыток
         self._request_attempts = 0
@@ -67,6 +71,14 @@ class WildberriesParser(BaseParser):
     
         # Попробуем найти правильный shard
         self._init_shard()
+    
+    def _check_proxy_rotation(self):
+        """Проверяет, нужно ли ротировать прокси по времени (каждые 2 минуты)"""
+        current_time = time.time()
+        if current_time - self._last_proxy_change > self._proxy_rotation_interval:
+            self._rotate_proxy()
+            return True
+        return False
     
     def _get_headers(self) -> Dict[str, str]:
         """Простой заголовок как в рабочем парсере"""
@@ -182,6 +194,9 @@ class WildberriesParser(BaseParser):
             
                     headers = self._get_headers()
                     
+                    # Проверяем необходимость ротации прокси (каждые 2 минуты)
+                    self._check_proxy_rotation()
+                    
                     # Задержка перед запросом
                     await asyncio.sleep(random.uniform(1, 2))
                     
@@ -250,10 +265,10 @@ class WildberriesParser(BaseParser):
                                     page_books.append(book)
                             
                         elif r.status_code == 429:
-                            # Пробуем ротировать прокси
-                            if self._use_proxy and len(self.proxies) > 1:
+                            # Ротируем прокси (сброс таймера для авто-ротации)
+                            if self._use_proxy:
                                 self._rotate_proxy()
-                                parser_logger.warning(f"[Wildberries] 429, меняем прокси")
+                                parser_logger.warning(f"[Wildberries] 429, ротируем прокси")
                                 await asyncio.sleep(3)
                                 continue
                             wait_time = random.randint(30, 60)
@@ -263,13 +278,16 @@ class WildberriesParser(BaseParser):
                         
                         elif r.status_code == 403:
                             parser_logger.warning("[Wildberries] 403 Forbidden")
+                            # Ротируем прокси при 403
+                            if self._use_proxy:
+                                self._rotate_proxy()
                             break
                         
                         elif r.status_code == 404:
                             # Ротируем прокси
-                            if self._use_proxy and len(self.proxies) > 1:
+                            if self._use_proxy:
                                 self._rotate_proxy()
-                                parser_logger.warning(f"[Wildberries] 404, меняем прокси")
+                                parser_logger.warning(f"[Wildberries] 404, ротируем прокси")
                                 continue
                             # Пробуем следующий shard
                             self._current_shard = (self._current_shard + 1) % len(self._shards)
@@ -284,11 +302,11 @@ class WildberriesParser(BaseParser):
                         # Проверяем, что ошибка связана с прокси
                         error_str = str(e).lower()
                         if "proxy" in error_str or "connection" in error_str:
-                            if self._use_proxy and len(self.proxies) > 1:
+                            if self._use_proxy:
                                 self._rotate_proxy()
-                                parser_logger.warning(f"[Wildberries] Ошибка прокси, меняем")
+                                parser_logger.warning(f"[Wildberries] Ошибка прокси, ротируем")
                                 continue
-                            # Все прокси не работают - пробуем без прокси
+                            # Прокси недоступны - пробуем без прокси
                             if self._use_proxy:
                                 self._use_proxy = False
                                 parser_logger.warning(f"[Wildberries] Прокси недоступны, пробуем без прокси")
@@ -465,7 +483,7 @@ class WildberriesParser(BaseParser):
                 author = None
             
             # Жанры (категории) - пробуем разные источники
-            genres = None
+            genres_list = None
             
             # 1. Из categories
             if extended:
@@ -473,10 +491,10 @@ class WildberriesParser(BaseParser):
                 if categories:
                     cat_names = [c.get("name", "") for c in categories if c.get("name")]
                     if cat_names:
-                        genres = ", ".join(cat_names)
+                        genres_list = cat_names
             
             # 2. Если нет категорий - пробуем извлечь из названия
-            if not genres:
+            if not genres_list:
                 # Часто название содержит жанр: "Книга. Детектив" или "Роман. Фэнтези"
                 title_lower = title.lower()
                 genre_keywords = [
@@ -488,7 +506,7 @@ class WildberriesParser(BaseParser):
                 ]
                 found_genres = [g for g in genre_keywords if g in title_lower]
                 if found_genres:
-                    genres = ", ".join(found_genres)
+                    genres_list = found_genres
             
             # Рейтинг
             rating = extended.get("rating", 0) if extended else 0
@@ -506,7 +524,7 @@ class WildberriesParser(BaseParser):
                 discount_percent=discount_percent,
                 url=product_url,
                 image_url=image_url,
-                genres=genres,
+                genres=genres_list,
                 isbn=None
             )
             
@@ -541,6 +559,9 @@ class WildberriesParser(BaseParser):
             detail_url = f"https://search.wb.ru/exactmatch/ru/common/v4/product/{product_id}"
             
             headers = self._get_headers()
+            
+            # Проверяем необходимость ротации прокси
+            self._check_proxy_rotation()
             
             await self._random_delay()
             
@@ -594,6 +615,9 @@ class WildberriesParser(BaseParser):
             }
             
             headers = self._get_headers()
+            
+            # Проверяем необходимость ротации прокси
+            self._check_proxy_rotation()
             
             await self._random_delay()
             
